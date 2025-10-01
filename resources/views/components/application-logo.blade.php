@@ -1,0 +1,1 @@
+<img src="{{asset('images/uwezo_fund_logo.jpeg')}}" alt="logo">
