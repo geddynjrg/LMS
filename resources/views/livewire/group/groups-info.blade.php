@@ -86,55 +86,65 @@
 
         <div class="card">
             <div class="card-header">
-              <h3 class="card-title">Groups information data</h3>
+                <h3 class="card-title">Groups Information Data</h3>
+                <div class="card-tools">
+                    <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                </div>
             </div>
-            <!-- /.card-header -->
-
             <div class="card-body">
-                <div wire:ignore class="card-body">
-                    <table id="example1" class="table table-bordered table-striped">
-                       <thead class="bg-gradient-cyan">
+                <!-- MOBILE-FRIENDLY DATATABLE -->
+                <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <table id="groupsTable" class="table table-bordered" style="min-width: 800px;">
+                        <thead class="table-dark">
                             <tr>
-                                <th>S/No.</th>
-                                <th>Group</th>
-                                <th>GFS Code</th>
-                                <th>Ward</th>
-                                <th>Identifier</th>
-                                <th>Category</th>
-                                <th>Activity</th>
-                                <th>Action</th>
+                                <th width="5%">#</th>
+                                <th width="20%">Group Name</th>
+                                <th width="10%">GFS Code</th>
+                                <th width="15%">Ward</th>
+                                <th width="10%">Category</th>
+                                <th width="15%">Activity</th>
+                                <th width="10%">Identifier</th>
+                                <th width="10%">Actions</th>
+                            </tr>
+                            <tr class="filters bg-light">
+                                <th></th> <!-- No filter for serial number -->
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Group" /></th>
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Search GFS" /></th>
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Ward" /></th>
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Category" /></th>
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Activity" /></th>
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Identifier" /></th>
+                                <th></th> <!-- No filter for actions -->
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach($groups as $group)
-                                <tr>
-                                    <td>{{ $group->code }}</td>
-                                    <td class="col-3 text-capitalize">{{ strtolower($group->name) }}</td>
-                                    <td class="col-3">{{ $group->gfs_code }}</td>
-                                    <td class="text-capitalize">{{ strtolower($group->ward->ward_name) }}</td>
-                                    <td>{{ $group->identifier }}</td>
-                                    <td>{{ $group->category }}</td>
-                                    <td>{{ $group->activity }}</td>
-                                    <td><a class="text-bold bg-fuchsia p-2 rounded-lg" href="{{route('const.groups.group', [
-                                    'county' => $county->slug,
-                                    'constituency' => $constituency->slug,
-                                    'group' => $group->slug
-                                    ])}}">View</a></td>
-                                </tr>
+                            @foreach($groups as $index => $group)
+                            <tr>
+                                <td>{{ $loop->iteration }}</td>
+                                <td class="text-capitalize">{{ $group->name }}</td>
+                                <td>{{ $group->gfs_code ?? '-' }}</td>
+                                <td class="text-capitalize">{{ $group->ward->ward_name }}</td>
+                                <td>
+                                    <span class="badge badge-{{ $group->category == 'Youth' ? 'success' : ($group->category == 'Women' ? 'warning' : 'danger') }}">
+                                        {{ $group->category }}
+                                    </span>
+                                </td>
+                                <td>{{ $group->activity }}</td>
+                                <td>{{ $group->identifier ?? '-' }}</td>
+                                <td>
+                                    <a href="{{ route('const.groups.group', [
+                                        'county' => $county->slug,
+                                        'constituency' => $constituency->slug,
+                                        'group' => $group->slug
+                                    ]) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
                             @endforeach
                         </tbody>
-                        <tfoot>
-                            <tr>
-                                <th>S/No.</th>
-                                <th>Group</th>
-                                <th>GFS Code</th>
-                                <th>Ward</th>
-                                <th>Identifier</th>
-                                <th>Category</th>
-                                <th>Activity</th>
-                                <th>Action</th>
-                            </tr>
-                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -142,97 +152,242 @@
     </div>
 </section>
 
+@push('styles')
+<style>
+    /* Remove hover effects */
+    .table-hover tbody tr:hover {
+        background-color: transparent !important;
+    }
 
+    /* Add padding to table cells */
+    .table td, .table th {
+        padding: 12px 8px !important;
+        vertical-align: middle;
+    }
+
+    /* Better badge styling */
+    .badge {
+        font-size: 0.85em;
+        padding: 6px 10px;
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .table-responsive {
+            border: 1px solid #dee2e6;
+            -webkit-overflow-scrolling: touch;
+        }
+        #groupsTable {
+            min-width: 800px; /* Force horizontal scroll on mobile */
+        }
+        .dataTables_wrapper .dataTables_filter input {
+            width: 100% !important;
+            margin-bottom: 10px;
+        }
+        .dataTables_wrapper .dataTables_length select {
+            width: 100% !important;
+            margin-bottom: 10px;
+        }
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        .btn-group .btn {
+            flex: 1;
+            min-width: 80px;
+            font-size: 0.8rem;
+        }
+        .dataTables_wrapper .dataTables_info {
+            padding-left: 10px;
+        }
+        .dataTables_wrapper .dataTables_paginate {
+            padding-right: 10px;
+        }
+
+        /* Adjust padding for mobile */
+        .table td, .table th {
+            padding: 8px 6px !important;
+        }
+    }
+
+    /* Better table styling */
+    .table th {
+        border-top: none;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .table td {
+        white-space: nowrap;
+    }
+
+    .filters input {
+        font-size: 0.8rem;
+    }
+
+    /* Ensure table headers don't overlap on mobile */
+    .table-responsive::-webkit-scrollbar {
+        -webkit-appearance: none;
+        height: 8px;
+    }
+
+    .table-responsive::-webkit-scrollbar-thumb {
+        border-radius: 4px;
+        background-color: rgba(0,0,0,.5);
+    }
+</style>
+@endpush
 
 @push('scripts')
-    <script src="{{asset('plugins/jszip/jszip.min.js')}}"></script>
-    <script src="{{asset('plugins/pdfmake/pdfmake.min.js')}}"></script>
-    <script src="{{asset('plugins/pdfmake/vfs_fonts.js')}}"></script>
-    <script src="{{asset('plugins/datatables-buttons/js/buttons.html5.min.js')}}"></script>
-    <script src="{{asset('plugins/datatables-buttons/js/buttons.print.min.js')}}"></script>
+<script src="{{ asset('plugins/datatables-buttons/js/buttons.html5.min.js') }}"></script>
+<script src="{{ asset('plugins/datatables-buttons/js/buttons.print.min.js') }}"></script>
+<script src="{{ asset('plugins/jszip/jszip.min.js') }}"></script>
+<script src="{{ asset('plugins/pdfmake/pdfmake.min.js') }}"></script>
+<script src="{{ asset('plugins/pdfmake/vfs_fonts.js') }}"></script>
 
-    <script>
-        var text = ' Constituency Members Information Summary';
 
-        /*$(function () {
-            $("#example1").DataTable({
-                "responsive": true,
-                "lengthChane": false,
-                "autoWidth": true,
-                "buttons": ["copy", "csv", "excel", "pdf", "print"],
-            }).buttons().container().appendTo("#example1_wrapper .col-md-6:eq(0)");
-        })*/
-        $(function () {
-            var text = @this.constituency +' Constituency Groups Information Summary';
-            const table = new DataTable('#example1', {
-                responsive: true,
-                lengthChange: true,
-                autoWidth: false,
-                buttons: [
-                        {
-                            extend: 'print',
-                            title: text,
-                            text: 'Print',
-                            exportOptions: {
-                                columns: [':not(:last-child)']
-                            },
-                            footer: true
-                        },
-                        {
-                            extend: 'csv',
-                            title: text,
-                            text: 'CSV',
-                            exportOptions: {
-                                columns: [':not(:last-child)']
-                            },
-                            footer: true
-                        },
-                        {
-                            extend: 'pdf',
-                            title: text,
-                            text: 'Pdf',
-                            exportOptions: {
-                                columns: [':not(:last-child)']
-                            },
-                            footer: true
-                        },
-                        {
-                            extend: 'excelHtml5',
-                            title: text,
-                            text: 'Excel',
-                            exportOptions: {
-                                columns: [':not(:last-child)']
-                            },
-                            footer: true
-                        },
 
-                    ],
-                columnDefs: [
-                    {
-                        searchable: false,
-                        orderable: false,
-                        targets: 0
+<script>
+    $(document).ready(function() {
+        // Initialize DataTable
+        var table = $('#groupsTable').DataTable({
+            "responsive": false,
+            "lengthChange": true,
+            "autoWidth": false,
+            "pageLength": 10,
+            "pagingType": "simple_numbers",
+            "ordering": false,
+            "language": {
+                "search": "Global Search:",
+                "lengthMenu": "Show _MENU_ groups",
+                "zeroRecords": "No groups found",
+                "info": "Showing _START_ to _END_ of _TOTAL_ groups",
+                "infoEmpty": "No groups available",
+                "infoFiltered": "(filtered from _MAX_ total groups)",
+                "paginate": {
+                    "first": "First",
+                    "last": "Last",
+                    "next": "Next",
+                    "previous": "Previous"
+                }
+            },
+            "dom": '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4"B><"col-sm-12 col-md-4"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+            "buttons": [
+                {
+                    extend: 'excel',
+                    text: '<i class="fas fa-file-excel"></i> Excel',
+                    title: 'Groups Information - {{ $constituency->constituency_name }}',
+                    className: 'btn-success btn-sm',
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4, 5, 6]
                     }
-                ],
-
-                processing: true,
-            });
-
-            /*table.on('order.dt search.dt', function () {
-                    let i = 1;
-
-                    table
-                        .cells(null, 0, { search: 'applied', order: 'applied' })
-                        .every(function (cell) {
-                            this.data(i++);
+                },
+                {
+                    extend: 'pdf',
+                    text: '<i class="fas fa-file-pdf"></i> PDF',
+                    title: 'Groups Information - {{ $constituency->constituency_name }}',
+                    className: 'btn-danger btn-sm',
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4, 5, 6]
+                    },
+                    customize: function (doc) {
+                        doc.content[1].table.widths = ['5%', '20%', '10%', '15%', '10%', '15%', '10%'];
+                        doc.styles.tableHeader = {
+                            bold: true,
+                            fontSize: 10,
+                            color: 'white',
+                            fillColor: '#343a40',
+                            alignment: 'center'
+                        };
+                    }
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="fas fa-print"></i> Print',
+                    title: '<h3>Groups Information - {{ $constituency->constituency_name }}</h3>',
+                    className: 'btn-info btn-sm',
+                    exportOptions: {
+                        columns: [0, 1, 2, 3, 4, 5, 6]
+                    },
+                    customize: function (win) {
+                        $(win.document.body).find('table').addClass('table-bordered').css('font-size', '10px');
+                        $(win.document.body).find('h1').css('text-align','center');
+                        $(win.document.body).find('tr.filters').remove();
+                        $(win.document.body).find('thead tr:first th').css({
+                            'background-color': '#343a40',
+                            'color': 'white',
+                            'font-weight': 'bold'
                         });
-                });*/
+                    }
+                }
+            ],
+            "columnDefs": [
+                {
+                    "targets": 0,
+                    "orderable": false,
+                    "searchable": false
+                },
+                {
+                    "targets": -1,
+                    "orderable": false,
+                    "searchable": false
+                }
+            ],
+            "initComplete": function () {
+                // Apply individual column filtering
+                this.api().columns().every(function () {
+                    var column = this;
 
-            table.draw();
+                    // Skip first and last columns
+                    if (column.index() === 0 || column.index() === 7) {
+                        return;
+                    }
 
-            var buttonContainer = table.buttons().container();
-            $('#example1_wrapper .col-md-6:eq(0)').append(buttonContainer);
+                    // Create input for filtering
+                    $('input', $('.filters th').eq(column.index()))
+                        .on('keyup change clear', function () {
+                            if (column.search() !== this.value) {
+                                column.search(this.value).draw();
+                            }
+                        });
+                });
+
+                // Initialize sequential numbering - SAFE VERSION
+                updateRowNumbers();
+            }
         });
 
-    </script>
+        // Update row numbers when table is filtered/paged - SAFE VERSION
+        table.on('search.dt page.dt draw.dt', function () {
+            updateRowNumbers();
+        });
+
+        function updateRowNumbers() {
+            // Check if table and column exist before accessing
+            if (table && table.column) {
+                try {
+                    table.column(0, { search: 'applied' }).nodes().each(function (cell, i) {
+                        if (cell) {
+                            cell.innerHTML = i + 1;
+                        }
+                    });
+                } catch (error) {
+                    console.log('Error updating row numbers:', error);
+                }
+            }
+        }
+
+        // Add buttons container with mobile-friendly layout
+        table.buttons().container()
+            .addClass('btn-group btn-group-sm')
+            .appendTo('#groupsTable_wrapper .col-md-4:eq(1)');
+
+        // Mobile-specific adjustments
+        if ($(window).width() < 768) {
+            $('.dataTables_length, .dataTables_filter').addClass('mb-2');
+        }
+    });
+</script>
 @endpush

@@ -28,7 +28,7 @@ class Constituency extends Model
         return $this->hasMany(Wards::class, 'constituency_code', 'constituency_code');
     }
 
-     public function county(): BelongsTo
+    public function county(): BelongsTo
     {
         return $this->belongsTo(County::class, 'county_code', 'county_code');
     }
@@ -50,10 +50,24 @@ class Constituency extends Model
         return $this->hasManyThrough(
             Group::class,
             Wards::class,
-            'constituency_code', // Foreign key on Wards
-            'ward_id',           // Foreign key on Groups
-            'constituency_code', // Local key on Constituency
-            'id'                 // Local key on Wards
+            'constituency_code',
+            'ward_id',
+            'constituency_code',
+            'id'
         );
+    }
+
+    // Fixed: Specify the table for columns to avoid ambiguity
+    public function financedLoans()
+    {
+        return $this->hasManyThrough(
+            GroupLoan::class,
+            LoanPhase::class,
+            'constituency_code', // Foreign key on loan_phases
+            'loan_phase_id',     // Foreign key on group_loans
+            'constituency_code', // Local key on constituencies
+            'id'                 // Local key on loan_phases
+        )->where('group_loans.loan_status', 'financed')
+         ->select('group_loans.*'); // Explicitly select from group_loans
     }
 }

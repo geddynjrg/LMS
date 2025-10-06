@@ -39,4 +39,12 @@ class Member extends Model
         return $this->hasMany(GroupMember::class, 'member_Id', 'member_Id');
     }
 
+    // Scope for members in a specific constituency
+    public function scopeInConstituency($query, $constituencyCode)
+    {
+        return $query->whereHas('groupMembers.groupLoan.loanPhase',
+            fn($q) => $q->where('constituency_code', $constituencyCode)
+        );
+    }
+
 }
