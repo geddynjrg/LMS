@@ -1,33 +1,5 @@
 <section class="content">
     <div class="container-fluid">
-        <!-- Cache Status Indicator -->
-        <div class="row mb-2">
-            <div class="col-12">
-                <div class="callout callout-{{ $cacheHit ? 'success' : 'warning' }} py-2">
-                    <div class="row align-items-center">
-                        <div class="col-md-8">
-                            <small class="text-muted">
-                                <i class="fas fa-{{ $cacheHit ? 'bolt' : 'database' }} mr-1"></i>
-                                Data {{ $cacheHit ? 'served from cache' : 'loaded fresh from database' }}
-                                @if($lastUpdated)
-                                    | Last updated: {{ $lastUpdated }}
-                                @endif
-                            </small>
-                        </div>
-                        <div class="col-md-4 text-right">
-                            <button wire:click="refreshMembers"
-                                    wire:loading.attr="disabled"
-                                    class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-sync-alt" wire:loading.class="fa-spin"></i>
-                                <span wire:loading.remove>Refresh Data</span>
-                                <span wire:loading>Refreshing...</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <h5 class="mt-4 mb-2">Group Members Summary</h5>
         <div class="row">
             <div class="col-md-3 col-sm-6 col-12">
