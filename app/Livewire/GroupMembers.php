@@ -9,6 +9,7 @@ use App\Models\Member;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\View\View;
+use Livewire\Attributes\On;
 
 class GroupMembers extends Component
 {
@@ -285,6 +286,7 @@ class GroupMembers extends Component
     //     usleep(500000); // 500ms delay
     //     $this->loading = false;
     // }
+    #[On('refresh-members')]
     public function refreshMembers()
     {
         $this->loading = true;

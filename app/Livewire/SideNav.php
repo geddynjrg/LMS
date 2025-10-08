@@ -73,6 +73,7 @@ class SideNav extends Component
         $route = match ($this->routeName) {
             'const.groups.index'  => ['const.groups.index',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.groups.members'  => ['const.groups.members',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.groups.multi-group-members'  => ['const.groups.multi-group-members',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.loans.phases'  => ['const.loans.phases',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.loans.application'  => ['const.loans.application',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.loans.applicants'  => ['const.loans.applicants',  ['county' => $countySlug, 'constituency' => $constituencySlug]],

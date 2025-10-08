@@ -5,7 +5,7 @@ namespace App\Livewire;
 use Livewire\Component;
 use App\Models\Member;
 use App\Models\GroupMember;
-use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\On;
 
 class ViewGroupMember extends Component
 {
@@ -22,19 +22,17 @@ class ViewGroupMember extends Component
     public $gender;
     public $disabled = false;
 
-    protected $listeners = [
-        'loadMemberData',
-        'memberModalClosed' => 'resetComponent'
-    ];
-
-    public function mount()
+    #[On('loadMemberData')]
+    public function loadMemberData($memberId = null) // Make parameter optional with default value
     {
-        \Log::info('ViewGroupMember component mounted');
-    }
 
-    public function loadMemberData($data)
-    {
+        $data = $memberId ?? null; // Use null if no data provided
         \Log::info('loadMemberData received:', ['data' => $data]);
+
+        if (!$data) {
+            \Log::warning('loadMemberData called with no data');
+            return;
+        }
 
         if (is_array($data) && isset($data['memberId'])) {
             $this->memberId = $data['memberId'];
@@ -42,10 +40,17 @@ class ViewGroupMember extends Component
             $this->memberId = $data;
         }
 
-        \Log::info('Processing member ID:', ['memberId' => $this->memberId]);
-
-        $this->loading = true;
+        // Call loadMember after setting the memberId
         $this->loadMember();
+    }
+
+    #[On('memberModalClosed')]
+    public function resetComponent()
+    {
+        \Log::info('Resetting component');
+        $this->resetExcept(['memberId']);
+        $this->loading = true;
+        $this->activeTab = 'edit';
     }
 
     public function loadMember()
@@ -71,21 +76,33 @@ class ViewGroupMember extends Component
             $this->gender = $this->member->gender;
             $this->disabled = (bool)$this->member->disabled;
 
-            // Load member groups - adjust based on your actual relationships
+            // Load member groups with proper relationships
             $this->groups = GroupMember::where('member_Id', $this->memberId)
+                ->with([
+                    'groupLoan.group',
+                    'groupLoan.loanPhase.constituency'
+                ])
                 ->get()
                 ->map(function($groupMember) {
+                    $groupLoan = $groupMember->groupLoan;
+                    $group = $groupLoan->group ?? null;
+                    $loanPhase = $groupLoan->loanPhase ?? null;
+                    $constituency = $loanPhase->constituency ?? null;
+
                     return [
-                        'group_name' => $groupMember->group_name ?? 'N/A',
-                        'constituency' => $groupMember->constituency ?? 'N/A',
-                        'position' => $groupMember->position ?? 'N/A',
-                        'loan_phase' => $groupMember->loan_phase ?? 'N/A',
-                        'amount_issued' => $groupMember->amount_issued ?? 0,
-                        'balance' => $groupMember->balance ?? 0,
+                        'group_name' => $group->name ?? 'N/A',
+                        'constituency' => $constituency->constituency_name ?? 'N/A',
+                        'position' => $groupMember->role ?? 'N/A',
+                        'loan_phase' => $loanPhase->phase ?? 'N/A',
+                        'amount_issued' => $groupLoan->amount_issued ?? 0,
+                        'balance' => ($groupLoan->amount_issued ?? 0) - ($groupLoan->amount_repaid ?? 0),
                     ];
                 });
 
-            \Log::info('Groups loaded:', ['count' => count($this->groups)]);
+            \Log::info('Groups loaded:', [
+                'count' => count($this->groups),
+                'sample' => $this->groups->first() // Log first group for debugging
+            ]);
 
             $this->loading = false;
 
@@ -96,14 +113,6 @@ class ViewGroupMember extends Component
             ]);
             $this->loading = false;
         }
-    }
-
-    public function resetComponent()
-    {
-        \Log::info('Resetting component');
-        $this->resetExcept(['memberId']);
-        $this->loading = true;
-        $this->activeTab = 'edit';
     }
 
     public function switchTab($tab)
@@ -140,8 +149,8 @@ class ViewGroupMember extends Component
     public function deleteMember()
     {
         try {
-            GroupMember::where('member_Id', $this->memberId)->delete();
-            $this->member->delete();
+            //GroupMember::where('member_Id', $this->memberId)->delete();
+            //$this->member->delete();
             $this->dispatch('groupMemberEdited', message: 'deleted');
         } catch (\Exception $e) {
             $this->dispatch('groupMemberEdited', message: 'error');

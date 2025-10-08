@@ -70,6 +70,7 @@ Route::middleware(['auth'])->group(function () {
             Route::prefix('groups')->name('groups.')->group(function () {
                 Route::get('/', [GroupsController::class, 'groupsInfo'])->name('index');
                 Route::get('/members', [GroupsController::class, 'groupmembers'])->name('members');
+                Route::get('/multi-group-members', [GroupsController::class, 'multiGroupMembers'])->name('multi-group-members');
                 Route::get('/{group}', [GroupsController::class, 'groupInfo'])->name('group');
             });
             Route::prefix('loans')->name('loans.')->group(function () {

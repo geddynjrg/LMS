@@ -32,4 +32,12 @@ class GroupsController extends Controller
             'county' => $county,
         ]);
     }
+
+    public function multiGroupMembers(Request $request, County $county, Constituency $constituency)
+    {
+        return view ('group.view-multi-group-members', [
+            'constituency' => $constituency,
+            'county' => $county,
+        ]);
+    }
 }

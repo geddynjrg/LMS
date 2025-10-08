@@ -120,7 +120,7 @@
                 @else
                 <!-- MOBILE-FRIENDLY DATATABLE -->
                 <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-                    <table id="membersTable" class="table table-bordered" style="min-width: 800px;">
+                    <table id="membersTable" class="table table-bordered" style="min-width: 800px; display: none;"> <!-- Add display: none -->
                         <thead class="table-primary">
                             <tr>
                                 <th width="5%">#</th>
@@ -209,6 +209,12 @@
                             @endif
                         </tbody>
                     </table>
+
+                    <!-- Loading placeholder that shows until DataTable is ready -->
+                    <div id="table-loading-placeholder" class="text-center py-5">
+                        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+                        <div class="mt-3 text-muted">Loading members data...</div>
+                    </div>
                 </div>
                 @endif
             </div>
@@ -251,6 +257,16 @@
     .badge {
         font-size: 0.85em;
         padding: 6px 10px;
+    }
+    /* Loading placeholder styling */
+    #table-loading-placeholder {
+        min-height: 200px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #f8f9fa;
+        border-radius: 0.25rem;
     }
 
     /* Mobile responsiveness */
@@ -375,465 +391,6 @@
 <script src="{{ asset('plugins/pdfmake/vfs_fonts.js') }}"></script>
 <script src="{{asset('plugins/toastr/toastr.min.js')}}"></script>
 <script>
-// DataTable Manager - Optimized with Card Loading and Fixed Filters
-// class DataTableManager {
-//     constructor() {
-//         this.table = null;
-//         this.initToastr();
-//     }
-
-//     initToastr() {
-//         if (typeof toastr !== 'undefined') {
-//             toastr.options = {
-//                 "closeButton": true,
-//                 "progressBar": true,
-//                 "positionClass": "toast-top-right",
-//                 "timeOut": "5000",
-//                 "extendedTimeOut": "1000"
-//             };
-//         }
-//     }
-
-//     showNotification(message, type = 'success') {
-//         if (typeof toastr !== 'undefined') {
-//             toastr[type](message);
-//         }
-//         console.log(`${type.toUpperCase()}: ${message}`);
-//     }
-
-//     showLoading() {
-//         const $card = $('.card:has(#membersTable)');
-//         if ($card.length === 0) return;
-
-//         // Remove existing overlay
-//         this.hideLoading();
-
-//         // Create loading overlay specific to the card
-//         $card.css('position', 'relative').append(`
-//             <div id="datatable-loading-overlay" style="
-//                 position: absolute;
-//                 top: 0;
-//                 left: 0;
-//                 width: 100%;
-//                 height: 100%;
-//                 background: rgba(255,255,255,0.9);
-//                 z-index: 999;
-//                 display: flex;
-//                 align-items: center;
-//                 justify-content: center;
-//                 border-radius: 0.25rem;
-//             ">
-//                 <div class="text-center">
-//                     <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
-//                     <div class="mt-2 text-muted">Loading members data...</div>
-//                 </div>
-//             </div>
-//         `);
-
-//         // Disable interaction with the card content
-//         $card.find('.card-body').css('pointer-events', 'none');
-//     }
-
-//     hideLoading() {
-//         const $card = $('.card:has(#membersTable)');
-//         $('#datatable-loading-overlay').fadeOut(300, function() {
-//             $(this).remove();
-//         });
-
-//         // Re-enable interaction
-//         $card.find('.card-body').css('pointer-events', 'auto');
-//     }
-
-//     destroyDataTable() {
-//         if (!this.table) return;
-
-//         try {
-//             if ($.fn.DataTable.isDataTable('#membersTable')) {
-//                 this.table.clear().destroy(true);
-//             }
-//         } catch (e) {
-//             console.warn('Error destroying DataTable:', e);
-//         } finally {
-//             // Cleanup DOM but preserve filter inputs
-//             $('#membersTable').removeClass('dataTable no-footer')
-//                              .removeAttr('style')
-//                              .css('width', '')
-//                              .unwrap();
-//             $('.dataTables_wrapper').remove();
-//             this.table = null;
-//         }
-//     }
-
-//     restoreTableStructure() {
-//         const $table = $('#membersTable');
-
-//         if (!$table.parent().hasClass('table-responsive')) {
-//             $table.wrap('<div class="table-responsive" style="overflow-x: auto;"></div>');
-//         }
-
-//         $table.attr('id', 'membersTable')
-//               .removeClass('dataTable')
-//               .addClass('table table-bordered')
-//               .css('min-width', '800px');
-//     }
-
-//     setupColumnFilters() {
-//         if (!this.table) {
-//             console.warn('Cannot setup filters: DataTable not initialized');
-//             return;
-//         }
-
-//         console.log('🔧 Setting up column filters...');
-
-//         // Clear any existing event handlers first
-//         $('tfoot .filters input, tfoot .filters select').off('keyup change');
-
-//         // Apply the search for each column
-//         this.table.columns().every((index) => {
-//             const column = this.table.column(index);
-
-//             // Skip first and last columns (serial number and actions)
-//             if (index === 0 || index === 6) return;
-
-//             const filterInput = $('tfoot .filters th').eq(index).find('input, select');
-
-//             if (filterInput.length === 0) {
-//                 console.warn(`No filter input found for column ${index}`);
-//                 return;
-//             }
-
-//             // Set initial value from column search
-//             const currentSearch = column.search();
-//             if (currentSearch) {
-//                 filterInput.val(currentSearch);
-//             }
-
-//             // Add event handlers
-//             filterInput.on('keyup change', function () {
-//                 const value = $(this).val();
-
-//                 // For select elements, search exact match
-//                 if ($(this).is('select')) {
-//                     column.search(value).draw();
-//                 } else {
-//                     // For input elements, search contains
-//                     column.search(value).draw();
-//                 }
-
-//                 console.log(`Filtering column ${index}:`, value);
-//             });
-
-//             console.log(`✅ Filter setup for column ${index}:`, filterInput.attr('placeholder') || filterInput.prop('tagName'));
-//         });
-//     }
-
-//     clearColumnFilters() {
-//         console.log('🧹 Clearing all column filters...');
-
-//         // Clear all filter inputs
-//         $('tfoot .filters input').val('');
-//         $('tfoot .filters select').val('');
-
-//         // Clear DataTable searches if table exists
-//         if (this.table) {
-//             this.table.columns().search('').draw();
-//         }
-//     }
-
-//     initializeDataTable() {
-//         console.log('🔄 Initializing DataTable...');
-
-//         // Show loading spinner on card only
-//         this.showLoading();
-
-//         // Destroy existing instance
-//         this.destroyDataTable();
-
-//         // Restore table structure
-//         this.restoreTableStructure();
-
-//         // Initialize with delay to ensure DOM is ready
-//         setTimeout(() => {
-//             try {
-//                 this.table = $('#membersTable').DataTable({
-//                     "responsive": false,
-//                     "lengthChange": true,
-//                     "autoWidth": false,
-//                     "pageLength": 10,
-//                     "pagingType": "simple_numbers",
-//                     "ordering": false,
-//                     "destroy": true,
-//                     "retrieve": true,
-//                     "language": {
-//                         "search": "Global Search:",
-//                         "lengthMenu": "Show _MENU_ members",
-//                         "zeroRecords": "No members found",
-//                         "info": "Showing _START_ to _END_ of _TOTAL_ members",
-//                         "infoEmpty": "No members available",
-//                         "infoFiltered": "(filtered from _MAX_ total members)",
-//                         "paginate": {
-//                             "first": "First",
-//                             "last": "Last",
-//                             "next": "Next",
-//                             "previous": "Previous"
-//                         },
-//                         "loadingRecords": "Loading...",
-//                         "processing": "Processing..."
-//                     },
-//                     "dom": '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4"B><"col-sm-12 col-md-4"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
-//                     "buttons": [
-//                         {
-//                             extend: 'excel',
-//                             text: '<i class="fas fa-file-excel"></i> Excel',
-//                             title: 'Members Information',
-//                             className: 'btn-success btn-sm',
-//                             exportOptions: {
-//                                 columns: [0, 1, 2, 3, 4, 5],
-//                                 format: {
-//                                     header: function (data, column, node) {
-//                                         return data;
-//                                     }
-//                                 }
-//                             }
-//                         },
-//                         {
-//                             extend: 'pdf',
-//                             text: '<i class="fas fa-file-pdf"></i> PDF',
-//                             title: 'Members Information',
-//                             className: 'btn-danger btn-sm',
-//                             exportOptions: {
-//                                 columns: [0, 1, 2, 3, 4, 5],
-//                                 format: {
-//                                     header: function (data, column, node) {
-//                                         return data;
-//                                     }
-//                                 }
-//                             },
-//                             customize: function (doc) {
-//                                 doc.content[1].table.widths = ['5%', '20%', '15%', '15%', '10%', '10%'];
-//                                 doc.styles.tableHeader = {
-//                                     bold: true,
-//                                     fontSize: 10,
-//                                     color: 'white',
-//                                     fillColor: '#343a40',
-//                                     alignment: 'center'
-//                                 };
-//                                 doc.content.splice(0, 0, {
-//                                     text: 'Members Information',
-//                                     style: 'header'
-//                                 });
-//                             }
-//                         },
-//                         {
-//                             extend: 'print',
-//                             text: '<i class="fas fa-print"></i> Print',
-//                             title: '',
-//                             className: 'btn-info btn-sm',
-//                             exportOptions: {
-//                                 columns: [0, 1, 2, 3, 4, 5],
-//                                 format: {
-//                                     header: function (data, column, node) {
-//                                         return data;
-//                                     }
-//                                 }
-//                             },
-//                             customize: function (win) {
-//                                 $(win.document.body).find('tfoot').remove();
-//                                 $(win.document.body).prepend(
-//                                     '<h3 class="text-center">Members Information</h3>'
-//                                 );
-//                                 $(win.document.body).find('table').addClass('table-bordered').css('font-size', '10px');
-//                                 $(win.document.body).find('thead tr:first th').css({
-//                                     'background-color': '#343a40',
-//                                     'color': 'white',
-//                                     'font-weight': 'bold',
-//                                     'border': '1px solid #454d55'
-//                                 });
-//                             }
-//                         }
-//                     ],
-//                     "columnDefs": [
-//                         {
-//                             "targets": 0, // Serial number
-//                             "orderable": false,
-//                             "searchable": false
-//                         },
-//                         {
-//                             "targets": 1, // Name
-//                             "searchable": true
-//                         },
-//                         {
-//                             "targets": 2, // ID Number
-//                             "searchable": true
-//                         },
-//                         {
-//                             "targets": 3, // Contact
-//                             "searchable": true
-//                         },
-//                         {
-//                             "targets": 4, // Gender
-//                             "searchable": true
-//                         },
-//                         {
-//                             "targets": 5, // PWD
-//                             "searchable": true
-//                         },
-//                         {
-//                             "targets": 6, // Actions
-//                             "orderable": false,
-//                             "searchable": false
-//                         }
-//                     ],
-//                     "initComplete": (settings, json) => {
-//                         console.log('✅ DataTable initialized, setting up filters...');
-//                         this.setupColumnFilters();
-//                         this.updateRowNumbers();
-
-//                         // Hide loading spinner
-//                         setTimeout(() => this.hideLoading(), 300);
-//                     },
-//                     "drawCallback": () => {
-//                         this.updateRowNumbers();
-//                     }
-//                 });
-
-//             } catch (error) {
-//                 console.error('❌ Error initializing DataTable:', error);
-//                 this.hideLoading();
-
-//                 // Retry once after delay
-//                 setTimeout(() => {
-//                     if (!$.fn.DataTable.isDataTable('#membersTable')) {
-//                         this.initializeDataTable();
-//                     }
-//                 }, 500);
-//             }
-//         }, 100);
-//     }
-
-//     updateRowNumbers() {
-//         if (this.table) {
-//             this.table.rows({ search: 'applied' }).every((rowIdx) => {
-//                 const node = this.table.row(rowIdx).node();
-//                 if (node) {
-//                     $(node).find('td:first').html(rowIdx + 1);
-//                 }
-//             });
-//         }
-//     }
-
-//     refreshDataTable() {
-//         console.log('🔄 Refreshing DataTable...');
-
-//         // Clear filters before refresh to start fresh
-//         this.clearColumnFilters();
-//         this.initializeDataTable();
-//     }
-
-//     // Method to reset filters
-//     resetFilters() {
-//         this.clearColumnFilters();
-//         if (this.table) {
-//             this.table.draw();
-//         }
-//     }
-
-//     // Debug method to check filter status
-//     debugFilters() {
-//         if (!this.table) {
-//             console.log('❌ DataTable not initialized');
-//             return;
-//         }
-
-//         console.log('🔍 Filter Debug Info:');
-//         this.table.columns().every((index) => {
-//             const column = this.table.column(index);
-//             const filterInput = $('tfoot .filters th').eq(index).find('input, select');
-//             console.log(`Column ${index}:`, {
-//                 search: column.search(),
-//                 filterValue: filterInput.val(),
-//                 filterExists: filterInput.length > 0
-//             });
-//         });
-//     }
-// }
-
-// // Initialize global instance
-// const dataTableManager = new DataTableManager();
-
-// // Document ready handler
-// $(document).ready(function() {
-//     // Initialize DataTable on page load
-//     dataTableManager.initializeDataTable();
-
-//     // View member button handler
-//     $(document).on('click', '.view-member', function (e) {
-//         const memberId = $(this).data('member-id');
-//         $("#view-group-member-modal").modal('show');
-
-//         setTimeout(() => {
-//             Livewire.dispatch('loadMemberData', { memberId: memberId });
-//         }, 500);
-//     });
-
-//     // Add reset filters button handler (optional)
-//     $(document).on('click', '#reset-filters', function() {
-//         dataTableManager.resetFilters();
-//         dataTableManager.showNotification('Filters reset', 'info');
-//     });
-
-//     // Modal event handlers
-//     $('#view-group-member-modal').on('hidden.bs.modal', function () {
-//         Livewire.dispatch('memberModalClosed');
-//     });
-
-//     // Test filter functionality
-//     $(document).on('click', '#test-filters', function() {
-//         dataTableManager.debugFilters();
-//     });
-// });
-
-// // Event listeners
-// document.addEventListener('members-refreshed', function (event) {
-//     console.log('📥 Members refreshed event:', event);
-
-//     const message = event.detail?.message && event.detail?.constituency
-//         ? `${event.detail.message} - ${event.detail.constituency}`
-//         : 'Data refreshed successfully';
-
-//     dataTableManager.showNotification(message, 'success');
-
-//     // Refresh DataTable with delay
-//     setTimeout(() => {
-//         dataTableManager.refreshDataTable();
-//     }, 600);
-// });
-
-// document.addEventListener('groupMemberEdited', function (event) {
-//     if (!event.detail || typeof toastr === 'undefined') return;
-
-//     const messages = {
-//         'error': () => toastr.error('Error occurred please try again!!'),
-//         'success': () => {
-//             toastr.success('Member Edited Successfully');
-//             $('#view-group-member-modal').on('hidden.bs.modal', function () {
-//                 window.location.reload();
-//             });
-//         },
-//         'deleted': () => {
-//             toastr.success('Member Deleted Successfully');
-//             $("#view-group-member-modal").modal('hide');
-//             setTimeout(() => window.location.reload(), 1000);
-//         }
-//     };
-
-//     messages[event.detail.message]?.();
-// });
-
-// // Global access for debugging
-// window.dataTableManager = dataTableManager;
-// window.refreshTable = () => dataTableManager.refreshDataTable();
-// window.debugFilters = () => dataTableManager.debugFilters();
 // DataTable Manager - Fixed Initialization and Filters
 class DataTableManager {
     constructor() {
@@ -1020,6 +577,156 @@ class DataTableManager {
         }
     }
 
+    // initializeDataTable() {
+    //     if (this.isInitializing) {
+    //         console.log('⚠️ DataTable initialization already in progress');
+    //         return;
+    //     }
+
+    //     console.log('🔄 Initializing DataTable...');
+    //     this.isInitializing = true;
+
+    //     this.showLoading();
+    //     this.destroyDataTable();
+    //     this.restoreTableStructure();
+
+    //     // Ensure DOM is ready
+    //     setTimeout(() => {
+    //         try {
+    //             const tableElement = $('#membersTable');
+
+    //             if (tableElement.length === 0) {
+    //                 throw new Error('Members table not found in DOM');
+    //             }
+
+    //             console.log('📊 Creating DataTable instance...');
+
+    //             this.table = tableElement.DataTable({
+    //                 "responsive": false,
+    //                 "lengthChange": true,
+    //                 "autoWidth": false,
+    //                 "pageLength": 10,
+    //                 "pagingType": "simple_numbers",
+    //                 "ordering": false,
+    //                 "destroy": true,
+    //                 "retrieve": true,
+    //                 "language": {
+    //                     "search": "Global Search:",
+    //                     "lengthMenu": "Show _MENU_ members",
+    //                     "zeroRecords": "No members found",
+    //                     "info": "Showing _START_ to _END_ of _TOTAL_ members",
+    //                     "infoEmpty": "No members available",
+    //                     "infoFiltered": "(filtered from _MAX_ total members)",
+    //                     "paginate": {
+    //                         "first": "First",
+    //                         "last": "Last",
+    //                         "next": "Next",
+    //                         "previous": "Previous"
+    //                     }
+    //                 },
+    //                 "columnDefs": [
+    //                     {
+    //                         "targets": 0, // Serial number
+    //                         "orderable": false,
+    //                         "searchable": false
+    //                     },
+    //                     {
+    //                         "targets": 1, // Name
+    //                         "searchable": true
+    //                     },
+    //                     {
+    //                         "targets": 2, // ID Number
+    //                         "searchable": true
+    //                     },
+    //                     {
+    //                         "targets": 3, // Contact
+    //                         "searchable": true
+    //                     },
+    //                     {
+    //                         "targets": 4, // Gender (HTML content)
+    //                         "searchable": true,
+    //                         "type": "html" // This tells DataTables to search the text content
+    //                     },
+    //                     {
+    //                         "targets": 5, // PWD (HTML content)
+    //                         "searchable": true,
+    //                         "type": "html" // This tells DataTables to search the text content
+    //                     },
+    //                     {
+    //                         "targets": 6, // Actions
+    //                         "orderable": false,
+    //                         "searchable": false
+    //                     }
+    //                 ],
+    //                 "dom": '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4"B><"col-sm-12 col-md-4"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
+    //                 "buttons": [
+    //                     {
+    //                         extend: 'excel',
+    //                         text: '<i class="fas fa-file-excel"></i> Excel',
+    //                         title: 'Members Information',
+    //                         className: 'btn-success btn-sm',
+    //                         exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
+    //                     },
+    //                     {
+    //                         extend: 'pdf',
+    //                         text: '<i class="fas fa-file-pdf"></i> PDF',
+    //                         title: 'Members Information',
+    //                         className: 'btn-danger btn-sm',
+    //                         exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
+    //                     },
+    //                     {
+    //                         extend: 'print',
+    //                         text: '<i class="fas fa-print"></i> Print',
+    //                         title: '',
+    //                         className: 'btn-info btn-sm',
+    //                         exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
+    //                     }
+    //                 ],
+    //                 "initComplete": (settings, json) => {
+    //                     console.log('✅ DataTable initComplete called');
+    //                     this.isInitializing = false;
+
+    //                     // Setup filters after initialization
+    //                     this.setupColumnFilters();
+    //                     this.updateRowNumbers();
+
+    //                     setTimeout(() => {
+    //                         this.hideLoading();
+    //                         console.log('🎉 DataTable fully initialized and ready');
+    //                     }, 300);
+    //                 },
+    //                 "drawCallback": () => {
+    //                     this.updateRowNumbers();
+    //                 },
+    //                 "error": (settings, techNote, message) => {
+    //                     console.error('❌ DataTable error:', message);
+    //                     this.isInitializing = false;
+    //                     this.hideLoading();
+    //                 }
+    //             });
+
+    //             // Double-check initialization
+    //             setTimeout(() => {
+    //                 if (!$.fn.DataTable.isDataTable('#membersTable')) {
+    //                     console.error('❌ DataTable failed to initialize properly');
+    //                     this.isInitializing = false;
+    //                     this.hideLoading();
+    //                 }
+    //             }, 1000);
+
+    //         } catch (error) {
+    //             console.error('❌ Error initializing DataTable:', error);
+    //             this.isInitializing = false;
+    //             this.hideLoading();
+
+    //             // Retry after delay
+    //             setTimeout(() => {
+    //                 console.log('🔄 Retrying DataTable initialization...');
+    //                 this.initializeDataTable();
+    //             }, 1000);
+    //         }
+    //     }, 150);
+    // }
     initializeDataTable() {
         if (this.isInitializing) {
             console.log('⚠️ DataTable initialization already in progress');
@@ -1028,6 +735,10 @@ class DataTableManager {
 
         console.log('🔄 Initializing DataTable...');
         this.isInitializing = true;
+
+        // Hide the table and show loading placeholder
+        $('#membersTable').hide();
+        $('#table-loading-placeholder').show();
 
         this.showLoading();
         this.destroyDataTable();
@@ -1134,6 +845,9 @@ class DataTableManager {
                         this.updateRowNumbers();
 
                         setTimeout(() => {
+                            // Hide loading placeholder and show the initialized table
+                            $('#table-loading-placeholder').hide();
+                            $('#membersTable').show();
                             this.hideLoading();
                             console.log('🎉 DataTable fully initialized and ready');
                         }, 300);
@@ -1144,6 +858,9 @@ class DataTableManager {
                     "error": (settings, techNote, message) => {
                         console.error('❌ DataTable error:', message);
                         this.isInitializing = false;
+                        // Show table even if there's an error
+                        $('#table-loading-placeholder').hide();
+                        $('#membersTable').show();
                         this.hideLoading();
                     }
                 });
@@ -1153,6 +870,8 @@ class DataTableManager {
                     if (!$.fn.DataTable.isDataTable('#membersTable')) {
                         console.error('❌ DataTable failed to initialize properly');
                         this.isInitializing = false;
+                        $('#table-loading-placeholder').hide();
+                        $('#membersTable').show();
                         this.hideLoading();
                     }
                 }, 1000);
@@ -1160,6 +879,9 @@ class DataTableManager {
             } catch (error) {
                 console.error('❌ Error initializing DataTable:', error);
                 this.isInitializing = false;
+                // Show table even if there's an error
+                $('#table-loading-placeholder').hide();
+                $('#membersTable').show();
                 this.hideLoading();
 
                 // Retry after delay
@@ -1189,6 +911,11 @@ class DataTableManager {
     refreshDataTable() {
         console.log('🔄 Refreshing DataTable...');
         this.clearColumnFilters();
+
+        // Hide table and show loading placeholder during refresh
+        $('#membersTable').hide();
+        $('#table-loading-placeholder').show();
+
         this.initializeDataTable();
     }
 
@@ -1225,12 +952,15 @@ $(document).ready(function() {
     }, 300);
 
     // View member button handler
+    // View member button handler
     $(document).on('click', '.view-member', function (e) {
         const memberId = $(this).data('member-id');
         console.log('👁️ Viewing member:', memberId);
         $("#view-group-member-modal").modal('show');
 
         setTimeout(() => {
+            console.log('Dispatching loadMemberData with:', memberId);
+            // Make sure we're passing the data correctly
             Livewire.dispatch('loadMemberData', { memberId: memberId });
         }, 500);
     });
@@ -1277,15 +1007,22 @@ document.addEventListener('groupMemberEdited', function (event) {
     const messages = {
         'error': () => toastr.error('Error occurred please try again!!'),
         'success': () => {
+            // Show success message first
             toastr.success('Member Edited Successfully');
-            $('#view-group-member-modal').on('hidden.bs.modal', function () {
-                window.location.reload();
-            });
+            // Close modal and refresh after user sees the message
+            setTimeout(() => {
+                $("#view-group-member-modal").modal('hide');
+                Livewire.dispatch('refresh-members');
+            }, 1000);
         },
         'deleted': () => {
+            // Show success message first
             toastr.success('Member Deleted Successfully');
-            $("#view-group-member-modal").modal('hide');
-            setTimeout(() => window.location.reload(), 1000);
+            // Close modal and refresh after user sees the message
+            setTimeout(() => {
+                $("#view-group-member-modal").modal('hide');
+                Livewire.dispatch('refresh-members');
+            }, 1000);
         }
     };
 

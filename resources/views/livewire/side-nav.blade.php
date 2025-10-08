@@ -81,6 +81,15 @@
                     <p>Group Members</p>
                   </a>
                 </li>
+                <li class="nav-item">
+                  <a href="{{route('const.groups.multi-group-members', [
+                    Str::slug($county->slug),
+                    Str::slug($currentConstituency->slug),
+                  ])}}" class="nav-link {{ Route::currentRouteName() == 'const.groups.multi-group-members' ? 'active':''}}">
+                    <i class="fas fa-users nav-icon"></i>
+                    <p>Multi Group Members</p>
+                  </a>
+                </li>
               </ul>
           </li>
           <li class="nav-item {{ Route::is('const.loans*')? 'menu-open':''}}">
