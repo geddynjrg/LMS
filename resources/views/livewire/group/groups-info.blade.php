@@ -94,60 +94,63 @@
                 </div>
             </div>
             <div class="card-body">
-                <!-- MOBILE-FRIENDLY DATATABLE -->
-                <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-                    <table id="groupsTable" class="table table-bordered" style="min-width: 800px;">
-                        <thead class="table-dark">
-                            <tr>
-                                <th width="5%">#</th>
-                                <th width="20%">Group Name</th>
-                                <th width="10%">GFS Code</th>
-                                <th width="15%">Ward</th>
-                                <th width="10%">Category</th>
-                                <th width="15%">Activity</th>
-                                <th width="10%">Identifier</th>
-                                <th width="10%">Actions</th>
-                            </tr>
-                            <tr class="filters bg-light">
-                                <th></th> <!-- No filter for serial number -->
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Group" /></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search GFS" /></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Ward" /></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Category" /></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Activity" /></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Identifier" /></th>
-                                <th></th> <!-- No filter for actions -->
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach($groups as $index => $group)
-                            <tr>
-                                <td>{{ $loop->iteration }}</td>
-                                <td class="text-capitalize">{{ $group->name }}</td>
-                                <td>{{ $group->gfs_code ?? '-' }}</td>
-                                <td class="text-capitalize">{{ $group->ward->ward_name }}</td>
-                                <td>
-                                    <span class="badge badge-{{ $group->category == 'Youth' ? 'success' : ($group->category == 'Women' ? 'warning' : 'danger') }}">
-                                        {{ $group->category }}
-                                    </span>
-                                </td>
-                                <td>{{ $group->activity }}</td>
-                                <td>{{ $group->identifier ?? '-' }}</td>
-                                <td>
-                                    <a href="{{ route('const.groups.group', [
-                                        'county' => $county->slug,
-                                        'constituency' => $constituency->slug,
-                                        'group' => $group->slug
-                                    ]) }}" class="btn btn-sm btn-primary">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+    <!-- MOBILE-FRIENDLY DATATABLE -->
+    <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <table id="groupsTable" class="table table-bordered" style="min-width: 800px;">
+            <thead class="table-primary">
+                <tr>
+                    <th width="5%">#</th>
+                    <th width="20%">Group Name</th>
+                    <th width="10%">GFS Code</th>
+                    <th width="15%">Ward</th>
+                    <th width="10%">Category</th>
+                    <th width="15%">Activity</th>
+                    <th width="10%">Identifier</th>
+                    <th width="10%">Actions</th>
+                </tr>
+            </thead>
+            <!-- MOVED FILTER ROW TO tfoot FOR BETTER EXPORT HANDLING -->
+            <tfoot style="display: table-header-group;">
+                <tr class="filters bg-light">
+                    <th></th> <!-- No filter for serial number -->
+                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Group" /></th>
+                    <th><input type="text" class="form-control form-control-sm" placeholder="Search GFS" /></th>
+                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Ward" /></th>
+                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Category" /></th>
+                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Activity" /></th>
+                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Identifier" /></th>
+                    <th></th> <!-- No filter for actions -->
+                </tr>
+            </tfoot>
+            <tbody>
+                @foreach($groups as $index => $group)
+                <tr>
+                    <td>{{ $loop->iteration }}</td>
+                    <td class="text-capitalize">{{ $group->name }}</td>
+                    <td>{{ $group->gfs_code ?? '-' }}</td>
+                    <td class="text-capitalize">{{ $group->ward->ward_name }}</td>
+                    <td>
+                        <span class="badge badge-{{ $group->category == 'Youth' ? 'success' : ($group->category == 'Women' ? 'warning' : 'danger') }}">
+                            {{ $group->category }}
+                        </span>
+                    </td>
+                    <td>{{ $group->activity }}</td>
+                    <td>{{ $group->identifier ?? '-' }}</td>
+                    <td>
+                        <a href="{{ route('const.groups.group', [
+                            'county' => $county->slug,
+                            'constituency' => $constituency->slug,
+                            'group' => $group->slug
+                        ]) }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+    </div>
+</div>
         </div>
     </div>
 </section>
@@ -278,19 +281,31 @@
                 {
                     extend: 'excel',
                     text: '<i class="fas fa-file-excel"></i> Excel',
-                    title: 'Groups Information - {{ $constituency->constituency_name }}',
+                    title: '{{ $constituency->constituency_name }} Constituency Groups Information',
                     className: 'btn-success btn-sm',
                     exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6]
+                        // Export only the actual data columns (0-6), excluding actions column
+                        columns: [0, 1, 2, 3, 4, 5, 6],
+                        // Important: Exclude the footer (filter row) from export
+                        format: {
+                            header: function (data, column, node) {
+                                return data;
+                            }
+                        }
                     }
                 },
                 {
                     extend: 'pdf',
                     text: '<i class="fas fa-file-pdf"></i> PDF',
-                    title: 'Groups Information - {{ $constituency->constituency_name }}',
+                    title: '{{ $constituency->constituency_name }} ConstituencyGroups Information',
                     className: 'btn-danger btn-sm',
                     exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6]
+                        columns: [0, 1, 2, 3, 4, 5, 6],
+                        format: {
+                            header: function (data, column, node) {
+                                return data;
+                            }
+                        }
                     },
                     customize: function (doc) {
                         doc.content[1].table.widths = ['5%', '20%', '10%', '15%', '10%', '15%', '10%'];
@@ -301,24 +316,42 @@
                             fillColor: '#343a40',
                             alignment: 'center'
                         };
+                        // Ensure proper header display
+                        doc.content.splice(0, 0, {
+                            text: '{{ $constituency->constituency_name }} Constituency Groups Information',
+                            style: 'header'
+                        });
                     }
                 },
                 {
                     extend: 'print',
                     text: '<i class="fas fa-print"></i> Print',
-                    title: '<h3>Groups Information - {{ $constituency->constituency_name }}</h3>',
+                    title: '', // Remove default title since we'll customize
                     className: 'btn-info btn-sm',
                     exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6]
+                        columns: [0, 1, 2, 3, 4, 5, 6],
+                        format: {
+                            header: function (data, column, node) {
+                                return data;
+                            }
+                        }
                     },
                     customize: function (win) {
+                        // Remove the filter row from print view
+                        $(win.document.body).find('tfoot').remove();
+
+                        // Add custom title
+                        $(win.document.body).prepend(
+                            '<h3 class="text-center">{{ $constituency->constituency_name }} Constituency Groups Information</h3>'
+                        );
+
+                        // Style the table for printing
                         $(win.document.body).find('table').addClass('table-bordered').css('font-size', '10px');
-                        $(win.document.body).find('h1').css('text-align','center');
-                        $(win.document.body).find('tr.filters').remove();
                         $(win.document.body).find('thead tr:first th').css({
                             'background-color': '#343a40',
                             'color': 'white',
-                            'font-weight': 'bold'
+                            'font-weight': 'bold',
+                            'border': '1px solid #454d55'
                         });
                     }
                 }
@@ -345,8 +378,8 @@
                         return;
                     }
 
-                    // Create input for filtering
-                    $('input', $('.filters th').eq(column.index()))
+                    // Create input for filtering - now using tfoot
+                    $('input', $('tfoot .filters th').eq(column.index()))
                         .on('keyup change clear', function () {
                             if (column.search() !== this.value) {
                                 column.search(this.value).draw();
@@ -354,18 +387,17 @@
                         });
                 });
 
-                // Initialize sequential numbering - SAFE VERSION
+                // Initialize sequential numbering
                 updateRowNumbers();
             }
         });
 
-        // Update row numbers when table is filtered/paged - SAFE VERSION
+        // Update row numbers when table is filtered/paged
         table.on('search.dt page.dt draw.dt', function () {
             updateRowNumbers();
         });
 
         function updateRowNumbers() {
-            // Check if table and column exist before accessing
             if (table && table.column) {
                 try {
                     table.column(0, { search: 'applied' }).nodes().each(function (cell, i) {

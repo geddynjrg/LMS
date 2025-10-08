@@ -1,195 +1,154 @@
 <div>
-@if(empty($data))
-    <div class="text-center">
-        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-        <span>Loading...</span>
-    </div>
-@else
-
-@if ($loading)
-    <div class="text-center">
-        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-        <span>Loading...</span>
-    </div>
-@else
-
-
-<div class="modal-content">
-    <div class="modal-header">
-        <h4 class="modal-title text-capitalize" id="memberName">{{$data[1]}}</h4>
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-        </button>
-    </div>
-    <div class="modal-body">
-        <section class="content">
-            <div class="container-fluid">
-                <div class="row">
-
-                    <!-- /.col -->
-                    <div class="col">
-                    <div class="card">
-                        <div class="card-header p-2">
-                        <ul class="nav nav-pills">
-
-                            <li class="nav-item"><a class="nav-link active" href="#info" data-toggle="tab">Member Information</a></li>
-                            <li class="nav-item"><a class="nav-link" href="#groups" data-toggle="tab">Member Groups</a></li>
-                            <li class="nav-item"><a class="nav-link" href="#delete" data-toggle="tab">Delete Account</a></li>
-                        </ul>
-                        </div><!-- /.card-header -->
-                        <div class="card-body">
-                            <div class="tab-content">
-
-                                <div class="active tab-pane" id="info">
-                                    <p>Update Member's information</p>
-                                    <x-form-section submit="updateMemberInformation">
-                                        <x-slot name="form">
-                                            <div class="row">
-                                                <!-- Name -->
-                                                <div class="form-group col-sm-7">
-                                                    <label for="name">Member Name <code>(full name)*</code></label>
-                                                    <input type="text" wire:model.defer="name" required class="form-control form-control-border border-width-2  text-cyan text-capitalize" id="name" placeholder="Name" autocomplete="name">
-
-                                                    <x-input-error for="name"/>
-                                                </div>
-                                                <!-- ID Number -->
-                                                <div class="form-group col-sm-5">
-                                                    <label for="IDNumber">ID. Number<code></code></label>
-                                                    <input required type="text" required wire:model="member_Id" class="form-control form-control-border border-width-2  text-cyan text-capitalize" id="IDNumber" >
-                                                    <x-input-error for="member_Id"/>
-                                                    <span class="text-sm text-danger">{{ $error_id }}</span>
-                                                </div>
-                                                <!-- phone Number -->
-                                                <div class="form-group col-sm-6">
-                                                    <label for="phonenumber">Tell. Number <code></code></label>
-                                                    <input required wire:model.live="phonenumber" type="text" class="form-control form-control-border border-width-2  text-cyan" id="phonenumber">
-
-                                                    <x-input-error for="phonenumber"/>
-                                                </div>
-                                                <!-- Gender -->
-                                                <div class="form-group col-sm-6">
-                                                    <label for="gender">Gender</label>
-                                                    <select required wire:model.defer="gender" class="custom-select form-control-border border-width-2 text-cyan" id="gender">
-                                                        <option value="">select...</option>
-                                                        @foreach ($genders as $option)
-                                                            <option value="{{$option}}">{{$option}}</option>
-                                                        @endforeach
-
-                                                    </select>
-                                                    <x-input-error for="gender"/>
-                                                </div>
-                                                <!--disability -->
-                                                <div class="form-group col-sm-12">
-                                                    <div class="custom-control custom-checkbox">
-                                                        <input type="checkbox"  wire:model="disabled" class="custom-control-input" id="exampleCheck1">
-                                                        <label class="custom-control-label" for="exampleCheck1">The Member is Disabled.</label>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </x-slot>
-                                        <x-slot name="actions">
-                                            @can('update member')
-                                               <x-button wire:loading.attr="disabled" class="btn-primary" wire:target="updateMemberInformation">
-                                                <span wire:loading wire:target="updateMemberInformation">{{ __('Saving...') }}</span>
-                                                <span wire:loading.remove wire:target="updateMemberInformation"><i class="fas fa-save"></i> {{ __('Save') }} </span>
-                                            </x-button>
-                                            @endcan
-
-                                            <x-button type="button" class="btn btn-default" data-dismiss="modal">Close</x-button>
-                                        </x-slot>
-                                    </x-form-section>
-                                </div>
-                                <!-- /.tab-pane -->
-
-                                <div class="tab-pane" id="groups">
-                                    <p>The Member Belongs to the following groups</p>
-                                    <div class="card card-primary card-outline">
-                                        <div class="card-body">
-                                            <div class="table-responsive p-0" >
-                                                <table class="table table-head-fixed table-bordered table-sm table-valign-middle">
-                                                    <thead>
-                                                    <tr class="text-center">
-                                                        <th>#</th>
-                                                        <th>Group Name</th>
-                                                        <th>Constituency</th>
-                                                        <th>Position</th>
-                                                        <th>Loan Phase</th>
-                                                        <th>Amount Issued</th>
-                                                        <th>Balance</th>
-                                                        <th>View</th>
-                                                    </tr>
-                                                    </thead>
-                                                    <tbody id="groupsDisplay">
-                                                        @php
-                                                            $i = 1;
-                                                        @endphp
-                                                        @if($memberGroupLoans!== null)
-                                                            @foreach($memberGroupLoans as $member)
-                                                            <tr>
-                                                                <td>{{ $i++ }}</td>
-                                                                <td>{{ $member->groupLoan->group->name }} </td>
-                                                                <td>{{ $member->groupLoan->loanPhase->constituency->constituency_name }} </td>
-                                                                <td>{{ $member->role }} </td>
-                                                                <td>{{ $member->groupLoan->loanPhase->phase}} </td>
-                                                                <td>{{ number_format($member->groupLoan->amount_issued) }} </td>
-                                                                <td>{{ number_format($member->groupLoan->amount_issued - $member->groupLoan->amount_repaid)}} </td>
-                                                                <td> <a href="{{route('const.groups.group', [
-                                                                'county'=>Auth::user()->county->slug,
-                                                                'constituency'=>$constituency->slug,
-                                                                'group', 'group'=>$member->groupLoan->group->identifier
-                                                                ])}}" class="btn btn-primary btn-sm">view</a> </td>
-                                                            </tr>
-                                                            @endforeach
-                                                        @else
-                                                            <p>NOT REGISTERED WITH ANY GROUP</p>
-                                                        @endif
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                            <x-button type="button" class="btn btn-default float-right" data-dismiss="modal">Close</x-button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <!-- /.tab-pane -->
-
-                                <div class="tab-pane" id="delete">
-                                    <p>Delete Member Record</p>
-                                    <div class="card card-primary card-outline">
-                                        <div class="card-body">
-                                            <p class="text-red text-bold">Once the member is deleted, all of the member's data will be permanently deleted. Before deleting the member, please download any data or information that you wish to retain.</p>
-                                            <div class="btn-group float-right " role="group">
-                                                @can('delete member')
-                                                    <x-button wire:loading.attr="disabled" class="btn-danger" wire:target="deleteAccount" wire:click="deleteAccount()">
-                                                    <span wire:loading wire:target="deleteAccount">Deleting...</span>
-                                                    <span wire:loading.remove wire:target="deleteAccount"><i class="fas fa-trash-alt"></i> Delete Account </span>
-                                                </x-button>
-                                                @endcan
-
-                                                <x-button type="button" class="btn btn-default" data-dismiss="modal">Close</x-button>
-                                            </div>
-                                        </div>
-
-                                    </div>
-
-                                </div>
-                            </div>
-                            <!-- /.tab-content -->
-
-                        </div><!-- /.card-body -->
-                    </div>
-                    <!-- /.card -->
-                    </div>
-                    <!-- /.col -->
-                </div>
-                <!-- /.row -->
-            </div><!-- /.container-fluid -->
-        </section>
-        <!-- /.content -->
+    @if($loading)
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x"></i>
+            <p class="mt-2">Loading member data...</p>
         </div>
-    </div>
-</div>
-<!-- /.modal-content -->
-@endif
-@endif
+    @elseif($member)
+        <!-- Tabs Navigation -->
+        <ul class="nav nav-tabs" id="memberTabs" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link {{ $activeTab === 'edit' ? 'active' : '' }}"
+                   wire:click="switchTab('edit')"
+                   id="edit-tab" data-toggle="tab" href="#edit" role="tab">
+                    <i class="fas fa-edit mr-1"></i>Edit Member
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link {{ $activeTab === 'groups' ? 'active' : '' }}"
+                   wire:click="switchTab('groups')"
+                   id="groups-tab" data-toggle="tab" href="#groups" role="tab">
+                    <i class="fas fa-users mr-1"></i>Member Groups ({{ count($groups) }})
+                </a>
+            </li>
+        </ul>
 
+        <!-- Tab Content -->
+        <div class="tab-content mt-3" id="memberTabsContent">
+            <!-- Edit Tab -->
+            <div class="tab-pane fade {{ $activeTab === 'edit' ? 'show active' : '' }}" id="edit" role="tabpanel">
+                <form wire:submit.prevent="updateMember">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="name">Full Name</label>
+                                <input type="text" class="form-control" id="name"
+                                       wire:model="name" required>
+                                @error('name') <span class="text-danger">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="member_Id">Member ID</label>
+                                <input type="text" class="form-control" id="member_Id"
+                                       wire:model="member_Id" readonly style="background-color: #f8f9fa;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="number">Contact Number</label>
+                                <input type="text" class="form-control" id="number"
+                                       wire:model="number">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="gender">Gender</label>
+                                <select class="form-control" id="gender" wire:model="gender" required>
+                                    <option value="">Select Gender</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                                @error('gender') <span class="text-danger">{{ $message }}</span> @enderror
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="disabled"
+                                   wire:model="disabled" value="1">
+                            <label class="form-check-label" for="disabled">Person With Disability (PWD)</label>
+                        </div>
+                    </div>
+
+                    <!-- Flash Messages -->
+                    @if (session()->has('message'))
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            {{ session('message') }}
+                            <button type="button" class="close" data-dismiss="alert">
+                                <span>&times;</span>
+                            </button>
+                        </div>
+                    @endif
+
+                    @if (session()->has('error'))
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            {{ session('error') }}
+                            <button type="button" class="close" data-dismiss="alert">
+                                <span>&times;</span>
+                            </button>
+                        </div>
+                    @endif
+
+                    <div class="form-group text-right">
+                        <button type="button" class="btn btn-danger mr-2"
+                                onclick="confirm('Are you sure you want to delete this member?') && $wire.deleteMember()">
+                            <i class="fas fa-trash mr-1"></i>Delete Member
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save mr-1"></i>Update Member
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Groups Tab -->
+            <div class="tab-pane fade {{ $activeTab === 'groups' ? 'show active' : '' }}" id="groups" role="tabpanel">
+                @if(count($groups) > 0)
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-sm">
+                            <thead class="thead-dark">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Group Name</th>
+                                    <th>Constituency</th>
+                                    <th>Position</th>
+                                    <th>Loan Phase</th>
+                                    <th>Amount Issued</th>
+                                    <th>Balance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($groups as $index => $group)
+                                    <tr>
+                                        <td>{{ $index + 1 }}</td>
+                                        <td class="text-capitalize">{{ $group['group_name'] }}</td>
+                                        <td>{{ $group['constituency'] }}</td>
+                                        <td class="text-capitalize">{{ $group['position'] }}</td>
+                                        <td>{{ $group['loan_phase'] }}</td>
+                                        <td>KSh {{ number_format($group['amount_issued']) }}</td>
+                                        <td>KSh {{ number_format($group['balance']) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @else
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">This member is not part of any groups.</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+    @else
+        <div class="alert alert-danger text-center">
+            <i class="fas fa-exclamation-triangle mr-2"></i>
+            Member not found or has been deleted.
+        </div>
+    @endif
 </div>

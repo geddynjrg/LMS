@@ -2,156 +2,162 @@
 
 namespace App\Livewire;
 
-use App\Models\Constituency;
 use Livewire\Component;
-use Livewire\Attributes\On;
-use Livewire\Attributes\Validate;
-use App\Models\GroupMember;
 use App\Models\Member;
+use App\Models\GroupMember;
+use Illuminate\Support\Facades\Log;
 
 class ViewGroupMember extends Component
 {
+    public $memberId;
     public $member;
-
-    public $memberGroupLoans;
-
-    public $name =  '';
-    public $role = '';
-    public $phonenumber =  '';
-    public $gender =  '';
-    public $disabled =  '';
-    public $member_Id =  '';
-
-    public $data = [];
-
-    public $error_id;
-    public $genders = ['Male', 'Female'];
-
-    public Constituency $constituency;
+    public $groups = [];
+    public $activeTab = 'edit';
     public $loading = true;
 
-    #[On('group-member-info')]
-    public function edit($data)
+    // Member fields for editing
+    public $name;
+    public $member_Id;
+    public $number;
+    public $gender;
+    public $disabled = false;
+
+    protected $listeners = [
+        'loadMemberData',
+        'memberModalClosed' => 'resetComponent'
+    ];
+
+    public function mount()
     {
-        $this->loading = true;
-        $this->resetMembers();
-        $this->data = $data;
-        if (!empty($this->data)){
-            $this->phonenumber = $data[3];
-            $this->name = $data[1];
-            $this->member_Id = $data[2];
-            $this->gender = $data[4];
-            $this->disabled = $data[5]=='Yes'?true:false;
-            $this->getMemberGroupLoans();
+        \Log::info('ViewGroupMember component mounted');
+    }
+
+    public function loadMemberData($data)
+    {
+        \Log::info('loadMemberData received:', ['data' => $data]);
+
+        if (is_array($data) && isset($data['memberId'])) {
+            $this->memberId = $data['memberId'];
+        } else {
+            $this->memberId = $data;
         }
-        $this->loading = false;
 
+        \Log::info('Processing member ID:', ['memberId' => $this->memberId]);
+
+        $this->loading = true;
+        $this->loadMember();
     }
 
-    public function mount (Constituency $constituency)
+    public function loadMember()
     {
-        $this->constituency = $constituency;
+        try {
+            \Log::info('Loading member from database:', ['memberId' => $this->memberId]);
+
+            // Load member basic info
+            $this->member = Member::where('member_Id', $this->memberId)->first();
+
+            if (!$this->member) {
+                \Log::error('Member not found in database:', ['memberId' => $this->memberId]);
+                $this->loading = false;
+                return;
+            }
+
+            \Log::info('Member found:', ['memberName' => $this->member->name]);
+
+            // Set form fields
+            $this->name = $this->member->name;
+            $this->member_Id = $this->member->member_Id;
+            $this->number = $this->member->number;
+            $this->gender = $this->member->gender;
+            $this->disabled = (bool)$this->member->disabled;
+
+            // Load member groups - adjust based on your actual relationships
+            $this->groups = GroupMember::where('member_Id', $this->memberId)
+                ->get()
+                ->map(function($groupMember) {
+                    return [
+                        'group_name' => $groupMember->group_name ?? 'N/A',
+                        'constituency' => $groupMember->constituency ?? 'N/A',
+                        'position' => $groupMember->position ?? 'N/A',
+                        'loan_phase' => $groupMember->loan_phase ?? 'N/A',
+                        'amount_issued' => $groupMember->amount_issued ?? 0,
+                        'balance' => $groupMember->balance ?? 0,
+                    ];
+                });
+
+            \Log::info('Groups loaded:', ['count' => count($this->groups)]);
+
+            $this->loading = false;
+
+        } catch (\Exception $e) {
+            \Log::error('Error in loadMember:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            $this->loading = false;
+        }
     }
 
-    public function updateMemberInformation()
+    public function resetComponent()
     {
-        if (auth()->user()->hasPermissionTo('update member')) {
+        \Log::info('Resetting component');
+        $this->resetExcept(['memberId']);
+        $this->loading = true;
+        $this->activeTab = 'edit';
+    }
 
+    public function switchTab($tab)
+    {
+        $this->activeTab = $tab;
+    }
+
+    public function updateMember()
+    {
         $this->validate([
-            'name' => 'required|string',
-            'gender' => 'required|in:' . implode(',', $this->genders),
-            'member_Id' => 'required|string|between:6,10|regex:/^[0-9]+$/',
-            'phonenumber' => 'required|regex:/^[0-9]{10}$/',
+            'name' => 'required|string|max:255',
+            'number' => 'nullable|string|max:20',
+            'gender' => 'required|in:Male,Female',
+            'disabled' => 'boolean',
         ]);
 
-        //if member has edited the ID
-        if($this->data[2] === $this->member_Id)
-        {//not changed
-           $updatedMember = Member::where('member_Id', $this->data[2])
-                ->update([
-                    'name' => ucwords($this->name),
-                    'number' => $this->phonenumber,
-                    'gender' => $this->gender,
-                    'disabled' => $this->disabled]);
-            if ($updatedMember) {
-                $this->dispatch('groupMemberEdited', message: 'success');
-                $this->data[3] = $this->phonenumber;
-                $this->data[1] = $this->name;
-                $this->data[4] = $this->gender;
-                $this->data[5] = $this->disabled;
-            }else {
-                $this->dispatch('groupMemberEdited', message: 'error');
-            }
-        }else {
-            //changed
-            //validate new id
-            $this->validate([
-                'member_Id' => [function($attribute, $value, $fail) {
-                    $existsIdNumber = Member::where('member_Id', $value)->first();
-
-                    if($existsIdNumber) {
-                        $fail('The ID Number is already registered with another member.');
-                    }
-                }],
+        try {
+            $this->member->update([
+                'name' => $this->name,
+                'number' => $this->number,
+                'gender' => $this->gender,
+                'disabled' => $this->disabled,
             ]);
 
-            //update accordingly
-            $updatedMember = Member::where('member_Id', $this->data[2])
-                ->update([
-                    'member_Id' => $this->member_Id,
-                    'name' => ucwords($this->name),
-                    'number' => $this->phonenumber,
-                    'gender' => $this->gender,
-                    'disabled' => $this->disabled]);
-            if ($updatedMember) {
-                $this->dispatch('groupMemberEdited', message: 'success');
-                $this->data[3] = $this->phonenumber;
-                $this->data[2] = $this->member_Id;
-                $this->data[1] = $this->name;
-                $this->data[4] = $this->gender;
-                $this->data[5] = $this->disabled;
-            }else {
-                $this->dispatch('groupMemberEdited', message: 'error');
-            }
-        }
-    }
-    }
+            $this->dispatch('groupMemberEdited', message: 'success');
+            session()->flash('message', 'Member updated successfully.');
 
-    private function resetMembers()
-    {
-        $this->name = '';
-        $this->role = '';
-        $this->phonenumber = '';
-        $this->gender = '';
-        $this->disabled = false;
-        $this->member_Id = '';
-        $this->memberGroupLoans = null;
-    }
-
-    private function getMemberGroupLoans()
-    {
-        if (!empty($this->data)){
-            $this->memberGroupLoans = GroupMember::where('member_Id', $this->data[2])
-                ->with(['groupLoan.group','groupLoan.loanPhase.constituency'])->get();
+        } catch (\Exception $e) {
+            $this->dispatch('groupMemberEdited', message: 'error');
+            session()->flash('error', 'Error updating member: ' . $e->getMessage());
         }
     }
 
-    public function deleteAccount()
+    public function deleteMember()
     {
-        if ( auth()->user()->hasPermissionTo('delete member') && !empty($this->data))
-        {
-            $deleted = Member::where('member_Id', $this->data[2])->delete();
-            if ($deleted) {
-                $this->dispatch('groupMemberEdited', message: 'deleted');
-                $this->resetMembers();
-            } else {
-                $this->dispatch('groupMemberEdited', message: 'error');
-            }
+        try {
+            GroupMember::where('member_Id', $this->memberId)->delete();
+            $this->member->delete();
+            $this->dispatch('groupMemberEdited', message: 'deleted');
+        } catch (\Exception $e) {
+            $this->dispatch('groupMemberEdited', message: 'error');
+            session()->flash('error', 'Error deleting member: ' . $e->getMessage());
         }
     }
 
     public function render()
     {
+        \Log::info('Rendering component:', [
+            'loading' => $this->loading,
+            'memberId' => $this->memberId,
+            'member' => $this->member ? $this->member->name : 'null',
+            'groups_count' => count($this->groups)
+        ]);
+
         return view('livewire.group.view-group-member');
     }
 }

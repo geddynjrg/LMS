@@ -107,5 +107,20 @@ return [
     */
 
     'prefix' => env('CACHE_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_cache_'),
-
+    'groups' => [
+        'ttl' => env('GROUPS_CACHE_TTL', 600), // Default 10 minutes
+        'prefix' => 'constituency_groups',
+    ],
+    'members' => [
+        'ttl' => env('MEMBERS_CACHE_TTL', 300), // Default 5 minutes
+        'prefix' => 'constituency_members',
+    ],
+    'summary' => [
+        'ttl' => env('GROUPS_SUMMARY_CACHE_TTL', 1800), // Default 30 minutes
+        'prefix' => 'groups_summary',
+    ],
+    'export' => [
+        'ttl' => env('GROUPS_EXPORT_CACHE_TTL', 3600), // Default 1 hour
+        'prefix' => 'groups_export',
+    ],
 ];
