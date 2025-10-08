@@ -103,25 +103,12 @@ class GroupMembers extends Component
         $cachedMembers = Cache::remember($cacheKey, $this->cacheTtl, function() {
             $membersData = $this->loadMembersData();
 
-            // Debug what we're getting
-            \Log::info('Raw members data:', [
-                'type' => gettype($membersData),
-                'is_collection' => $membersData instanceof \Illuminate\Support\Collection,
-                'is_array' => is_array($membersData),
-                'value' => $membersData
-            ]);
-
             // Ensure we always return a collection
             if ($membersData instanceof \Illuminate\Support\Collection) {
                 return $membersData;
             } elseif (is_array($membersData)) {
                 return collect($membersData);
             } else {
-                // If it's anything else (like an integer), return empty collection
-                \Log::warning('Unexpected members data type, returning empty collection', [
-                    'type' => gettype($membersData),
-                    'value' => $membersData
-                ]);
                 return collect();
             }
         });
@@ -239,10 +226,6 @@ class GroupMembers extends Component
             ->distinct('member_Id')
             ->pluck('member_Id');
 
-            \Log::info('Found member IDs:', [
-                'count' => $memberIds->count(),
-                'constituency' => $code
-            ]);
 
             if ($memberIds->isEmpty()) {
                 return collect(); // Explicitly return empty collection
@@ -254,18 +237,10 @@ class GroupMembers extends Component
                 ->orderBy('name')
                 ->get();
 
-            \Log::info('Loaded members:', [
-                'count' => $members->count(),
-                'sample' => $members->take(3)->pluck('name', 'member_Id')
-            ]);
 
             return $members;
 
         } catch (\Exception $e) {
-            \Log::error('Error loading members data:', [
-                'error' => $e->getMessage(),
-                'constituency' => $this->constituency->constituency_code ?? 'unknown'
-            ]);
             return collect(); // Return empty collection on error
         }
     }
