@@ -28,6 +28,6 @@
     <!-- /.content-header -->
 
     <!-- Main content -->
-    multi group members
+    @livewire('multi-group-members', ['constituency'=>$constituency])
     <!-- /.content -->
 @endsection

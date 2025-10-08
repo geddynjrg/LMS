@@ -37,53 +37,6 @@ class GroupMembers extends Component
         $this->getMembers();
     }
 
-    // private function getMembers(): void
-    // {
-    //     $this->loading = true;
-
-    //     $cacheKey = "{$this->cachePrefix}_{$this->constituency->constituency_code}";
-    //     $summaryKey = "{$cacheKey}_summary";
-    //     $timestampKey = "{$cacheKey}_timestamp";
-
-    //     // Check cache status
-    //     $this->cacheHit = Cache::has($cacheKey) && Cache::has($summaryKey);
-
-    //     if ($this->cacheHit) {
-    //         Log::info("Members cache HIT", [
-    //             'constituency' => $this->constituency->constituency_code,
-    //             'key' => $cacheKey
-    //         ]);
-    //     } else {
-    //         Log::info("Members cache MISS", [
-    //             'constituency' => $this->constituency->constituency_code,
-    //             'key' => $cacheKey
-    //         ]);
-    //     }
-
-    //     // Get or calculate summary data
-    //     $summary = Cache::remember($summaryKey, $this->cacheTtl, function() {
-    //         return $this->calculateMembersSummary();
-    //     });
-
-    //     // Get members data (cached separately)
-    //     $this->members = Cache::remember($cacheKey, $this->cacheTtl, function() {
-    //         return $this->loadMembersData();
-    //     });
-
-    //     // Store timestamp
-    //     Cache::put($timestampKey, now()->toDateTimeString(), $this->cacheTtl);
-    //     $this->lastUpdated = Cache::get($timestampKey);
-
-    //     // Assign summary data
-    //     $this->totalMembers = $summary['total'];
-    //     $this->male = $summary['male'];
-    //     $this->female = $summary['female'];
-    //     $this->disabled = $summary['disabled'];
-
-    //     $this->isReady = true;
-    //     $this->loading = false;
-    // }
-
     private function getMembers(): void
     {
         $this->loading = true;
