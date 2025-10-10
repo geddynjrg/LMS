@@ -99,124 +99,106 @@
                 </div>
             </div>
             <div class="card-body">
-                @if($loading)
-                <div class="row">
-                    @for($i = 0; $i < 4; $i++)
-                    <div class="col-md-3 col-sm-6 col-12 mb-3">
-                        <div class="info-box bg-gradient-secondary">
-                            <span class="info-box-icon"><i class="fas fa-spinner fa-spin"></i></span>
-                            <div class="info-box-content">
-                                <span class="info-box-text">Loading...</span>
-                                <span class="info-box-number">-</span>
-                                <div class="progress">
-                                    <div class="progress-bar" style="width: 0%"></div>
-                                </div>
-                                <span class="progress-description">Please wait</span>
-                            </div>
-                        </div>
-                    </div>
-                    @endfor
-                </div>
-                @else
-                <!-- MOBILE-FRIENDLY DATATABLE -->
-                <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-                    <table id="membersTable" class="table table-bordered" style="min-width: 800px; display: none;"> <!-- Add display: none -->
-                        <thead class="table-primary">
-                            <tr>
-                                <th width="5%">#</th>
-                                <th width="20%">Member Name</th>
-                                <th width="15%">ID Number</th>
-                                <th width="15%">Contact</th>
-                                <th width="10%">Gender</th>
-                                <th width="10%">PWD</th>
-                                <th width="5%">Actions</th>
-                            </tr>
-                        </thead>
-                        <!-- MOVED FILTER ROW TO tfoot FOR BETTER EXPORT HANDLING -->
-                        <tfoot style="display: table-header-group;">
-                            <tr class="filters bg-light">
-                                <th></th> <!-- No filter for serial number -->
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Name" /></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search ID" /></th>
-                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Contact" /></th>
-                                <th>
-                                    <select class="form-control form-control-sm">
-                                        <option value="">All Genders</option>
-                                        <option value="Male">Male</option>
-                                        <option value="Female">Female</option>
-                                    </select>
-                                </th>
-                                <th>
-                                    <select class="form-control form-control-sm">
-                                        <option value="">All</option>
-                                        <option value="Yes">Yes</option>
-                                        <option value="No">No</option>
-                                    </select>
-                                </th>
-                                <th></th> <!-- No filter for actions -->
-                            </tr>
-                        </tfoot>
-                        <tbody>
-                            @php
-                                // Debug: Check what we're working with
-                                $membersType = gettype($members);
-                                $isCountable = is_countable($members);
-                                $membersCount = $isCountable ? count($members) : 0;
-                            @endphp
-
-                            @if($members && $isCountable && $membersCount > 0)
-                                @foreach($members as $member)
+                <div wire:key="members-table-{{ $constituency->constituency_code }}-{{ time() }}">
+                    <!-- MOBILE-FRIENDLY DATATABLE -->
+                    <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                        <table id="membersTable" class="table table-bordered" style="min-width: 800px; display: none;"> <!-- Add display: none -->
+                            <thead class="table-primary">
                                 <tr>
-                                    <td>{{ $loop->iteration }}</td>
-                                    <td class="text-capitalize">{{ $member->name ?? 'N/A' }}</td>
-                                    <td>{{ $member->member_Id ?? 'N/A' }}</td>
-                                    <td>{{ $member->number ?? 'N/A' }}</td>
-                                    <td>
-                                        <span class="badge badge-{{ ($member->gender ?? '') == 'Male' ? 'primary' : 'success' }}">
-                                            {{ $member->gender ?? 'Unknown' }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span class="badge badge-{{ ($member->disabled ?? false) ? 'danger' : 'secondary' }}">
-                                            {{ ($member->disabled ?? false) ? 'Yes' : 'No' }}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        @if(isset($member->member_Id))
-                                        <button type="button" class="btn btn-sm btn-primary view-member"
-                                                data-member-id="{{ $member->member_Id }}">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
+                                    <th width="5%">#</th>
+                                    <th width="20%">Member Name</th>
+                                    <th width="15%">ID Number</th>
+                                    <th width="15%">Contact</th>
+                                    <th width="10%">Gender</th>
+                                    <th width="10%">PWD</th>
+                                    <th width="5%">Actions</th>
+                                </tr>
+                            </thead>
+                            <!-- MOVED FILTER ROW TO tfoot FOR BETTER EXPORT HANDLING -->
+                            <tfoot style="display: table-header-group;" >
+                                <tr class="filters bg-light">
+                                    <th></th> <!-- No filter for serial number -->
+                                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Name" /></th>
+                                    <th><input type="text" class="form-control form-control-sm" placeholder="Search ID" /></th>
+                                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Contact" /></th>
+                                    <th>
+                                        <select class="form-control form-control-sm">
+                                            <option value="">All Genders</option>
+                                            <option value="Male">Male</option>
+                                            <option value="Female">Female</option>
+                                        </select>
+                                    </th>
+                                    <th>
+                                        <select class="form-control form-control-sm">
+                                            <option value="">All</option>
+                                            <option value="Yes">Yes</option>
+                                            <option value="No">No</option>
+                                        </select>
+                                    </th>
+                                    <th></th> <!-- No filter for actions -->
+                                </tr>
+                            </tfoot>
+                            <tbody>
+                                @php
+                                    // Debug: Check what we're working with
+                                    $membersType = gettype($members);
+                                    $isCountable = is_countable($members);
+                                    $membersCount = $isCountable ? count($members) : 0;
+                                @endphp
+
+                                @if($members && $isCountable && $membersCount > 0)
+                                    @foreach($members as $member)
+                                    <tr>
+                                        <td>{{ $loop->iteration }}</td>
+                                        <td class="text-capitalize">{{ $member->name ?? 'N/A' }}</td>
+                                        <td>{{ $member->member_Id ?? 'N/A' }}</td>
+                                        <td>{{ $member->number ?? 'N/A' }}</td>
+                                        <td>
+                                            <span class="badge badge-{{ ($member->gender ?? '') == 'Male' ? 'primary' : 'success' }}">
+                                                {{ $member->gender ?? 'Unknown' }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-{{ ($member->disabled ?? false) ? 'danger' : 'secondary' }}">
+                                                {{ ($member->disabled ?? false) ? 'Yes' : 'No' }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if(isset($member->member_Id))
+                                            <button type="button" class="btn btn-sm btn-primary view-member"
+                                                    data-member-id="{{ $member->member_Id }}">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            @else
+                                            <span class="text-muted">N/A</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                @else
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-3">
+                                        <i class="fas fa-users fa-2x mb-2"></i><br>
+                                        @if(!$members)
+                                            No members data available.
+                                        @elseif(!$isCountable)
+                                            Invalid members data format (type: {{ $membersType }}).
                                         @else
-                                        <span class="text-muted">N/A</span>
+                                            No members found for this constituency.
                                         @endif
                                     </td>
                                 </tr>
-                                @endforeach
-                            @else
-                            <tr>
-                                <td colspan="7" class="text-center text-muted py-3">
-                                    <i class="fas fa-users fa-2x mb-2"></i><br>
-                                    @if(!$members)
-                                        No members data available.
-                                    @elseif(!$isCountable)
-                                        Invalid members data format (type: {{ $membersType }}).
-                                    @else
-                                        No members found for this constituency.
-                                    @endif
-                                </td>
-                            </tr>
-                            @endif
-                        </tbody>
-                    </table>
+                                @endif
+                            </tbody>
+                        </table>
 
-                    <!-- Loading placeholder that shows until DataTable is ready -->
-                    <div id="table-loading-placeholder" class="text-center py-5">
-                        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
-                        <div class="mt-3 text-muted">Loading members data...</div>
+                        <!-- Loading placeholder that shows until DataTable is ready -->
+                        <div id="table-loading-placeholder" class="text-center py-5">
+                            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
+                            <div class="mt-3 text-muted">Loading members data...</div>
+                        </div>
                     </div>
                 </div>
-                @endif
             </div>
         </div>
     </div>
@@ -454,38 +436,130 @@ class DataTableManager {
         $card.find('.card-body').css('pointer-events', 'auto');
     }
 
+    // destroyDataTable() {
+    //     if (this.table && $.fn.DataTable.isDataTable('#membersTable')) {
+    //         try {
+    //             this.table.destroy(true);
+    //         } catch (e) {
+    //             console.warn('Error destroying DataTable:', e);
+    //         }
+    //     }
+
+    //     // Clean up DOM
+    //     $('#membersTable').removeClass('dataTable no-footer')
+    //                      .removeAttr('style')
+    //                      .css('width', '')
+    //                      .unwrap();
+    //     $('.dataTables_wrapper').remove();
+    //     this.table = null;
+    // }
+
+
+    // restoreTableStructure() {
+    //     const $table = $('#membersTable');
+
+    //     // Ensure table responsive wrapper
+    //     if (!$table.parent().hasClass('table-responsive')) {
+    //         $table.wrap('<div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;"></div>');
+    //     }
+
+    //     // Reset table attributes
+    //     $table.attr('id', 'membersTable')
+    //           .removeClass('dataTable')
+    //           .addClass('table table-bordered')
+    //           .css('min-width', '800px');
+    // }
+    // destroyDataTable() {
+    //     // First check if DataTable exists
+    //     if ($.fn.DataTable.isDataTable('#membersTable')) {
+    //         try {
+    //             // Get the DataTable instance
+    //             const dataTable = $('#membersTable').DataTable();
+    //             if (dataTable) {
+    //                 dataTable.clear().destroy();
+    //                 $('#membersTable').empty();
+    //             }
+    //         } catch (e) {
+    //             console.warn('Error destroying DataTable:', e);
+    //         }
+    //     }
+
+    //     // Clean up DOM completely
+    //     $('#membersTable').removeClass('dataTable')
+    //                     .removeAttr('id')
+    //                     .attr('id', 'membersTable')
+    //                     .removeAttr('style');
+    //                     .find('thead, tbody, tfoot').removeAttr('style');
+
+    //     // Remove any DataTables wrapper elements
+    //     $('.dataTables_wrapper').remove();
+
+    //     this.table = null;
+    // }
     destroyDataTable() {
-        if (this.table && $.fn.DataTable.isDataTable('#membersTable')) {
-            try {
-                this.table.destroy(true);
-            } catch (e) {
-                console.warn('Error destroying DataTable:', e);
-            }
+    if (this.table && $.fn.DataTable.isDataTable('#membersTable')) {
+        try {
+            this.table.destroy(true);
+        } catch (e) {
+            console.warn('Error destroying DataTable:', e);
         }
-
-        // Clean up DOM
-        $('#membersTable').removeClass('dataTable no-footer')
-                         .removeAttr('style')
-                         .css('width', '')
-                         .unwrap();
-        $('.dataTables_wrapper').remove();
-        this.table = null;
     }
 
+    // Clean up DOM - FIXED: Don't remove ID, just clean up styles
+    $('#membersTable').removeClass('dataTable no-footer')
+                     .removeAttr('style')
+                     .css('width', '')
+                     // UNCOMMENT THIS LINE - it's crucial for filter positioning
+                     .find('thead, tbody, tfoot').removeAttr('style');
+
+    // Remove any DataTables wrapper elements
+    $('.dataTables_wrapper').remove();
+    this.table = null;
+}
+
+    // restoreTableStructure() {
+    //     const $table = $('#membersTable');
+
+    //     // Ensure we have a clean table
+    //     $table.removeClass('dataTable no-footer')
+    //         .addClass('table table-bordered')
+    //         .css({
+    //             'min-width': '800px',
+    //             'width': '100%'
+    //         });
+
+    //     // Ensure proper wrapper
+    //     if (!$table.parent().hasClass('table-responsive')) {
+    //         $table.wrap('<div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;"></div>');
+    //     }
+
+    //     // Ensure all required elements exist
+    //     if ($table.find('thead').length === 0) {
+    //         $table.prepend('<thead class="table-primary"></thead>');
+    //     }
+    //     if ($table.find('tbody').length === 0) {
+    //         $table.append('<tbody></tbody>');
+    //     }
+    //     if ($table.find('tfoot').length === 0) {
+    //         $table.append('<tfoot style="display: table-header-group;"></tfoot>');
+    //     }
+    // }
     restoreTableStructure() {
-        const $table = $('#membersTable');
+    const $table = $('#membersTable');
 
-        // Ensure table responsive wrapper
-        if (!$table.parent().hasClass('table-responsive')) {
-            $table.wrap('<div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;"></div>');
-        }
-
-        // Reset table attributes
-        $table.attr('id', 'membersTable')
-              .removeClass('dataTable')
-              .addClass('table table-bordered')
-              .css('min-width', '800px');
+    // Ensure table responsive wrapper
+    if (!$table.parent().hasClass('table-responsive')) {
+        $table.wrap('<div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;"></div>');
     }
+
+    // Reset table attributes - FIXED: Don't re-add ID, just ensure proper classes
+    $table.removeClass('dataTable')
+          .addClass('table table-bordered')
+          .css('min-width', '800px');
+
+    // Ensure tfoot has the correct display style for filters
+    $table.find('tfoot').css('display', 'table-header-group');
+}
 
     setupColumnFilters() {
         // Wait a bit to ensure DataTable is fully initialized
@@ -577,157 +651,22 @@ class DataTableManager {
         }
     }
 
-    // initializeDataTable() {
-    //     if (this.isInitializing) {
-    //         console.log('⚠️ DataTable initialization already in progress');
-    //         return;
-    //     }
 
-    //     console.log('🔄 Initializing DataTable...');
-    //     this.isInitializing = true;
-
-    //     this.showLoading();
-    //     this.destroyDataTable();
-    //     this.restoreTableStructure();
-
-    //     // Ensure DOM is ready
-    //     setTimeout(() => {
-    //         try {
-    //             const tableElement = $('#membersTable');
-
-    //             if (tableElement.length === 0) {
-    //                 throw new Error('Members table not found in DOM');
-    //             }
-
-    //             console.log('📊 Creating DataTable instance...');
-
-    //             this.table = tableElement.DataTable({
-    //                 "responsive": false,
-    //                 "lengthChange": true,
-    //                 "autoWidth": false,
-    //                 "pageLength": 10,
-    //                 "pagingType": "simple_numbers",
-    //                 "ordering": false,
-    //                 "destroy": true,
-    //                 "retrieve": true,
-    //                 "language": {
-    //                     "search": "Global Search:",
-    //                     "lengthMenu": "Show _MENU_ members",
-    //                     "zeroRecords": "No members found",
-    //                     "info": "Showing _START_ to _END_ of _TOTAL_ members",
-    //                     "infoEmpty": "No members available",
-    //                     "infoFiltered": "(filtered from _MAX_ total members)",
-    //                     "paginate": {
-    //                         "first": "First",
-    //                         "last": "Last",
-    //                         "next": "Next",
-    //                         "previous": "Previous"
-    //                     }
-    //                 },
-    //                 "columnDefs": [
-    //                     {
-    //                         "targets": 0, // Serial number
-    //                         "orderable": false,
-    //                         "searchable": false
-    //                     },
-    //                     {
-    //                         "targets": 1, // Name
-    //                         "searchable": true
-    //                     },
-    //                     {
-    //                         "targets": 2, // ID Number
-    //                         "searchable": true
-    //                     },
-    //                     {
-    //                         "targets": 3, // Contact
-    //                         "searchable": true
-    //                     },
-    //                     {
-    //                         "targets": 4, // Gender (HTML content)
-    //                         "searchable": true,
-    //                         "type": "html" // This tells DataTables to search the text content
-    //                     },
-    //                     {
-    //                         "targets": 5, // PWD (HTML content)
-    //                         "searchable": true,
-    //                         "type": "html" // This tells DataTables to search the text content
-    //                     },
-    //                     {
-    //                         "targets": 6, // Actions
-    //                         "orderable": false,
-    //                         "searchable": false
-    //                     }
-    //                 ],
-    //                 "dom": '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4"B><"col-sm-12 col-md-4"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
-    //                 "buttons": [
-    //                     {
-    //                         extend: 'excel',
-    //                         text: '<i class="fas fa-file-excel"></i> Excel',
-    //                         title: 'Members Information',
-    //                         className: 'btn-success btn-sm',
-    //                         exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
-    //                     },
-    //                     {
-    //                         extend: 'pdf',
-    //                         text: '<i class="fas fa-file-pdf"></i> PDF',
-    //                         title: 'Members Information',
-    //                         className: 'btn-danger btn-sm',
-    //                         exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
-    //                     },
-    //                     {
-    //                         extend: 'print',
-    //                         text: '<i class="fas fa-print"></i> Print',
-    //                         title: '',
-    //                         className: 'btn-info btn-sm',
-    //                         exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
-    //                     }
-    //                 ],
-    //                 "initComplete": (settings, json) => {
-    //                     console.log('✅ DataTable initComplete called');
-    //                     this.isInitializing = false;
-
-    //                     // Setup filters after initialization
-    //                     this.setupColumnFilters();
-    //                     this.updateRowNumbers();
-
-    //                     setTimeout(() => {
-    //                         this.hideLoading();
-    //                         console.log('🎉 DataTable fully initialized and ready');
-    //                     }, 300);
-    //                 },
-    //                 "drawCallback": () => {
-    //                     this.updateRowNumbers();
-    //                 },
-    //                 "error": (settings, techNote, message) => {
-    //                     console.error('❌ DataTable error:', message);
-    //                     this.isInitializing = false;
-    //                     this.hideLoading();
-    //                 }
-    //             });
-
-    //             // Double-check initialization
-    //             setTimeout(() => {
-    //                 if (!$.fn.DataTable.isDataTable('#membersTable')) {
-    //                     console.error('❌ DataTable failed to initialize properly');
-    //                     this.isInitializing = false;
-    //                     this.hideLoading();
-    //                 }
-    //             }, 1000);
-
-    //         } catch (error) {
-    //             console.error('❌ Error initializing DataTable:', error);
-    //             this.isInitializing = false;
-    //             this.hideLoading();
-
-    //             // Retry after delay
-    //             setTimeout(() => {
-    //                 console.log('🔄 Retrying DataTable initialization...');
-    //                 this.initializeDataTable();
-    //             }, 1000);
-    //         }
-    //     }, 150);
-    // }
     initializeDataTable() {
+        // Add retry counter
+        if (!this.retryCount) this.retryCount = 0;
+        const maxRetries = 2;
+
+        if (this.retryCount >= maxRetries) {
+            console.error('❌ Max retries reached, giving up');
+            this.retryCount = 0;
+            this.isInitializing = false;
+            $('#table-loading-placeholder').hide();
+            $('#membersTable').show();
+            this.hideLoading();
+            return;
+        }
+
         if (this.isInitializing) {
             console.log('⚠️ DataTable initialization already in progress');
             return;
@@ -735,35 +674,47 @@ class DataTableManager {
 
         console.log('🔄 Initializing DataTable...');
         this.isInitializing = true;
+        this.retryCount++;
 
         // Hide the table and show loading placeholder
         $('#membersTable').hide();
         $('#table-loading-placeholder').show();
 
         this.showLoading();
-        this.destroyDataTable();
-        this.restoreTableStructure();
 
-        // Ensure DOM is ready
+        // Add a small delay to ensure DOM is ready
         setTimeout(() => {
             try {
+                // First, completely destroy any existing DataTable
+                this.destroyDataTable();
+
+                // Clean up the table structure
+                this.restoreTableStructure();
+
                 const tableElement = $('#membersTable');
 
                 if (tableElement.length === 0) {
                     throw new Error('Members table not found in DOM');
                 }
 
+                // Check if table has the required structure
+                if (tableElement.find('thead tr').length === 0 || tableElement.find('tbody').length === 0) {
+                    throw new Error('Table missing required structure (thead/tbody)');
+                }
+
                 console.log('📊 Creating DataTable instance...');
 
+                // Use a simpler configuration first to test
                 this.table = tableElement.DataTable({
                     "responsive": false,
                     "lengthChange": true,
                     "autoWidth": false,
                     "pageLength": 10,
                     "pagingType": "simple_numbers",
-                    "ordering": false,
+                    "ordering": true, // Changed to true for better stability
                     "destroy": true,
-                    "retrieve": true,
+                    "retrieve": false, // Changed to false to avoid conflicts
+                    "deferRender": true, // Add this for better performance
                     "language": {
                         "search": "Global Search:",
                         "lengthMenu": "Show _MENU_ members",
@@ -782,34 +733,41 @@ class DataTableManager {
                         {
                             "targets": 0, // Serial number
                             "orderable": false,
-                            "searchable": false
+                            "searchable": false,
+                            "width": "5%"
                         },
                         {
                             "targets": 1, // Name
-                            "searchable": true
+                            "searchable": true,
+                            "width": "20%"
                         },
                         {
                             "targets": 2, // ID Number
-                            "searchable": true
+                            "searchable": true,
+                            "width": "15%"
                         },
                         {
                             "targets": 3, // Contact
-                            "searchable": true
+                            "searchable": true,
+                            "width": "15%"
                         },
                         {
-                            "targets": 4, // Gender (HTML content)
+                            "targets": 4, // Gender
                             "searchable": true,
-                            "type": "html" // This tells DataTables to search the text content
+                            "type": "html",
+                            "width": "10%"
                         },
                         {
-                            "targets": 5, // PWD (HTML content)
+                            "targets": 5, // PWD
                             "searchable": true,
-                            "type": "html" // This tells DataTables to search the text content
+                            "type": "html",
+                            "width": "10%"
                         },
                         {
                             "targets": 6, // Actions
                             "orderable": false,
-                            "searchable": false
+                            "searchable": false,
+                            "width": "5%"
                         }
                     ],
                     "dom": '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4"B><"col-sm-12 col-md-4"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
@@ -817,14 +775,14 @@ class DataTableManager {
                         {
                             extend: 'excel',
                             text: '<i class="fas fa-file-excel"></i> Excel',
-                            title: 'Members Information',
+                            title: '{{ $constituency->constituency_name }} Constituency Members Information',
                             className: 'btn-success btn-sm',
                             exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
                         },
                         {
                             extend: 'pdf',
                             text: '<i class="fas fa-file-pdf"></i> PDF',
-                            title: 'Members Information',
+                            title: '{{ $constituency->constituency_name }} Constituency Members Information',
                             className: 'btn-danger btn-sm',
                             exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
                         },
@@ -838,59 +796,59 @@ class DataTableManager {
                     ],
                     "initComplete": (settings, json) => {
                         console.log('✅ DataTable initComplete called');
+                        this.retryCount = 0;
                         this.isInitializing = false;
 
                         // Setup filters after initialization
-                        this.setupColumnFilters();
-                        this.updateRowNumbers();
-
                         setTimeout(() => {
-                            // Hide loading placeholder and show the initialized table
+                            this.setupColumnFilters();
+                            this.updateRowNumbers();
+
+                            // Hide loading and show table
                             $('#table-loading-placeholder').hide();
                             $('#membersTable').show();
                             this.hideLoading();
+
                             console.log('🎉 DataTable fully initialized and ready');
-                        }, 300);
+                        }, 200);
                     },
                     "drawCallback": () => {
                         this.updateRowNumbers();
                     },
                     "error": (settings, techNote, message) => {
-                        console.error('❌ DataTable error:', message);
+                        console.error('❌ DataTable error:', message, techNote);
                         this.isInitializing = false;
-                        // Show table even if there's an error
+
+                        // Fallback: show basic table
                         $('#table-loading-placeholder').hide();
                         $('#membersTable').show();
                         this.hideLoading();
                     }
                 });
 
-                // Double-check initialization
-                setTimeout(() => {
-                    if (!$.fn.DataTable.isDataTable('#membersTable')) {
-                        console.error('❌ DataTable failed to initialize properly');
-                        this.isInitializing = false;
-                        $('#table-loading-placeholder').hide();
-                        $('#membersTable').show();
-                        this.hideLoading();
-                    }
-                }, 1000);
-
             } catch (error) {
                 console.error('❌ Error initializing DataTable:', error);
                 this.isInitializing = false;
-                // Show table even if there's an error
+
+                // Fallback: show basic table without DataTables
                 $('#table-loading-placeholder').hide();
                 $('#membersTable').show();
                 this.hideLoading();
 
-                // Retry after delay
-                setTimeout(() => {
-                    console.log('🔄 Retrying DataTable initialization...');
-                    this.initializeDataTable();
-                }, 1000);
+                // Only retry if under max retries
+                if (this.retryCount < maxRetries) {
+                    setTimeout(() => {
+                        console.log('🔄 Retrying DataTable initialization...');
+                        this.initializeDataTable();
+                    }, 1000);
+                } else {
+                    this.retryCount = 0;
+                    this.showNotification('Failed to load table after multiple attempts', 'error');
+                }
+
+                this.showNotification('Table loaded in basic mode', 'warning');
             }
-        }, 150);
+        }, 200);
     }
 
     updateRowNumbers() {

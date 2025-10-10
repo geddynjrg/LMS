@@ -126,16 +126,16 @@
                         <thead class="table-primary">
                             <tr>
                                 <th width="5%">#</th>
-                                <th width="20%">Member Details</th>
-                                <th width="20%">Groups</th>
+                                <th width="10%">Member Details</th>
+                                <th width="10%">Groups</th>
                                 <th width="10%">Total Groups</th>
                                 <th width="15%">Active Loans</th>
-                                <th width="15%">Total Balances</th>
+                                <th width="15%">Total Arrears</th>
                                 <th width="15%">Risk Level</th>
                             </tr>
                         </thead>
                         <!-- MOVED FILTER ROW TO tfoot FOR BETTER EXPORT HANDLING -->
-                        <tfoot style="display: table-header-group;">
+                        {{-- <tfoot style="display: table-header-group;">
                             <tr class="filters bg-light">
                                 <th></th>
                                 <th><input type="text" class="form-control form-control-sm" placeholder="Search Member" /></th>
@@ -159,7 +159,47 @@
                                 </th>
                                 <th>
                                     <select class="form-control form-control-sm">
-                                        <option value="">All Balances</option>
+                                        <option value="">All Arrears</option>
+                                        <option value="high">High (>100K)</option>
+                                        <option value="medium">Medium (50K-100K)</option>
+                                        <option value="low">Low (<50K)</option>
+                                    </select>
+                                </th>
+                                <th>
+                                    <select class="form-control form-control-sm">
+                                        <option value="">All Risks</option>
+                                        <option value="high">High Risk</option>
+                                        <option value="medium">Medium Risk</option>
+                                        <option value="low">Low Risk</option>
+                                    </select>
+                                </th>
+                            </tr>
+                        </tfoot> --}}
+                        <tfoot style="display: table-header-group;">
+                            <tr class="filters bg-light">
+                                <th></th>
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Member" /></th>
+                                <th><input type="text" class="form-control form-control-sm" placeholder="Search Groups" /></th>
+                                <th>
+                                    <select class="form-control form-control-sm">
+                                        <option value="">All Groups</option>
+                                        <option value="2">2 Groups</option>
+                                        <option value="3">3 Groups</option>
+                                        <option value="4">4+ Groups</option>
+                                    </select>
+                                </th>
+                                <th>
+                                    <select class="form-control form-control-sm">
+                                        <option value="">All Loans</option>
+                                        <option value="0">No Loans</option>
+                                        <option value="1">1 Loan</option>
+                                        <option value="2">2 Loans</option>
+                                        <option value="3">3+ Loans</option>
+                                    </select>
+                                </th>
+                                <th>
+                                    <select class="form-control form-control-sm">
+                                        <option value="">All Arrears</option>
                                         <option value="high">High (>100K)</option>
                                         <option value="medium">Medium (50K-100K)</option>
                                         <option value="low">Low (<50K)</option>
@@ -213,11 +253,17 @@
                                             @if(isset($member->groups) && is_array($member->groups))
                                                 @foreach($member->groups as $group)
                                                     <span class="group-badge badge
-                                                        {{ isset($group->is_defaulter) && $group->is_defaulter ? 'badge-danger' : 'badge-secondary' }}
+                                                        {{ $group->risk_level === 'high' ? 'badge-danger' : ($group->risk_level === 'medium' ? 'badge-warning' : ($group->risk_level === 'low' ? 'badge-info' : 'badge-secondary')) }}
                                                         mr-1 mb-1">
                                                         {{ $group->name ?? 'Unknown Group' }}
-                                                        @if(isset($group->balance))
-                                                            (KSh {{ number_format($group->balance) }})
+                                                        @if($group->arrears > 0)
+                                                            <br><small>KSh {{ number_format($group->arrears) }}</small>
+                                                        @endif
+                                                        @if($group->is_defaulter)
+                                                            <br><small class="text-warning">
+                                                                <i class="fas fa-exclamation-triangle"></i>
+                                                                {{ $group->default_days }} days default
+                                                            </small>
                                                         @endif
                                                     </span>
                                                 @endforeach
@@ -228,7 +274,7 @@
                                     </td>
                                     <td>
                                         @php
-                                            $totalGroups = $member->group_count ?? (isset($member->groups) ? count($member->groups) : 0);
+                                            $totalGroups = $member->group_count ?? 0;
                                             $groupBadgeClass = $totalGroups >= 4 ? 'badge-warning' : ($totalGroups == 3 ? 'badge-info' : 'badge-primary');
                                         @endphp
                                         <span class="badge {{ $groupBadgeClass }} p-2">
@@ -238,7 +284,7 @@
                                     </td>
                                     <td>
                                         @php
-                                            $activeLoans = $member->active_loans ?? 0;
+                                            $activeLoans = $member->active_loans_count ?? 0;
                                             $loanBadgeClass = $activeLoans > 0 ? 'badge-warning' : 'badge-success';
                                         @endphp
                                         <span class="badge {{ $loanBadgeClass }} p-2">
@@ -247,13 +293,21 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <div class="balance-info">
-                                            <strong class="text-primary">KSh {{ number_format($member->total_balance ?? 0) }}</strong>
+                                        <div class="arrears-info">
+                                            <strong class="text-danger">KSh {{ number_format($member->total_arrears ?? 0) }}</strong>
                                             @if($member->high_risk_groups > 0)
                                                 <div class="mt-1">
                                                     <small class="text-danger">
                                                         <i class="fas fa-exclamation-triangle mr-1"></i>
                                                         {{ $member->high_risk_groups }} high-risk group(s)
+                                                    </small>
+                                                </div>
+                                            @endif
+                                            @if($member->max_default_days > 0)
+                                                <div class="mt-1">
+                                                    <small class="text-warning">
+                                                        <i class="fas fa-clock mr-1"></i>
+                                                        Max {{ $member->max_default_days }} days default
                                                     </small>
                                                 </div>
                                             @endif
@@ -549,8 +603,15 @@
 <script src="{{ asset('plugins/pdfmake/pdfmake.min.js') }}"></script>
 <script src="{{ asset('plugins/pdfmake/vfs_fonts.js') }}"></script>
 <script src="{{asset('plugins/toastr/toastr.min.js')}}"></script>
+
+<script src="{{ asset('plugins/datatables-buttons/js/buttons.html5.min.js') }}"></script>
+<script src="{{ asset('plugins/datatables-buttons/js/buttons.print.min.js') }}"></script>
+<script src="{{ asset('plugins/jszip/jszip.min.js') }}"></script>
+<script src="{{ asset('plugins/pdfmake/pdfmake.min.js') }}"></script>
+<script src="{{ asset('plugins/pdfmake/vfs_fonts.js') }}"></script>
+<script src="{{asset('plugins/toastr/toastr.min.js')}}"></script>
 <script>
-// DataTable Manager - Configured for Multi-Group Members
+    // DataTable Manager - Fixed for Multi-Group Members
 class DataTableManager {
     constructor() {
         this.table = null;
@@ -646,6 +707,36 @@ class DataTableManager {
               .css('min-width', '1000px');
     }
 
+    // Extract numeric value from Total Groups HTML
+    extractTotalGroups(html) {
+        const match = html.match(/(\d+)\s*Group/);
+        return match ? parseInt(match[1]) : 0;
+    }
+
+    // Extract numeric value from Active Loans HTML
+    extractActiveLoans(html) {
+        const match = html.match(/(\d+)\s*Active/);
+        return match ? parseInt(match[1]) : 0;
+    }
+
+    // Extract numeric value from Total Arrears HTML
+    extractTotalArrears(html) {
+        const match = html.match(/KSh\s*([\d,]+)/);
+        return match ? parseInt(match[1].replace(/,/g, '')) : 0;
+    }
+
+    // Extract risk level from Risk Level HTML
+    extractRiskLevel(html) {
+        const riskMatch = html.match(/(High|Medium|Low)\s*Risk/i);
+        return riskMatch ? riskMatch[1].toLowerCase() : 'unknown';
+    }
+
+    // Extract risk score from Risk Level HTML
+    extractRiskScore(html) {
+        const scoreMatch = html.match(/Score:\s*(\d+)\/10/);
+        return scoreMatch ? parseInt(scoreMatch[1]) : 0;
+    }
+
     setupColumnFilters() {
         // Wait a bit to ensure DataTable is fully initialized
         setTimeout(() => {
@@ -658,6 +749,9 @@ class DataTableManager {
 
             // Clear existing event handlers
             $('tfoot .filters input, tfoot .filters select').off('keyup change');
+
+            // Store reference to this for use in event handlers
+            const self = this;
 
             // Setup filters for each column
             this.table.columns().every((index) => {
@@ -682,69 +776,86 @@ class DataTableManager {
                     filterInput.val(currentSearch);
                 }
 
-                // Add event handlers with custom logic for different column types
+                // Add event handlers with proper context
                 filterInput.on('keyup change', function () {
                     const value = $(this).val();
                     console.log(`Filtering column ${index} with:`, value);
 
-                    // Special handling for different column types
-                    switch (index) {
-                        case 3: // Total Groups column
-                            if (value === '') {
-                                column.search('').draw();
-                            } else if (value === '4') {
-                                // For 4+ groups, search for numbers >= 4
-                                column.search('[4-9]|\\d{2,}', true, false).draw();
-                            } else {
-                                column.search(`^${value}$`, true, false).draw();
-                            }
-                            break;
+                    // Use the stored reference to access the table
+                    if (self.table) {
+                        // Custom filtering logic for different column types
+                        switch (index) {
+                            case 3: // Total Groups - Exact match
+                                if (value === '') {
+                                    self.table.column(index).search('').draw();
+                                } else if (value === '2') {
+                                    //self.table.column(index).search('\\b2\\b', true, false).draw();
+                                    self.table.column(index).search('2\\s*Group\\(s\\)', true, false).draw();
+                                } else if (value === '3') {
+                                    // search for exactly 3 groups
+                                    //self.table.column(index).search('\\b3\\b', true, false).draw();
+                                    self.table.column(index).search('3\\s*Group\\(s\\)', true, false).draw();
+                                }else if (value === '4') {
+                                    // For 4+ groups, search for numbers >= 4
+                                    self.table.column(index).search('([4-9]|\\d{2,})\\s*Group\\(s\\)', true, false).draw();
+                                    //self.table.column(index).search('^[4-9]|\\d{2,}', true, false).draw();
+                                } else {
+                                    // Exact match for specific numbers
+                                    self.table.column(index).search( value + '$', true, false).draw();
+                                }
+                                break;
 
-                        case 4: // Active Loans column
-                            if (value === '') {
-                                column.search('').draw();
-                            } else if (value === '3') {
-                                // For 3+ loans, search for numbers >= 3
-                                column.search('[3-9]|\\d{2,}', true, false).draw();
-                            } else {
-                                column.search(`^${value}$`, true, false).draw();
-                            }
-                            break;
+                            case 4: // Active Loans - Exact match
+                                if (value === '') {
+                                    self.table.column(index).search('').draw();
+                                } else if (value === '0') {
+                                    self.table.column(index).search('0\\s*Active\\s*Loan\\(s\\)', true, false).draw();
+                                } else if (value === '1') {
+                                    self.table.column(index).search('1\\s*Active\\s*Loan\\(s\\)', true, false).draw();
+                                } else if (value === '2') {
+                                    self.table.column(index).search('2\\s*Active\\s*Loan\\(s\\)', true, false).draw();
+                                } else if (value === '3') {
+                                    // For 3+ loans, search for numbers >= 3
+                                    self.table.column(index).search('([3-9]|\\d{2,})\\s*Active\\s*Loan\\(s\\)', true, false).draw();
+                                } else {
+                                    // Exact match for specific numbers
+                                    self.table.column(index).search(value + '$', true, false).draw();
+                                }
+                                break;
 
-                        case 5: // Total Balances column
-                            if (value === '') {
-                                column.search('').draw();
-                            } else if (value === 'high') {
-                                // Search for balances > 100,000
-                                column.search('1[0-9]{5,}|[2-9]\\d{5,}', true, false).draw();
-                            } else if (value === 'medium') {
-                                // Search for balances between 50,000 and 100,000
-                                column.search('[5-9]\\d{4}|100000', true, false).draw();
-                            } else if (value === 'low') {
-                                // Search for balances < 50,000
-                                column.search('^[0-4]\\d{0,4}$|^[0-9]{1,4}$', true, false).draw();
-                            } else {
-                                column.search(value).draw();
-                            }
-                            break;
+                            case 5: // Total Arrears - Range matching
+                                if (value === '') {
+                                    self.table.column(index).search('').draw();
+                                } else if (value === 'high') {
+                                    self.table.column(index).search('KSh[^\\d]*(1\\d{2},?\\d{3}|[2-9]\\d{2},?\\d{3}|\\d{6,})', true, false).draw();
+                                } else if (value === 'medium') {
+                                    // Search for arrears between 50,000 and 100,000
+                                    self.table.column(index).search('KSh[^\\d]*([5-9]\\d,?\\d{3})', true, false).draw();
+                                } else if (value === 'low') {
+                                    // Search for arrears < 50,000
+                                    self.table.column(index)
+                                    .search('KSh\\s*(?:(?:[0-9]{1,4})|(?:[1-4][0-9]?,\\d{3}))(?![\\d,])', true, false)
+                                    .draw();
+                                } else {
+                                    self.table.column(index).search(value).draw();
+                                }
+                                break;
 
-                        case 6: // Risk Level column
-                            if (value === '') {
-                                column.search('').draw();
-                            } else {
-                                // Search for the specific risk level in the HTML
-                                const riskRegex = `badge-${value}`;
-                                column.search(riskRegex, true, false).draw();
-                            }
-                            break;
+                            case 6: // Risk Level - Exact match
+                                if (value === '') {
+                                    self.table.column(index).search('').draw();
+                                } else {
+                                    self.table.column(index)
+                                        .search('\\b' + value.replace(/\s+/g, '\\s*') + '\\b', true, false)
+                                        .draw();
 
-                        default:
-                            // Default behavior for other columns
-                            if ($(this).is('select')) {
-                                column.search(value).draw();
-                            } else {
-                                column.search(value).draw();
-                            }
+                                }
+                                break;
+
+                            default:
+                                // Default behavior for other columns
+                                self.table.column(index).search(value).draw();
+                        }
                     }
                 });
             });
@@ -790,6 +901,18 @@ class DataTableManager {
                     throw new Error('Members table not found in DOM');
                 }
 
+                // Check if there are any data rows
+                const hasData = $('#membersTable tbody tr:not(.dataTables_empty)').length > 0;
+
+                if (!hasData) {
+                    console.log('📊 No data rows found, initializing empty DataTable');
+                    $('#table-loading-placeholder').hide();
+                    $('#membersTable').show();
+                    this.hideLoading();
+                    this.isInitializing = false;
+                    return;
+                }
+
                 console.log('📊 Creating DataTable instance...');
 
                 this.table = tableElement.DataTable({
@@ -798,14 +921,14 @@ class DataTableManager {
                     "autoWidth": false,
                     "pageLength": 10,
                     "pagingType": "simple_numbers",
-                    "ordering": true, // Enable ordering for better user experience
-                    "order": [[3, 'desc'], [5, 'desc']], // Default sort by total groups desc, then balance desc
+                    "ordering": true,
+                    "order": [[3, 'desc'], [5, 'desc']], // Sort by Total Groups desc, then Total Arrears desc
                     "destroy": true,
                     "retrieve": true,
                     "language": {
                         "search": "Global Search:",
                         "lengthMenu": "Show _MENU_ members",
-                        "zeroRecords": "No multi-group members found",
+                        "zeroRecords": "No multi-group members found matching your filters",
                         "info": "Showing _START_ to _END_ of _TOTAL_ multi-group members",
                         "infoEmpty": "No multi-group members available",
                         "infoFiltered": "(filtered from _MAX_ total multi-group members)",
@@ -816,67 +939,6 @@ class DataTableManager {
                             "previous": "Previous"
                         }
                     },
-                    "columnDefs": [
-                        {
-                            "targets": 0, // Serial number
-                            "orderable": false,
-                            "searchable": false
-                        },
-                        {
-                            "targets": 1, // Member Details
-                            "searchable": true
-                        },
-                        {
-                            "targets": 2, // Groups
-                            "searchable": true,
-                            "orderable": false
-                        },
-                        {
-                            "targets": 3, // Total Groups
-                            "searchable": true,
-                            "type": "num", // Treat as numeric for proper sorting
-                            "orderable": true,
-                            "render": function (data, type, row) {
-                                if (type === 'sort' || type === 'type') {
-                                    // Extract numeric value for sorting
-                                    return $(data).find('.badge').text().match(/\d+/) || 0;
-                                }
-                                return data;
-                            }
-                        },
-                        {
-                            "targets": 4, // Active Loans
-                            "searchable": true,
-                            "type": "num", // Treat as numeric for proper sorting
-                            "orderable": true,
-                            "render": function (data, type, row) {
-                                if (type === 'sort' || type === 'type') {
-                                    // Extract numeric value for sorting
-                                    return $(data).find('.badge').text().match(/\d+/) || 0;
-                                }
-                                return data;
-                            }
-                        },
-                        {
-                            "targets": 5, // Total Balances
-                            "searchable": true,
-                            "type": "num", // Treat as numeric for proper sorting
-                            "orderable": true,
-                            "render": function (data, type, row) {
-                                if (type === 'sort' || type === 'type') {
-                                    // Extract numeric value for sorting
-                                    return data.replace(/[^0-9]/g, '') || 0;
-                                }
-                                return data;
-                            }
-                        },
-                        {
-                            "targets": 6, // Risk Level (HTML content)
-                            "searchable": true,
-                            "type": "html",
-                            "orderable": true
-                        }
-                    ],
                     "dom": '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4"B><"col-sm-12 col-md-4"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
                     "buttons": [
                         {
@@ -886,30 +948,99 @@ class DataTableManager {
                             className: 'btn-success btn-sm',
                             exportOptions: {
                                 columns: [0, 1, 2, 3, 4, 5, 6],
-                                format: {
-                                    body: function (data, row, column, node) {
-                                        // Clean HTML from exported data
-                                        if (column === 1) {
-                                            // Extract text from member details
-                                            return $(data).find('.member-name').text().trim() || data;
+                                // format: {
+                                //     body: function (data, row, column, node) {
+                                //         // Extract clean text for export
+                                //         if (column === 1) {
+                                //             const $cell = $(data);
+                                //             const name = $cell.find('.member-name').text().trim();
+                                //             const phone = $cell.find('.fa-phone-alt').parent().text().trim();
+                                //             const id = $cell.find('.fa-id-card').parent().text().trim();
+                                //             return `${name}\n${phone}\n${id}`;
+                                //         }
+                                //         if (column === 2) {
+                                //             const groups = [];
+                                //             $(data).find('.group-badge').each(function() {
+                                //                 groups.push($(this).text().trim());
+                                //             });
+                                //             return groups.join('\n');
+                                //         }
+                                //         if (column === 3) {
+                                //             const match = $(data).find('.badge').text().match(/(\d+)\s*Group/);
+                                //             return match ? match[1] : '0';
+                                //         }
+                                //         if (column === 4) {
+                                //             const match = $(data).find('.badge').text().match(/(\d+)\s*Active/);
+                                //             return match ? match[1] : '0';
+                                //         }
+                                //         if (column === 5) {
+                                //             const match = $(data).find('.text-danger').first().text().match(/KSh\s*([\d,]+)/);
+                                //             return match ? `KSh ${match[1]}` : 'KSh 0';
+                                //         }
+                                //         if (column === 6) {
+                                //             const riskLevel = $(data).find('.badge').text().trim();
+                                //             const scoreMatch = $(data).find('.text-muted').text().match(/(\d+)\/10/);
+                                //             const score = scoreMatch ? scoreMatch[1] : '';
+                                //             return score ? `${riskLevel} (${score}/10)` : riskLevel;
+                                //         }
+                                //         return $(data).text().trim();
+                                //     }
+                                // }
+                                customizeData: function (data) {
+                                    // Process data for Excel export to show actual values
+                                    for (let i = 0; i < data.body.length; i++) {
+                                        const row = data.body[i];
+
+                                        // Column 1: Member Details - extract text
+                                        if (row[1] && typeof row[1] === 'object') {
+                                            const $cell = $('<div>').html(row[1].display);
+                                            const name = $cell.find('.member-name').text().trim();
+                                            const phone = $cell.find('.fa-phone-alt').parent().text().trim();
+                                            const id = $cell.find('.fa-id-card').parent().text().trim();
+                                            row[1] = `${name}\n${phone}\n${id}`;
                                         }
-                                        if (column === 2) {
-                                            // Extract group names
+
+                                        // Column 2: Groups - extract group names
+                                        if (row[2] && typeof row[2] === 'object') {
+                                            const $cell = $('<div>').html(row[2].display);
                                             const groups = [];
-                                            $(data).find('.group-badge').each(function() {
+                                            $cell.find('.group-badge').each(function() {
                                                 groups.push($(this).text().trim());
                                             });
-                                            return groups.join(', ');
+                                            row[2] = groups.join('\n');
                                         }
-                                        if (column === 3 || column === 4) {
-                                            // Extract numeric count
-                                            return $(data).find('.badge').text().match(/\d+/) || '0';
+
+                                        // Column 3: Total Groups - extract number
+                                        if (row[3] && typeof row[3] === 'object') {
+                                            row[3] = row[3].sort; // Use the numeric value
+                                        } else if (row[3]) {
+                                            row[3] = dataTableManager.extractTotalGroups(row[3]);
                                         }
-                                        if (column === 6) {
-                                            // Extract risk level
-                                            return $(data).find('.badge').first().text().trim() || data;
+
+                                        // Column 4: Active Loans - extract number
+                                        if (row[4] && typeof row[4] === 'object') {
+                                            row[4] = row[4].sort;
+                                        } else if (row[4]) {
+                                            row[4] = dataTableManager.extractActiveLoans(row[4]);
                                         }
-                                        return data;
+
+                                        // Column 5: Total Arrears - extract number
+                                        if (row[5] && typeof row[5] === 'object') {
+                                            row[5] = row[5].sort;
+                                        } else if (row[5]) {
+                                            row[5] = dataTableManager.extractTotalArrears(row[5]);
+                                        }
+
+                                        // Column 6: Risk Level - extract text and score
+                                        if (row[6] && typeof row[6] === 'object') {
+                                            const riskLevel = dataTableManager.extractRiskLevel(row[6].display);
+                                            const riskScore = row[6].sort;
+                                            row[6] = `${riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)} Risk (${riskScore}/10)`;
+                                        } else if (row[6]) {
+                                            const riskLevel = dataTableManager.extractRiskLevel(row[6]);
+                                            const riskScore = dataTableManager.extractRiskScore(row[6]);
+                                            row[6] = `${riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1)} Risk (${riskScore}/10)`;
+                                        }
                                     }
                                 }
                             }
@@ -924,7 +1055,11 @@ class DataTableManager {
                                 format: {
                                     body: function (data, row, column, node) {
                                         if (column === 1) {
-                                            return $(data).find('.member-name').text().trim() || data;
+                                            const $cell = $(data);
+                                            const name = $cell.find('.member-name').text().trim();
+                                            const phone = $cell.find('.fa-phone-alt').parent().text().trim();
+                                            const id = $cell.find('.fa-id-card').parent().text().trim();
+                                            return `${name}\n${phone}\n${id}`;
                                         }
                                         if (column === 2) {
                                             const groups = [];
@@ -933,13 +1068,25 @@ class DataTableManager {
                                             });
                                             return groups.join(', ');
                                         }
-                                        if (column === 3 || column === 4) {
-                                            return $(data).find('.badge').text().match(/\d+/) || '0';
+                                        if (column === 3) {
+                                            const match = $(data).find('.badge').text().match(/(\d+)\s*Group/);
+                                            return match ? match[1] : '0';
+                                        }
+                                        if (column === 4) {
+                                            const match = $(data).find('.badge').text().match(/(\d+)\s*Active/);
+                                            return match ? match[1] : '0';
+                                        }
+                                        if (column === 5) {
+                                            const match = $(data).find('.text-danger').first().text().match(/KSh\s*([\d,]+)/);
+                                            return match ? `KSh ${match[1]}` : 'KSh 0';
                                         }
                                         if (column === 6) {
-                                            return $(data).find('.badge').first().text().trim() || data;
+                                            const riskLevel = $(data).find('.badge').text().trim();
+                                            const scoreMatch = $(data).find('.text-muted').text().match(/(\d+)\/10/);
+                                            const score = scoreMatch ? scoreMatch[1] : '';
+                                            return score ? `${riskLevel} (${score}/10)` : riskLevel;
                                         }
-                                        return data;
+                                        return $(data).text().trim();
                                     }
                                 }
                             },
@@ -953,6 +1100,9 @@ class DataTableManager {
                                     fillColor: '#343a40',
                                     alignment: 'center'
                                 };
+                                doc.styles.tableBody = {
+                                    fontSize: 9
+                                };
                             }
                         },
                         {
@@ -965,7 +1115,11 @@ class DataTableManager {
                                 format: {
                                     body: function (data, row, column, node) {
                                         if (column === 1) {
-                                            return $(data).find('.member-name').text().trim() || data;
+                                            const $cell = $(data);
+                                            const name = $cell.find('.member-name').text().trim();
+                                            const phone = $cell.find('.fa-phone-alt').parent().text().trim();
+                                            const id = $cell.find('.fa-id-card').parent().text().trim();
+                                            return `${name}\n${phone}\n${id}`;
                                         }
                                         if (column === 2) {
                                             const groups = [];
@@ -974,13 +1128,25 @@ class DataTableManager {
                                             });
                                             return groups.join(', ');
                                         }
-                                        if (column === 3 || column === 4) {
-                                            return $(data).find('.badge').text().match(/\d+/) || '0';
+                                        if (column === 3) {
+                                            const match = $(data).find('.badge').text().match(/(\d+)\s*Group/);
+                                            return match ? match[1] : '0';
+                                        }
+                                        if (column === 4) {
+                                            const match = $(data).find('.badge').text().match(/(\d+)\s*Active/);
+                                            return match ? match[1] : '0';
+                                        }
+                                        if (column === 5) {
+                                            const match = $(data).find('.text-danger').first().text().match(/KSh\s*([\d,]+)/);
+                                            return match ? `KSh ${match[1]}` : 'KSh 0';
                                         }
                                         if (column === 6) {
-                                            return $(data).find('.badge').first().text().trim() || data;
+                                            const riskLevel = $(data).find('.badge').text().trim();
+                                            const scoreMatch = $(data).find('.text-muted').text().match(/(\d+)\/10/);
+                                            const score = scoreMatch ? scoreMatch[1] : '';
+                                            return score ? `${riskLevel} (${score}/10)` : riskLevel;
                                         }
-                                        return data;
+                                        return $(data).text().trim();
                                     }
                                 }
                             },
@@ -1046,12 +1212,6 @@ class DataTableManager {
                 $('#table-loading-placeholder').hide();
                 $('#membersTable').show();
                 this.hideLoading();
-
-                // Retry after delay
-                setTimeout(() => {
-                    console.log('🔄 Retrying DataTable initialization...');
-                    this.initializeDataTable();
-                }, 1000);
             }
         }, 150);
     }
@@ -1112,19 +1272,7 @@ $(document).ready(function() {
     // Wait a bit for Livewire to settle
     setTimeout(() => {
         dataTableManager.initializeDataTable();
-    }, 300);
-
-    // View member button handler
-    $(document).on('click', '.view-member', function (e) {
-        const memberId = $(this).data('member-id');
-        console.log('👁️ Viewing multi-group member:', memberId);
-        $("#view-group-member-modal").modal('show');
-
-        setTimeout(() => {
-            console.log('Dispatching loadMemberData with:', memberId);
-            Livewire.dispatch('loadMemberData', { memberId: memberId });
-        }, 500);
-    });
+    }, 500);
 
     // Reset filters button
     $(document).on('click', '#reset-filters', function() {
@@ -1136,10 +1284,6 @@ $(document).ready(function() {
         dataTableManager.checkStatus();
     });
 
-    // Modal event handlers
-    $('#view-group-member-modal').on('hidden.bs.modal', function () {
-        Livewire.dispatch('memberModalClosed');
-    });
 });
 
 // Livewire event listeners
@@ -1159,35 +1303,7 @@ document.addEventListener('members-refreshed', function (event) {
     // Refresh DataTable with sufficient delay
     setTimeout(() => {
         dataTableManager.refreshDataTable();
-    }, 800);
-});
-
-document.addEventListener('groupMemberEdited', function (event) {
-    if (!event.detail || typeof toastr === 'undefined') return;
-
-    const messages = {
-        'error': () => toastr.error('Error occurred please try again!!'),
-        'success': () => {
-            // Show success message first
-            toastr.success('Member Edited Successfully');
-            // Close modal and refresh after user sees the message
-            setTimeout(() => {
-                $("#view-group-member-modal").modal('hide');
-                Livewire.dispatch('refresh-members');
-            }, 1000);
-        },
-        'deleted': () => {
-            // Show success message first
-            toastr.success('Member Deleted Successfully');
-            // Close modal and refresh after user sees the message
-            setTimeout(() => {
-                $("#view-group-member-modal").modal('hide');
-                Livewire.dispatch('refresh-members');
-            }, 1000);
-        }
-    };
-
-    messages[event.detail.message]?.();
+    }, 1000);
 });
 
 // Global access for debugging

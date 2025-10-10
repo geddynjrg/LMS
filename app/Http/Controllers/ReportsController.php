@@ -23,4 +23,21 @@ class ReportsController extends Controller
             'county' => $county,
         ]);
     }
+
+    public function dynamicReport(Request $request, County $county, Constituency $constituency)
+    {
+        return View('reports.dynamic_report', [
+            'constituency' => $constituency,
+            'county' => $county,
+        ]);
+    }
+
+    public function export(Request $request, County $county, Constituency $constituency)
+    {
+        dd('Export functionality coming soon.');
+        // return View('reports.export', [
+        //     'constituency' => $constituency,
+        //     'county' => $county,
+        // ]);
+    }
 }

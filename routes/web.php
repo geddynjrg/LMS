@@ -88,6 +88,8 @@ Route::middleware(['auth'])->group(function () {
             Route::prefix('reports')->name('reports.')->group(function () {
                 Route::get('codelist', [ReportsController::class, 'codeList'])->name('codelist');
                 Route::get('/disbursement', [ReportsController::class, 'disbursement'])->name('disbursement');
+                Route::get('/dynamic-report', [ReportsController::class, 'dynamicReport'])->name('dynamic-report');
+                Route::get('/export', [ReportsController::class, 'export'])->name('export');
             });
 
 

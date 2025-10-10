@@ -80,6 +80,7 @@ class SideNav extends Component
             'const.loans.grouploans'  => ['const.loans.grouploans',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.loans.loanreceipts'  => ['const.loans.loanreceipts',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.reports.codelist'  => ['const.reports.codelist',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.reports.general'  => ['const.reports.dynamic-report',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.reports.disbursement'  => ['const.reports.disbursement',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
 
             'const.loans.loanmembers'  => ['const.loans.loanmembers',  ['county' => $countySlug, 'constituency' => $constituencySlug]],

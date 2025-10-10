@@ -177,6 +177,15 @@
                   <p>Loan Subm (F.5)</p>
                 </a>
               </li>
+                <li class="nav-item">
+                    <a href="{{route('const.reports.dynamic-report', [
+                        Str::slug($county->slug),
+                        Str::slug($currentConstituency->slug),
+                    ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.dynamic-report' ? 'active':''}}">
+                    <i class="fas fa-file-code nav-icon"></i>
+                    <p>General Report</p>
+                    </a>
+                </li>
               <li class="nav-item">
                 <a href="{{route('const.reports.disbursement', [
                     Str::slug($county->slug),

@@ -30,11 +30,27 @@ class GroupMembers extends Component
 
     public function mount(Constituency $constituency)
     {
-        $this->cacheTtl = config('cache-config.members.ttl', 300); // 5 minutes
-        $this->cachePrefix = config('cache-config.members.prefix', 'constituency_members');
+        // $this->cacheTtl = config('cache-config.members.ttl', 300); // 5 minutes
+        // $this->cachePrefix = config('cache-config.members.prefix', 'constituency_all_members'); // CHANGED
+
+        $this->cacheTtl = config('cache-config.members.ttl');
+        $this->cachePrefix = config('cache-config.members.prefix');
 
         $this->constituency = $constituency;
         $this->getMembers();
+    }
+
+    public function hydrate()
+    {
+        // Reset loading state when component hydrates
+        $this->isReady = false;
+        $this->loading = true;
+    }
+
+    public function dehydrate()
+    {
+        // Clean up before component dehydrates
+        $this->isReady = false;
     }
 
     private function getMembers(): void
@@ -45,19 +61,26 @@ class GroupMembers extends Component
         $summaryKey = "{$cacheKey}_summary";
         $timestampKey = "{$cacheKey}_timestamp";
 
-        // Check cache status
-        $this->cacheHit = Cache::has($cacheKey) && Cache::has($summaryKey);
+        // Cache tags for better management
+        $cacheTags = [
+            "constituency:{$this->constituency->constituency_code}",
+            "members:all",
+            "component:group-members"
+        ];
 
-        // Get or calculate summary data FIRST
-        $summary = Cache::remember($summaryKey, $this->cacheTtl, function() {
+        // Check cache status
+        $this->cacheHit = Cache::tags($cacheTags)->has($cacheKey) &&
+             Cache::tags($cacheTags)->has($summaryKey);
+
+        // Get or calculate summary data with tags
+        $summary = Cache::tags($cacheTags)->remember($summaryKey, $this->cacheTtl, function() {
             return $this->calculateMembersSummary();
         });
 
         // Get members data - FIXED: Always ensure it's a collection
-        $cachedMembers = Cache::remember($cacheKey, $this->cacheTtl, function() {
+        $cachedMembers = Cache::tags($cacheTags)->remember($cacheKey, $this->cacheTtl, function() {
             $membersData = $this->loadMembersData();
 
-            // Ensure we always return a collection
             if ($membersData instanceof \Illuminate\Support\Collection) {
                 return $membersData;
             } elseif (is_array($membersData)) {
@@ -68,8 +91,8 @@ class GroupMembers extends Component
         });
 
         // Store timestamp
-        Cache::put($timestampKey, now()->toDateTimeString(), $this->cacheTtl);
-        $this->lastUpdated = Cache::get($timestampKey);
+        Cache::tags($cacheTags)->put($timestampKey, now()->toDateTimeString(), $this->cacheTtl);
+        $this->lastUpdated = Cache::tags($cacheTags)->get($timestampKey);
 
         // Assign data - FIXED: Ensure $members is always a collection
         $this->members = $cachedMembers;
@@ -128,7 +151,7 @@ class GroupMembers extends Component
             return ['total' => 0, 'male' => 0, 'female' => 0, 'disabled' => 0];
         }
 
-        // Get counts in single queries (no N+1)
+        // Get counts in single queries
         $maleCount = Member::whereIn('member_Id', $memberIds)
             ->where('gender', 'Male')
             ->count();
@@ -195,6 +218,10 @@ class GroupMembers extends Component
             return $members;
 
         } catch (\Exception $e) {
+            Log::error('Error loading members data in GroupMembers:', [
+                'error' => $e->getMessage(),
+                'constituency' => $this->constituency->constituency_code
+            ]);
             return collect(); // Return empty collection on error
         }
     }
@@ -207,16 +234,19 @@ class GroupMembers extends Component
         $cacheKey = "{$this->cachePrefix}_{$this->constituency->constituency_code}";
         $summaryKey = "{$cacheKey}_summary";
         $timestampKey = "{$cacheKey}_timestamp";
+        $cacheTags = ["constituency:{$this->constituency->constituency_code}", "members:all", "component:group-members"];
 
         return [
             'cache_key' => $cacheKey,
-            'has_cache' => Cache::has($cacheKey),
-            'has_summary_cache' => Cache::has($summaryKey),
-            'last_updated' => Cache::get($timestampKey),
+            'has_cache' => Cache::tags($cacheTags)->has($cacheKey),
+            'has_summary_cache' => Cache::tags($cacheTags)->has($summaryKey),
+            'last_updated' => Cache::tags($cacheTags)->get($timestampKey),
             'ttl' => $this->cacheTtl,
+            'tags' => $cacheTags
         ];
     }
-     // Refresh method
+
+    // #[On('refresh-members')]
     // public function refreshMembers()
     // {
     //     $this->loading = true;
@@ -229,37 +259,40 @@ class GroupMembers extends Component
     //     Cache::forget($timestampKey);
 
     //     $this->getMembers();
-
+    //     // Dispatch Livewire event
     //     $this->dispatch('members-refreshed', [
     //         'message' => 'Members data refreshed successfully',
     //         'constituency' => $this->constituency->constituency_name
     //     ]);
-
     //     // Add a small delay to ensure DOM is updated
     //     usleep(500000); // 500ms delay
+
+
     //     $this->loading = false;
     // }
     #[On('refresh-members')]
     public function refreshMembers()
     {
         $this->loading = true;
+        $this->isReady = false;
+
         $cacheKey = "{$this->cachePrefix}_{$this->constituency->constituency_code}";
         $summaryKey = "{$cacheKey}_summary";
         $timestampKey = "{$cacheKey}_timestamp";
+        $cacheTags = ["constituency:{$this->constituency->constituency_code}", "members:all", "component:group-members"];
 
-        Cache::forget($cacheKey);
-        Cache::forget($summaryKey);
-        Cache::forget($timestampKey);
+        // Clear only this component's cache with tags
+        Cache::tags($cacheTags)->forget($cacheKey);
+        Cache::tags($cacheTags)->forget($summaryKey);
+        Cache::tags($cacheTags)->forget($timestampKey);
 
+        usleep(100000);
         $this->getMembers();
-        // Dispatch Livewire event
+
         $this->dispatch('members-refreshed', [
-            'message' => 'Members data refreshed successfully',
+            'message' => 'All members data refreshed successfully',
             'constituency' => $this->constituency->constituency_name
         ]);
-        // Add a small delay to ensure DOM is updated
-        usleep(500000); // 500ms delay
-
 
         $this->loading = false;
     }
