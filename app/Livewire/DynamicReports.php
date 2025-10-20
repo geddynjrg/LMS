@@ -303,66 +303,6 @@ class DynamicReports extends Component
         $this->selectedColumns = ['financed_loans_filter']; // Default to financed loans filter only
     }
 
-    // section for report generation
-    // public function generateReport()
-    // {
-    //     $this->ensureSelectedColumnsIsArray();
-
-    //     $userConstituency = $this->constituency;
-
-    //     if (!$userConstituency) {
-    //         $this->dispatch('report-error', [
-    //             'message' => 'No constituency assigned to your account. Please contact administrator.'
-    //         ]);
-    //         return;
-    //     }
-
-    //     $this->validate([
-    //         'selectedColumns' => 'required|array|min:1',
-    //     ]);
-
-    //     // Log selected columns for debugging
-    //     logger()->info('generateReport() - Selected columns for report: ' . json_encode($this->selectedColumns));
-
-    //     $this->loading = true;
-    //     $this->reportGenerated = false;
-    //     $this->showingLimitedData = false; // Reset
-
-    //     // Generate a unique cache key based on selected columns and filters
-    //     $cacheKey = $this->getCacheKey();
-    //     $cacheTags = ['reports', "constituency:{$userConstituency->constituency_code}"];
-
-    //     try {
-    //         logger()->info("Attempting to generate report with cache key: {$cacheKey}");
-    //         $this->reportData = $this->fetchReportData(false);
-
-    //         $this->totalRecords = count($this->reportData);
-    //         $this->reportGenerated = true;
-
-    //         // Prepare success message based on data size
-    //         $message = "Report '{$this->reportName}' generated successfully";
-
-    //         if ($this->showingLimitedData) {
-    //             $message .= ". Showing first {$this->displayLimit} of {$this->totalAvailableRecords} records. Use export to get all data.";
-    //         } else {
-    //             $message .= " with {$this->totalRecords} records.";
-    //         }
-
-    //         $this->dispatch('report-generated', [
-    //             'message' => $message,
-    //             'constituency' => $this->constituencyName ?? 'unknown',
-    //             'limited' => $this->showingLimitedData
-    //         ]);
-
-    //     } catch (\Exception $e) {
-    //         logger()->error('Report generation failed: ' . $e->getMessage());
-    //         $this->dispatch('report-error', [
-    //             'message' => 'Error generating report: ' . $e->getMessage()
-    //         ]);
-    //     }
-
-    //     $this->loading = false;
-    // }
     public function generateReport()
     {
         $this->ensureSelectedColumnsIsArray();
@@ -630,15 +570,43 @@ class DynamicReports extends Component
 
     private function buildLoanCentricQuery($dataColumns)
     {
-        logger()->info("in loan centric query builder");
-        $selectColumns = $this->getSelectColumns();
+        $dataColumns = array_filter($dataColumns, function($col) {
+            return str_starts_with($col, 'group_loans.');
+        });
+        // Always include foreign keys for relationships to work
+        $requiredColumns = [
+            'group_loans.id',
+            'group_loans.group_id',
+            'group_loans.loan_phase_id'
+        ];
 
-        // Loan-centric query with all relationships
+        $dataColumns = array_unique(array_merge($dataColumns, $requiredColumns));
         $query = GroupLoan::with([
-            'group.ward',
-            'loanPhase',
-            'groupMembers.member'
-        ])->select($selectColumns);
+            'group' => function($query) {
+                $query->select(['id', 'ward_id', 'name', 'category', 'identifier', 'reg_number', 'status', 'gfs_code', 'date_registered', 'bank', 'account', 'activity', 'location', 'box']);
+            },
+            'group.ward' => function($query) {
+                $query->select(['id', 'ward_name', 'constituency_code']);
+            },
+            'loanPhase' => function($query) {
+                $query->select(['id', 'phase']);
+            },
+            'groupMembers' => function($query) {
+                $query->select(['id', 'member_Id', 'group_loans_id', 'role']);
+                // Remove the whereHas for now to debug
+            },
+            'groupMembers.member' => function($query) {
+                $query->select(['id', 'member_Id', 'name', 'number', 'gender', 'disabled']);
+            }
+        ])->select($dataColumns);
+
+        $query->when(true, function($q) {
+            logger()->info('Loan centric query with relationships:', [
+                'sql' => $q->toSql(),
+                'bindings' => $q->getBindings(),
+                'with_relationships' => array_keys($q->getEagerLoads())
+            ]);
+        });
 
         return $query;
     }
