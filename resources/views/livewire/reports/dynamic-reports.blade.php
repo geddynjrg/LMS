@@ -491,6 +491,31 @@
 
                 <!-- Report Results -->
                 <!-- Report Results -->
+                <!-- Loading State with Progress -->
+@if($loading)
+<div class="card">
+    <div class="card-body text-center py-5">
+        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+        <p class="mt-3 text-muted">
+            <i class="fas fa-cog fa-spin mr-2"></i>
+            Generating report... This may take a moment for large constituencies.
+        </p>
+        @if($totalAvailableRecords > 1000)
+        <div class="progress mt-3" style="height: 10px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                 role="progressbar"
+                 style="width: 50%">
+            </div>
+        </div>
+        <small class="text-muted mt-2">
+            Processing large dataset: {{ number_format($totalAvailableRecords) }} records
+        </small>
+        @endif
+    </div>
+</div>
+@endif
 @if($reportGenerated && !$loading)
 <div class="card card-success">
     <div class="card-header">
@@ -498,21 +523,17 @@
             <i class="fas fa-table mr-2"></i>
             Report Results - {{ $constituency->constituency_name ?? 'unknown' }}
 
-            @if($showingLimitedData)
-                <span class="badge badge-warning ml-2">
-                    <i class="fas fa-info-circle mr-1"></i>
-                    Preview Mode
-                </span>
-            @endif
+
+            <span class="badge badge-warning ml-2">
+                <i class="fas fa-info-circle mr-1"></i>
+                Preview Mode
+            </span>
         </h3>
         <div class="card-tools">
             <span class="badge badge-light">
                 <i class="fas fa-chart-bar mr-1"></i>
-                @if($showingLimitedData)
-                    {{ number_format($totalRecords) }}/{{ number_format($totalAvailableRecords) }} records
-                @else
-                    {{ number_format($totalRecords) }} records
-                @endif
+                {{ number_format($totalRecords) }}/{{ number_format($totalActualRecords) }} records
+
             </span>
         </div>
     </div>
@@ -521,7 +542,7 @@
         @if($totalRecords > 0)
             <div class="table-responsive">
                 <table class="table table-bordered table-striped table-hover mb-0">
-                    <thead class="thead-dark">
+                    {{-- <thead class="thead-dark">
                         <tr>
                             @foreach($selectedColumns as $column)
                                 @php
@@ -534,8 +555,28 @@
                                 </th>
                             @endforeach
                         </tr>
+                    </thead> --}}
+                    <!-- In the Report Results section -->
+                    <thead class="thead-dark">
+                        <tr>
+                            @foreach($selectedColumns as $column)
+                                @php
+                                    // Skip filter options in the table headers
+                                    if (array_key_exists($column, $filterOptions)) {
+                                        continue;
+                                    }
+
+                                    $columnLabel = collect($availableColumns)
+                                        ->flatMap(fn($cols) => $cols)
+                                        ->get($column, $column);
+                                @endphp
+                                <th class="bg-primary">
+                                    {{ $columnLabel }}
+                                </th>
+                            @endforeach
+                        </tr>
                     </thead>
-                    <tbody>
+                    {{-- <tbody>
                         @foreach($reportData as $index => $row)
                             <tr>
                                 @foreach($selectedColumns as $column)
@@ -552,7 +593,7 @@
                                     <br>
                                     <small class="mt-1 d-block">
                                         <i class="fas fa-download mr-1"></i>
-                                        Use the export buttons below to download all {{ number_format($totalAvailableRecords) }} records.
+                                        Use the export buttons below to download all {{ number_format($totalActualRecords) }} records.
                                     </small>
                                 </td>
                             </tr>
@@ -560,11 +601,38 @@
                             <tr class="table-info">
                                 <td colspan="{{ count($selectedColumns) }}" class="text-center font-weight-bold">
                                     <i class="fas fa-info-circle mr-2"></i>
-                                    Showing first {{ $displayLimit }} of {{ number_format($totalRecords) }} records.
+                                    Showing first {{ $displayLimit }} of {{ number_format($totalActualRecords) }} records.
                                     Use export features to download complete data.
                                 </td>
                             </tr>
                         @endif
+                    </tbody> --}}
+                    <tbody>
+                        @foreach($reportData as $index => $row)
+                            <tr>
+                                @foreach($selectedColumns as $column)
+                                    @php
+                                        // Skip filter options in the table cells
+                                        if (array_key_exists($column, $filterOptions)) {
+                                            continue;
+                                        }
+                                    @endphp
+                                    <td>{{ $row[$column] ?? 'N/A' }}</td>
+                                @endforeach
+                            </tr>
+
+                        @endforeach
+                        <tr class="table-warning">
+                                <td colspan="{{ count($selectedColumns) }}" class="text-center font-weight-bold">
+                                    <i class="fas fa-info-circle mr-2"></i>
+                                    📊 Showing first {{ $totalAvailableRecords <= $displayLimit ? $totalAvailableRecords :  $displayLimit }} of {{ number_format($totalAvailableRecords) }} records.
+                                    <br>
+                                    <small class="mt-1 d-block">
+                                        <i class="fas fa-download mr-1"></i>
+                                        Use the export buttons below to download all {{ number_format($totalActualRecords) }} records.
+                                    </small>
+                                </td>
+                            </tr>
                     </tbody>
                 </table>
             </div>
@@ -584,13 +652,9 @@
                 <small class="text-muted">
                     <i class="fas fa-clock mr-1"></i>
                     Generated on: {{ now()->format('M j, Y g:i A') }}
-                    @if($showingLimitedData)
-                        <br>
-                        <span class="text-warning">
-                            <i class="fas fa-eye mr-1"></i>
-                            Preview: {{ $displayLimit }}/{{ number_format($totalAvailableRecords) }} records
-                        </span>
-                    @endif
+                    {{-- @if($showingLimitedData) --}}
+
+                    {{-- @endif --}}
                 </small>
             </div>
             <div class="btn-group">
@@ -612,7 +676,7 @@
             </div>
         </div>
 
-        @if($showingLimitedData)
+        {{-- @if($showingLimitedData) --}}
         <div class="mt-2 pt-2 border-top">
             <div class="text-center">
                 <small class="text-muted">
@@ -621,7 +685,7 @@
                 </small>
             </div>
         </div>
-        @endif
+        {{-- @endif --}}
     </div>
 </div>
 @endif
