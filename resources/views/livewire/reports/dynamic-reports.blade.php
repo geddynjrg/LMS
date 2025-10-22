@@ -27,72 +27,8 @@
                     <div class="card-body">
                         <p class="text-muted mb-4">Create custom reports by selecting specific fields and date ranges</p>
 
-                        <!-- Report Configuration -->
-                        <div class="row">
-                            <div class="col-md-12">
-                                <div class="card card-info card-outline">
-                                    <div class="card-header">
-                                        <h3 class="card-title">
-                                            <i class="fas fa-cog mr-2"></i>
-                                            Report Configuration
-                                        </h3>
-                                        <div class="card-tools">
-                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                                <i class="fas fa-minus"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-4">
-                                                <div class="form-group">
-                                                    <label for="reportName">
-                                                        <i class="fas fa-file-signature mr-1"></i>
-                                                        Report Name
-                                                    </label>
-                                                    <input type="text"
-                                                        class="form-control"
-                                                        id="reportName"
-                                                        placeholder="Enter report name"
-                                                        wire:model="reportName">
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-group">
-                                                    <label for="startDate">
-                                                        <i class="fas fa-calendar-alt mr-1"></i>
-                                                        Start Date
-                                                    </label>
-                                                    <input type="date"
-                                                        class="form-control"
-                                                        id="startDate"
-                                                        wire:model="startDate">
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-group">
-                                                    <label for="endDate">
-                                                        <i class="fas fa-calendar-alt mr-1"></i>
-                                                        End Date
-                                                    </label>
-                                                    <input type="date"
-                                                        class="form-control"
-                                                        id="endDate"
-                                                        wire:model="endDate">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr class="my-4">
 
                         <!-- Select Fields to Include -->
-<!-- Select Fields to Include -->
-<!-- Select Fields to Include -->
-<!-- Select Fields to Include -->
 <div class="row">
     <div class="col-12">
         <div class="card card-primary card-outline">
@@ -124,8 +60,8 @@
                         Custom Filters
                         <small class="text-muted">(These filters won't appear in the exported report)</small>
                     </h5>
-                    <div class="row">
-                        <div class="col-md-4">
+                    <div wire:ignore class="row">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filterLoanPhase" class="font-weight-bold">
                                     <i class="fas fa-calendar-alt mr-1 text-info"></i>
@@ -141,7 +77,7 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="filterWard" class="font-weight-bold">
                                     <i class="fas fa-map-marker-alt mr-1 text-success"></i>
@@ -157,7 +93,42 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filterGroupCategory" class="font-weight-bold">
+                                    <i class="fas fa-users mr-1 text-info"></i>
+                                    Filter by Group Category
+                                </label>
+                                <select class="form-control select2"
+                                        id="filterGroupCategory"
+                                        wire:model.live="filterGroupCategory">
+                                    <option value="">All Categories</option>
+                                    @foreach($groupCategories as $category)
+                                        <option value="{{ $category }}">{{ $category }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="filterGroupActivity" class="font-weight-bold">
+                                    <i class="fas fa-briefcase mr-1 text-info"></i>
+                                    Filter by Group Activity
+                                </label>
+                                <select class="form-control select2"
+                                        id="filterGroupActivity"
+                                        wire:model.live="filterGroupActivity">
+                                    <option value="">All Activities</option>
+                                    @foreach($groupActivities as $activity)
+                                        <option value="{{ $activity }}">{{ $activity }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label class="font-weight-bold d-block">
                                     <i class="fas fa-exclamation-triangle mr-1 text-warning"></i>
@@ -172,13 +143,36 @@
                                         Show Defaulters Only
                                     </label>
                                 </div>
-                                <div class="mt-2">
-                                    <button type="button"
-                                            class="btn btn-outline-secondary btn-sm"
-                                            wire:click="clearFilters">
-                                        <i class="fas fa-times mr-1"></i> Clear Filters
-                                    </button>
-                                </div>
+                            </div>
+
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="reportName">
+                                    <i class="fas fa-file-signature mr-1"></i>
+                                    Report Name
+                                </label>
+                                <input type="text"
+                                    class="form-control"
+                                    id="reportName"
+                                    placeholder="Enter report name"
+                                    wire:model="reportName"
+                                    required>
+                                <small class="form-text text-muted">This will be the name of the report file.</small>
+                                {{-- error handler --}}
+                                @error('reportName')
+                                    <span class="text-sm text-danger font-weight-bold">{{ $message }}</span>
+                                @enderror
+                            </div>
+                        </div>
+                        {{-- clear filters --}}
+                        <div class="col-md-6 d-flex align-items-end">
+                            <div class="form-group ml-auto">
+                                <button type="button"
+                                        class="btn btn-outline-secondary"
+                                        wire:click="clearFilters">
+                                    <i class="fas fa-broom mr-1"></i> Clear All Filters
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -521,7 +515,7 @@
     <div class="card-header">
         <h3 class="card-title">
             <i class="fas fa-table mr-2"></i>
-            Report Results - {{ $constituency->constituency_name ?? 'unknown' }}
+            Report Results - {{ $reportName ?? 'unknown' }}
 
 
             <span class="badge badge-warning ml-2">
@@ -664,11 +658,25 @@
                         <i class="fas fa-download mr-2"></i>Export All Data
                     </button>
                 @endif
-                <button type="button" class="btn btn-warning btn-sm" wire:click="exportToExcel">
-                    <i class="fas fa-file-excel mr-2"></i>Export Excel
+                <button type="button"
+                        class="btn btn-warning btn-sm"
+                        wire:click="exportToExcel"
+                        wire:target="exportToExcel"
+                        wire:loading.attr="disabled"
+                        >
+                    <i class="fas fa-download mr-2" wire:loading.class="d-none"></i>
+                    <i class="fas fa-spinner fa-spin mr-2" wire:target="exportToExcel" wire:loading></i>
+                    Export Excel
                 </button>
-                <button type="button" class="btn btn-danger btn-sm" wire:click="exportToPDF">
-                    <i class="fas fa-file-pdf mr-2"></i>Export PDF
+                <button type="button"
+                        class="btn btn-danger btn-sm"
+                        wire:click="exportToPDF"
+                        wire:target="exportToPDF"
+                        wire:loading.attr="disabled"
+                        >
+                    <i class="fas fa-file-pdf mr-2" wire:loading.class="d-none"></i>
+                    <i class="fas fa-spinner fa-spin mr-2" wire:target="exportToPDF" wire:loading></i>
+                    Export PDF
                 </button>
                 <button type="button" class="btn btn-info btn-sm" wire:click="refreshReport">
                     <i class="fas fa-sync-alt mr-2"></i>Refresh
@@ -696,6 +704,7 @@
 @push('styles')
 <link rel="stylesheet" href="{{asset('plugins/select2/css/select2.min.css')}}">
 <link rel="stylesheet" href="{{asset('plugins/select2-bootstrap4-theme/select2-bootstrap4.min.css')}}">
+<link rel="stylesheet" href="{{asset('plugins/toastr/toastr.min.css')}}">
 <style>
 .card-outline .card-header {
     background-color: transparent;
@@ -883,6 +892,7 @@
 @push('scripts')
 <script src="{{asset('plugins/select2/js/select2.full.min.js')}}"></script>
 <script src="{{asset('plugins/sortableJs/sortable.min.js')}}"></script>
+<script src="{{asset('plugins/toastr/toastr.min.js')}}"></script>
 <script>
     $(document).ready(function() {
         // Initialize Select2
@@ -1015,10 +1025,6 @@
                 toastr.error(event.message);
             });
 
-            Livewire.on('export-error', (event) => {
-                toastr.error(event.message);
-            });
-
             Livewire.on('columns-reordered', (event) => {
                 toastr.info(event.message);
             });
@@ -1065,6 +1071,45 @@
             $('.select2').select2({ theme: 'bootstrap4' });
         });
 
+        // Add progress indicators for long-running operations
+        Livewire.on('export-progress', (event) => {
+            const progress = event.progress;
+            const progressBar = document.getElementById('export-progress-bar');
+            const progressText = document.getElementById('export-progress-text');
+
+            if (progressBar) {
+                progressBar.style.width = `${progress}%`;
+            }
+            if (progressText) {
+                progressText.textContent = `Exporting... ${progress}%`;
+            }
+        });
+
+        // Add confirmation for large exports
+        function confirmLargeExport() {
+            const totalRecords = @json($totalAvailableRecords);
+            if (totalRecords > 10000) {
+                return confirm(`This export will process ${totalRecords.toLocaleString()} records. This may take several minutes. Continue?`);
+            }
+            return true;
+        }
+
+        // Listen for the filters-cleared event
+        Livewire.on('filters-cleared', (event) => {
+            toastr.success("Filters have been cleared");
+            // Reset Select2 elements
+            ['filterLoanPhase', 'filterWard', 'filterGroupCategory', 'filterGroupActivity'].forEach(id => {
+                const selectElement = $(`#${id}`);
+                if (selectElement.length) {
+                    selectElement.val(null).trigger('change');
+                }
+            });
+        });
+
+        Livewire.on('export-error', (event) => {
+            toastr.error(event.message, 'Export Failed!');
+        });
+
         // Select2 handling
         $(document).on('change', '.select2', function() {
             const elementName = $(this).attr('id');
@@ -1073,6 +1118,10 @@
                 @this.set('filterLoanPhase', value);
             } else if (elementName === 'filterWard') {
                 @this.set('filterWard', value);
+            } else if (elementName === 'filterGroupCategory') {
+                @this.set('filterGroupCategory', value);
+            } else if (elementName === 'filterGroupActivity') {
+                @this.set('filterGroupActivity', value);
             }
         });
 

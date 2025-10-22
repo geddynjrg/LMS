@@ -15,7 +15,13 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+// excels
+use Maatwebsite\Excel\Facades\Excel;
+
+// exports
+use App\Exports\DynamicReportChunkedExport;
 
 class DynamicReports extends Component
 {
@@ -51,6 +57,7 @@ class DynamicReports extends Component
     public $filterDefaulter = false;
     public $filterGroupCategory = '';
     public $filterLoanStatus = '';
+    public $filterGroupActivity = '';
     public $selectedLoanStatusFilters = [];
 
     public $filterFinancedLoans = false;
@@ -97,7 +104,7 @@ class DynamicReports extends Component
             'group_loans.status' => 'Application Status',
             'group_loans.comments' => 'Comments',
             'loan_phase.phase' => 'Loan Phase', // Added loan phase field
-            'arrears' => 'Arrears', // Added arrears field
+            'arrears' => 'Outstanding Balance', // Added arrears field
             'amount_due' => 'Amount Due', // Added amount due field
             'cumulative_arrears' => 'Cumulative Arrears', // Added cumulative arrears field
             'repayment_date' => 'Date of Repayment Completion', // Added repayment date field
@@ -116,6 +123,7 @@ class DynamicReports extends Component
     public $selectedColumns = [];
     public $reportData = [];
     public $loading = false;
+    public $exportLoading = false;
     public $reportGenerated = false;
     public $totalRecords = 0;
 
@@ -123,6 +131,7 @@ class DynamicReports extends Component
     public $loanPhases = [];
     public $allWards = [];
     public $groupCategories = ['Youth', 'Women', 'PWD'];
+    public $groupActivities = ['Trade', 'Service', 'Manufacturing', 'Agriculture', 'Other'];
     public $loanStatuses = ['pending', 'deferred', 'approved', 'financed', 'cancelled'];
 
     // Cache configuration
@@ -337,6 +346,7 @@ class DynamicReports extends Component
         $this->showingLimitedData = true; // Reset
 
         try {
+            $this->validateReportParameters();
             logger()->info("Attempting to generate report");
             $this->reportData = $this->fetchReportData(false);
 
@@ -356,10 +366,19 @@ class DynamicReports extends Component
                 'limited' => true
             ]);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+        $this->dispatch('validation-error', [
+            'message' => 'Please check your report parameters',
+            'errors' => $e->errors()
+        ]);
         } catch (\Exception $e) {
-            logger()->error('Report generation failed: ' . $e->getMessage());
+            logger()->error('Report generation failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             $this->dispatch('report-error', [
-                'message' => 'Error generating report: ' . $e->getMessage()
+                'message' => 'An unexpected error occurred. Please try again.'
             ]);
         }
 
@@ -383,6 +402,8 @@ class DynamicReports extends Component
 
         // Apply filters
         $this->applySmartFilters($query, $userConstituency);
+
+
 
         try {
 
@@ -433,75 +454,21 @@ class DynamicReports extends Component
             return $query->toBase()->getCountForPagination();
         }
     }
-
-    private function fetchDataWithChunking($query, $forExport = false)
+    private function validateReportParameters()
     {
-        $limit = $forExport ? null : $this->displayLimit;
-        $chunkSize = $this->chunkSize;
-        $formattedData = [];
-        $processed = 0;
-        $memoryWarningSent = false;
+        $validator = Validator::make([
+            'selectedColumns' => $this->selectedColumns,
+        ], [
+            'selectedColumns' => 'required|array|min:1',
+        ]);
 
-        $queryInfo = $this->getQueryType($query);
-        $chunkColumn = $queryInfo['chunk_column'];
-
-        logger()->info("Starting chunked data fetching. Chunk size: {$chunkSize}, Limit: " . ($limit ?? 'none'));
-
-        // Use chunkById for better performance with large datasets
-        $query->chunkById($chunkSize, function ($chunk) use (&$formattedData, &$processed, $limit, &$memoryWarningSent) {
-
-            // Format this chunk
-            $chunkData = $this->formatChunk($chunk);
-            $formattedData = array_merge($formattedData, $chunkData);
-            $processed += $chunk->count();
-
-            logger()->info("Processed chunk: {$processed} records so far");
-
-            // Check memory usage
-            $memoryUsage = memory_get_usage(true) / 1024 / 1024; // MB
-            if ($memoryUsage > ($this->memoryLimitMB * 0.8) && !$memoryWarningSent) {
-                logger()->warning("High memory usage: {$memoryUsage}MB");
-                $memoryWarningSent = true;
-            }
-
-            // Force garbage collection every few chunks
-            if ($processed % ($this->chunkSize * 5) === 0) {
-                gc_collect_cycles();
-                logger()->info("Garbage collection triggered at {$processed} records");
-            }
-
-            // Stop if we've reached the display limit
-            if ($limit && $processed >= $limit) {
-                logger()->info("Reached display limit of {$limit} records");
-                return false; // Stop chunking
-            }
-
-        }, $chunkColumn); // Use the primary key for chunking
-
-        logger()->info("Chunked processing completed. Total processed: " . count($formattedData));
-
-        return $formattedData;
-    }
-
-    private function formatChunk($chunk)
-    {
-        $chunkData = [];
-
-        foreach ($chunk as $item) {
-            $row = [];
-            foreach ($this->selectedColumns as $column) {
-                if (array_key_exists($column, $this->filterOptions)) {
-                    continue;
-                }
-                $row[$column] = $this->formatColumnValue($column, $item);
-            }
-            $chunkData[] = $row;
+        if ($validator->fails()) {
+            throw new \Illuminate\Validation\ValidationException($validator);
         }
-
-        return $chunkData;
     }
 
-    private function buildSmartQuery()
+
+    public function buildSmartQuery()
     {
         $this->ensureSelectedColumnsIsArray();
 
@@ -577,11 +544,25 @@ class DynamicReports extends Component
         $requiredColumns = [
             'group_loans.id',
             'group_loans.group_id',
-            'group_loans.loan_phase_id'
+            'group_loans.loan_phase_id',
+            'group_loans.disbursement_date',
         ];
 
+
+
         $dataColumns = array_unique(array_merge($dataColumns, $requiredColumns));
-        $query = GroupLoan::with([
+        // $query = GroupLoan::with([
+        //     'group' => function($query) {
+        //         $query->select(['id', 'ward_id', 'name', 'category', 'identifier', 'reg_number', 'status', 'gfs_code', 'date_registered', 'bank', 'account', 'activity', 'location', 'box']);
+        //     },
+        //     'group.ward' => function($query) {
+        //         $query->select(['id', 'ward_name', 'constituency_code']);
+        //     },
+        //     'loanPhase' => function($query) {
+        //         $query->select(['id', 'phase']);
+        //     }
+        // ]);
+        $withRelations = [
             'group' => function($query) {
                 $query->select(['id', 'ward_id', 'name', 'category', 'identifier', 'reg_number', 'status', 'gfs_code', 'date_registered', 'bank', 'account', 'activity', 'location', 'box']);
             },
@@ -590,25 +571,18 @@ class DynamicReports extends Component
             },
             'loanPhase' => function($query) {
                 $query->select(['id', 'phase']);
-            },
-            'groupMembers' => function($query) {
-                $query->select(['id', 'member_Id', 'group_loans_id', 'role']);
-                // Remove the whereHas for now to debug
-            },
-            'groupMembers.member' => function($query) {
-                $query->select(['id', 'member_Id', 'name', 'number', 'gender', 'disabled']);
             }
-        ])->select($dataColumns);
+        ];
 
-        $query->when(true, function($q) {
-            logger()->info('Loan centric query with relationships:', [
-                'sql' => $q->toSql(),
-                'bindings' => $q->getBindings(),
-                'with_relationships' => array_keys($q->getEagerLoads())
-            ]);
-        });
+        // Only load groupMembers if member columns are selected
+        $needsMembers = !empty(array_intersect($dataColumns, array_keys($this->availableColumns['members'])));
+        if ($needsMembers) {
+            $withRelations['groupMembers.member'] = function($query) {
+                $query->select(['id', 'member_Id', 'name', 'number', 'gender', 'disabled']);
+            };
+        }
 
-        return $query;
+        return GroupLoan::with($withRelations)->select($dataColumns);
     }
 
     private function buildNonLoanQuery($dataColumns)
@@ -719,20 +693,12 @@ class DynamicReports extends Component
         return $query;
     }
 
-
-
-
-
-
-
-
-
-
-    private function applySmartFilters($query, $userConstituency)
+    public function applySmartFilters($query, $userConstituency)
     {
         logger()->info("Applying smart filters");
         // Get the query type to apply appropriate filters
         $queryType = $this->getQueryType($query);
+        $this->applyDefaulterFilter($query, $queryType);
 
         switch ($queryType['type']) {
             case 'loan_centric':
@@ -777,43 +743,6 @@ class DynamicReports extends Component
     }
 
     // Update the getSelectColumns method to handle all calculated fields
-    private function getSelectColumns()
-    {
-        $selectColumns = [];
-
-        foreach ($this->selectedColumns as $column) {
-            // Skip filter options - they don't represent actual columns
-            if (array_key_exists($column, $this->filterOptions)) {
-                continue;
-            }
-
-            switch ($column) {
-                case 'arrears':
-                    $selectColumns[] = DB::raw('(group_loans.amount_issued - group_loans.amount_repaid) as arrears');
-                    break;
-                case 'cumulative_arrears':
-                    $selectColumns[] = DB::raw('(
-                        SELECT SUM(gl.amount_issued - gl.amount_repaid)
-                        FROM group_loans gl
-                        WHERE gl.group_id = groups.id
-                        AND (gl.amount_issued - gl.amount_repaid) > 0
-                    ) as cumulative_arrears');
-                    break;
-                case 'amount_due':
-                    $selectColumns[] = DB::raw('(group_loans.amount_issued - group_loans.amount_repaid) as amount_due');
-                    break;
-                case 'repayment_date':
-                    // This would need your business logic for repayment date calculation
-                    $selectColumns[] = DB::raw('NULL as repayment_date'); // Placeholder
-                    break;
-                default:
-                    $selectColumns[] = $column;
-                    break;
-            }
-        }
-
-        return $selectColumns;
-    }
 
     private function applyLoanCentricFilters($query, $userConstituency)
     {
@@ -843,18 +772,19 @@ class DynamicReports extends Component
             });
         }
 
+        if ($this->filterGroupActivity) {
+            $query->whereHas('group', function($q) {
+                $q->where('activity', $this->filterGroupActivity);
+            });
+        }
+
         // Apply loan status filter
         if ($this->filterLoanStatus) {
             $query->where('loan_status', $this->filterLoanStatus);
         }
 
-        // Apply defaulter filter
-        if ($this->filterDefaulter) {
-            $query->whereRaw('(amount_issued - amount_repaid) > 0');
-        }
-
         // Apply loan status filters from filter options
-        $this->applyLoanStatusFilters($query);
+        if ($this->selectedLoanStatusFilters) $this->applyLoanStatusFilters($query);
     }
 
     private function applyMemberCentricFilters($query, $userConstituency)
@@ -883,6 +813,13 @@ class DynamicReports extends Component
                 $q->where('category', $this->filterGroupCategory);
             });
         }
+
+        if ($this->filterGroupActivity) {
+            $query->whereHas('groupMembers.groupLoan.group', function($q) {
+                $q->where('activity', $this->filterGroupActivity);
+            });
+        }
+
         if ($this->selectedLoanStatusFilters) {
             $query->whereHas('groupMembers.groupLoan', function($q) {
                 //local.INFO: Applying these loan status filters to member query{"2":"financed_loans_filter","3":"pending_loans_filter"}
@@ -929,9 +866,14 @@ class DynamicReports extends Component
         if ($this->filterGroupCategory) {
             $query->where('category', $this->filterGroupCategory);
         }
+
+        // Apply group activity filter
+        if ($this->filterGroupActivity) {
+            $query->where('activity', $this->filterGroupActivity);
+        }
     }
 
-    private function formatColumnValue($column, $item)
+    public function formatColumnValue($column, $item)
     {
         // Handle different query types
         if ($item instanceof GroupLoan) {
@@ -947,7 +889,10 @@ class DynamicReports extends Component
 
     private function formatLoanCentricColumn($column, $item)
     {
-        // $item is a GroupLoan instance with relationships loaded
+        // calculate fields based on loan-centric query
+
+        $calculatedFields = $this->getCalclatedFieldsForLoan($item->disbursement_date, $item->amount_issued, $item->amount_repaid);
+
         switch ($column) {
             // Group columns
             case 'groups.name':
@@ -1007,28 +952,29 @@ class DynamicReports extends Component
             case 'group_loans.comments':
                 return $item->comments ?? 'N/A';
 
-            // Member columns - handle multiple members by showing first member or aggregating
+            // Member columns - handle multiple members by showing all members
+            // dont forget to handle cases where there are no members
             case 'members.member_Id':
                 if ($item->groupMembers->isNotEmpty()) {
-                    $memberIds = $item->groupMembers->pluck('member.member_Id')->filter()->unique();
+                    $memberIds = $item->groupMembers->pluck('member.member_Id');
                     return $memberIds->join(', ');
                 }
                 return 'N/A';
             case 'members.name':
                 if ($item->groupMembers->isNotEmpty()) {
-                    $memberNames = $item->groupMembers->pluck('member.name')->filter()->unique();
+                    $memberNames = $item->groupMembers->pluck('member.name');
                     return $memberNames->join(', ');
                 }
                 return 'N/A';
             case 'members.number':
                 if ($item->groupMembers->isNotEmpty()) {
-                    $memberNumbers = $item->groupMembers->pluck('member.number')->filter()->unique();
+                    $memberNumbers = $item->groupMembers->pluck('member.number');
                     return $memberNumbers->join(', ');
                 }
                 return 'N/A';
             case 'members.gender':
                 if ($item->groupMembers->isNotEmpty()) {
-                    $genders = $item->groupMembers->pluck('member.gender')->filter()->unique();
+                    $genders = $item->groupMembers->pluck('member.gender');
                     return $genders->join(', ');
                 }
                 return 'N/A';
@@ -1036,33 +982,26 @@ class DynamicReports extends Component
                 if ($item->groupMembers->isNotEmpty()) {
                     $disabledStatus = $item->groupMembers->map(function($gm) {
                         return isset($gm->member->disabled) ? ($gm->member->disabled ? 'Yes' : 'No') : 'N/A';
-                    })->unique();
+                    });
                     return $disabledStatus->join(', ');
                 }
                 return 'N/A';
             case 'group_members.role':
                 if ($item->groupMembers->isNotEmpty()) {
-                    $roles = $item->groupMembers->pluck('role')->filter()->unique();
+                    $roles = $item->groupMembers->pluck('role');
                     return $roles->join(', ');
                 }
                 return 'N/A';
 
             // Calculated fields
             case 'arrears':
-                $arrears = ($item->amount_issued ?? 0) - ($item->amount_repaid ?? 0);
-                return number_format(max($arrears, 0), 2);
+                return number_format(max($item->amount_issued - $item->amount_repaid, 0), 2);
             case 'amount_due':
-                $amountDue = ($item->amount_issued ?? 0) - ($item->amount_repaid ?? 0);
-                return number_format(max($amountDue, 0), 2);
+                return number_format(max($calculatedFields['amount_due'] ?? 0, 0), 2);
             case 'cumulative_arrears':
-                // This would need to be calculated per group, not per loan
-                return $item->cumulative_arrears ?? '0.00';
+                return number_format(max($calculatedFields['cumulative_arrears'] ?? 0, 0), 2);
             case 'repayment_date':
-                if ($item->disbursement_date) {
-                    return \Carbon\Carbon::parse($item->disbursement_date)->addMonths(12)->format('d/m/Y');
-                }
-                return 'N/A';
-
+                return $calculatedFields['repayment_date'] ?? 'N/A';
             default:
                 return $item->{$this->getColumnAlias($column)} ?? 'N/A';
         }
@@ -1270,23 +1209,55 @@ class DynamicReports extends Component
         return $values->isNotEmpty() ? $values->join(', ') : 'N/A';
     }
 
-
-    private function getTablesNeeded()
+    private function getCalclatedFieldsForLoan($disbursementDate, $amountIssued, $amountRepaid)
     {
-        $tables = [];
-
-        foreach ($this->selectedColumns as $column) {
-            if (str_contains($column, '.')) {
-                $table = explode('.', $column)[0];
-                $tables[] = $table;
-            } elseif (in_array($column, ['arrears', 'cumulative_arrears'])) {
-                // Calculated fields need group_loans
-                $tables[] = 'group_loans';
-            }
+        logger()->info("Calculating fields for loan with disbursement date: {$disbursementDate}, amount issued: {$amountIssued}, amount repaid: {$amountRepaid}");
+        if ($amountIssued === null || $amountIssued <= 0) {
+            return [
+                'amount_due' => 0,
+                'cumulative_arrears' => 0,
+                'repayment_date' => null,
+            ];
         }
 
-        return array_unique($tables);
+        // Calculate amount due
+        $amountDue = $this->calculateAmountDue($disbursementDate, $amountIssued);
+
+        return [
+            'amount_due' => $amountDue,
+            'cumulative_arrears' => max($amountDue - $amountRepaid, 0),
+            'repayment_date' => $disbursementDate ? \Carbon\Carbon::parse($disbursementDate)->addMonths(30)->format('d/m/Y') : null,
+        ];
+
+
     }
+
+    private function calculateAmountDue($disbursementDate, $amountIssued)
+    {
+        logger()->info("Calculating amount due for disbursement date: {$disbursementDate} and amount issued: {$amountIssued}");
+        if (!$disbursementDate || !$amountIssued) {
+            return 0;
+        }
+
+        $disbursement = \Carbon\Carbon::parse($disbursementDate);
+        $now = \Carbon\Carbon::now();
+
+        $monthsElapsed = $disbursement->diffInMonths($now);
+        // add a grace month of 6 months
+        $monthsElapsed = max(0, $monthsElapsed - 6);
+        $totalRepaymentMonths = 24; // assuming a 24-month repayment period
+
+        // capture fully due case if payment period has elapsed, so no need to calculate further
+        if ($monthsElapsed >= $totalRepaymentMonths) {
+            return $amountIssued; // fully due
+        }
+
+        $monthlyRepayment = $amountIssued / $totalRepaymentMonths;
+        $amountDue = $monthlyRepayment * $monthsElapsed;
+
+        return $amountDue;
+    }
+
 
     public function reorderColumns($newOrder)
     {
@@ -1307,42 +1278,6 @@ class DynamicReports extends Component
 
         // Dispatch event to show success message
         $this->dispatch('columns-reordered', ['message' => 'Columns reordered successfully']);
-    }
-
-    private function applyFilters($query, $userConstituency)
-    {
-        $tablesNeeded = $this->getTablesNeeded();
-
-        // Always filter by constituency based on available tables
-        if (in_array('loan_phases', $tablesNeeded)) {
-            $query->where('loan_phases.constituency_code', $userConstituency);
-        } elseif (in_array('wards', $tablesNeeded)) {
-            $query->where('wards.constituency_code', $userConstituency);
-        }
-
-        // Apply other filters
-        if ($this->filterLoanPhase) {
-            $query->where('loan_phases.phase', $this->filterLoanPhase);
-        }
-
-        if ($this->filterWard) {
-            $query->where('wards.ward_name', $this->filterWard);
-        }
-
-        if ($this->filterDefaulter) {
-            $query->whereRaw('(group_loans.amount_issued - group_loans.amount_repaid) > 0');
-        }
-
-        if ($this->filterGroupCategory) {
-            $query->where('groups.category', $this->filterGroupCategory);
-        }
-
-        if ($this->filterLoanStatus) {
-            $query->where('group_loans.loan_status', $this->filterLoanStatus);
-        }
-
-        // Apply the loan status filters based on the selected filter options
-        $this->applyLoanStatusFilters($query);
     }
 
     private function applyLoanStatusFilters($query)
@@ -1373,45 +1308,69 @@ class DynamicReports extends Component
         }
     }
 
+    // private function formatResults($results)
+    // {
+    //     return $results->map(function ($item) {
+    //         logger()->info("Formatting result item one ID: " . (json_encode($item->group) ?? 'N/A'));
+
+    //         // check if defaulter filter is applied, skip non-defaulters
+    //         // if ($this->filterDefaulter) {
+    //         //     $calculatedFields = $this->getCalclatedFieldsForLoan($item->disbursement_date, $item->amount_issued, $item->amount_repaid);
+    //         //     if (($calculatedFields['amount_due'] - $item->amount_repaid) <= 0) {
+    //         //         return null; // Skip non-defaulters
+    //         //     }
+    //         // }
+
+    //         $row = [];
+
+    //         foreach ($this->selectedColumns as $column) {
+    //             // Skip filter options in the output - they should not appear as columns
+    //             if (array_key_exists($column, $this->filterOptions)) {
+    //                 continue;
+    //             }
+
+    //             $row[$column] = $this->formatColumnValue($column, $item);
+    //         }
+
+    //         return $row;
+    //     })->toArray();
+    // }
+
     private function formatResults($results)
     {
-        return $results->map(function ($item) {
-            $row = [];
+        $formattedData = [];
 
+        foreach ($results as $item) {
+            // Only check complex defaulter cases for loans that passed initial filter
+            if ($this->filterDefaulter) {
+                // For loans that passed the simple filter, we still need to verify
+                // the complex calculation for loans in the repayment period
+                $calculatedFields = $this->getCalclatedFieldsForLoan(
+                    $item->disbursement_date,
+                    $item->amount_issued,
+                    $item->amount_repaid
+                );
+
+                // Final verification using the exact PHP logic
+                if (($calculatedFields['amount_due'] - $item->amount_repaid) <= 0) {
+                    continue;
+                }
+            }
+
+            $row = [];
             foreach ($this->selectedColumns as $column) {
-                // Skip filter options in the output - they should not appear as columns
                 if (array_key_exists($column, $this->filterOptions)) {
                     continue;
                 }
-
                 $row[$column] = $this->formatColumnValue($column, $item);
             }
 
-            return $row;
-        })->toArray();
+            $formattedData[] = $row;
+        }
+
+        return $formattedData;
     }
 
-    private function formatColumnValue2($column, $item)
-    {
-        $value = $item->{$this->getColumnAlias($column)} ?? 'N/A';
-
-        // Format specific column types
-        if (in_array($column, ['group_loans.amount_applied', 'group_loans.amount_approved',
-                              'group_loans.amount_issued', 'group_loans.amount_repaid',
-                              'arrears', 'cumulative_arrears'])) {
-            return $value !== 'N/A' ? number_format($value, 2) : '0.00';
-        }
-
-        if (str_contains($column, 'date')) {
-            return $value !== 'N/A' && $value ? \Carbon\Carbon::parse($value)->format('d/m/Y') : 'N/A';
-        }
-
-        if ($column === 'members.disabled') {
-            return $value === 1 ? 'Yes' : ($value === 0 ? 'No' : 'N/A');
-        }
-
-        return $value;
-    }
 
     private function getColumnAlias($column)
     {
@@ -1462,96 +1421,233 @@ class DynamicReports extends Component
         $this->filterWard = '';
         $this->filterDefaulter = false;
         $this->filterGroupCategory = '';
+        $this->filterGroupActivity = '';
         $this->filterLoanStatus = '';
+
+        // dispatch event to notify filters cleared
+        $this->dispatch('filters-cleared', ['message' => 'Filters have been cleared']);
     }
 
     // public function exportToExcel()
     // {
-    //     if (empty($this->reportData)) {
-    //         $this->dispatch('export-error', ['message' => 'No data to export']);
+    //     logger()->info("Exporting to Excel...");
+    //     $this->ensureSelectedColumnsIsArray();
+
+    //     // selected columns validation remove loan status filters columns
+    //     $selectedColumns = array_filter($this->selectedColumns, function ($column) {
+    //         return !array_key_exists($column, $this->filterOptions);
+    //     });
+
+    //     if (empty($selectedColumns)) {
+    //         $this->dispatch('export-error', message: 'No columns selected for export');
     //         return;
     //     }
 
-    //     // Generate fresh data for export (without limits)
-    //     $exportData = $this->fetchReportData(true); // true = for export
+    //     $userConstituency = $this->constituency;
+    //     $this->exportLoading = true;
 
-    //     if (empty($exportData)) {
-    //         $this->dispatch('export-error', ['message' => 'No data available for export']);
-    //         return;
+    //     try {
+    //         $fileName = $this->constituencyName . '_' . ($this->reportName ?: 'dynamic_report');
+    //         $fileName = Str::slug($fileName) . '_' . now()->format('Y_m_d_His') . '.csv';
+
+    //         $this->dispatch('export-started', [
+    //             'message' => "Starting export process..."
+    //         ]);
+
+    //         $this->loading = false;
+
+    //         return response()->streamDownload(function () use ($userConstituency) {
+    //             $this->streamLargeReportToCsv($userConstituency);
+    //         }, $fileName);
+
+    //     } catch (\Exception $e) {
+    //         logger()->error('Export error: ' . $e->getMessage());
+    //         $this->dispatch('export-error', [
+    //             'message' => 'Export failed: ' . $e->getMessage()
+    //         ]);
+    //         $this->loading = false;
     //     }
-
-    //     $fileName = $this->reportName ?: 'dynamic_report';
-    //     $fileName = Str::slug($fileName) . '_' . now()->format('Y_m_d_His') . '.csv';
-
-    //     return response()->streamDownload(function () use ($exportData) {
-    //         echo $this->generateExcelContent($exportData);
-    //     }, $fileName);
     // }
 
+    // In your Livewire component
     public function exportToExcel()
     {
-        logger()->info("Exporting to Excel...");
-        $this->ensureSelectedColumnsIsArray();
+        $this->exportLoading = true;
 
-        if (empty($this->selectedColumns)) {
-            $this->dispatch('export-error', ['message' => 'No columns selected for export']);
-            return;
-        }
-        $userConstituency = $this->constituency;
-        $this->loading = true;
-
-        // try {
-        //     // Generate fresh data for export (without limits)
-        //     $exportData = $this->fetchReportData(true); // true = for export
-        //     logger()->info("Export data count in exportToExcel(): " . count($exportData));
-        //     if (empty($exportData)) {
-        //         $this->dispatch('export-error', ['message' => 'No data available for export']);
-        //         $this->loading = false;
-        //         return;
-        //     }
-
-        //     $fileName = $this->constituencyName . '_' . ($this->reportName ?: 'dynamic_report');
-        //     $fileName = Str::slug($fileName) . '_' . now()->format('Y_m_d_His') . '.csv';
-
-        //     $this->dispatch('export-success', [
-        //         'message' => "Export completed! Downloaded " . count($exportData) . " records."
-        //     ]);
-
-        //     $this->loading = false;
-
-        //     return response()->streamDownload(function () use ($exportData) {
-        //         echo $this->generateExcelContent($exportData);
-        //     }, $fileName);
-
-        // } catch (\Exception $e) {
-        //     logger()->error('Export error: ' . $e->getMessage());
-        //     $this->dispatch('export-error', [
-        //         'message' => 'Export failed: ' . $e->getMessage()
-        //     ]);
-        //     $this->loading = false;
-        // }
         try {
-            $fileName = $this->constituencyName . '_' . ($this->reportName ?: 'dynamic_report');
-            $fileName = Str::slug($fileName) . '_' . now()->format('Y_m_d_His') . '.csv';
+            $fileName = $this->generateExportFileName('xlsx');
 
             $this->dispatch('export-started', [
-                'message' => "Starting export process..."
+                'message' => "Starting export process... This may take a while for large datasets."
             ]);
 
-            $this->loading = false;
+            // Use the chunked export
+            return Excel::download(
+                new DynamicReportChunkedExport(
+                    $this->selectedColumns,
+                    $this->getCurrentFilters(),
+                    $this->constituency,
+                    $this // Pass component for formatting methods
+                ),
+                $fileName
+            );
 
-            return response()->streamDownload(function () use ($userConstituency) {
-                $this->streamLargeReportToCsv($userConstituency);
+        } catch (\Exception $e) {
+            logger()->error('Excel export error: ' . $e->getMessage());
+            $this->dispatch('export-error', [
+                'message' => 'Excel export failed: ' . $e->getMessage()
+            ]);
+            return null;
+        } finally {
+            $this->exportLoading = false;
+        }
+    }
+
+    public function exportToPDF()
+    {
+        $this->exportLoading = true;
+
+        try {
+            $fileName = $this->generateExportFileName('pdf');
+
+            // For small datasets, use Excel PDF
+            if ($this->totalAvailableRecords <= 1000) {
+                return Excel::download(
+                    new DynamicReportChunkedExport(
+                        $this->selectedColumns,
+                        $this->getCurrentFilters(),
+                        $this->constituency,
+                        $this
+                    ),
+                    $fileName,
+                    \Maatwebsite\Excel\Excel::MPDF
+                );
+            }
+
+            // For large datasets, use custom PDF with chunking
+            return response()->streamDownload(function () {
+                $this->generateCustomPdf();
             }, $fileName);
 
         } catch (\Exception $e) {
-            logger()->error('Export error: ' . $e->getMessage());
+            logger()->error('PDF export error: ' . $e->getMessage());
             $this->dispatch('export-error', [
-                'message' => 'Export failed: ' . $e->getMessage()
+                'message' => 'PDF export failed: ' . $e->getMessage()
             ]);
-            $this->loading = false;
+            return null;
+        } finally {
+            $this->exportLoading = false;
         }
     }
+
+    private function generateCustomPdf()
+    {
+        // Build query
+        $query = $this->buildSmartQuery();
+        $this->applySmartFilters($query, $this->constituency);
+
+        // Simple HTML PDF generation
+        $html = $this->generatePdfHtml($query);
+
+        // Use DomPDF
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
+        echo $pdf->stream();
+    }
+
+    private function generatePdfHtml($query)
+    {
+        $headers = $this->getExportHeaders();
+
+        $html = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: DejaVu Sans, sans-serif; font-size: 10px; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                th { background-color: #2E86C1; color: white; padding: 8px; text-align: left; border: 1px solid #ddd; }
+                td { padding: 6px; border: 1px solid #ddd; }
+                .header { text-align: center; margin-bottom: 20px; }
+                .page-break { page-break-after: always; }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h2>'.($this->reportName ?: 'Dynamic Report').'</h2>
+                <p><strong>Constituency:</strong> '.$this->constituencyName.'</p>
+                <p><strong>Generated:</strong> '.now()->format('d/m/Y H:i:s').'</p>
+            </div>
+            <table>
+                <thead>
+                    <tr>';
+
+        foreach ($headers as $header) {
+            $html .= '<th>'.htmlspecialchars($header).'</th>';
+        }
+
+        $html .= '</tr></thead><tbody>';
+
+        // Process data in chunks for PDF
+        $chunkSize = 500;
+        $processed = 0;
+        $maxRowsPerPage = 1000;
+
+        $query->chunkById($chunkSize, function ($chunk) use (&$html, &$processed, $maxRowsPerPage, $headers) {
+            foreach ($chunk as $item) {
+                // Add page break every 1000 rows
+                if ($processed > 0 && $processed % $maxRowsPerPage === 0) {
+                    $html .= '</tbody></table><div class="page-break"></div>';
+                    $html .= '<table><thead><tr>';
+                    foreach ($headers as $header) {
+                        $html .= '<th>'.htmlspecialchars($header).'</th>';
+                    }
+                    $html .= '</tr></thead><tbody>';
+                }
+
+                $html .= '<tr>';
+                foreach ($this->selectedColumns as $column) {
+                    if (array_key_exists($column, $this->filterOptions)) {
+                        continue;
+                    }
+                    $value = $this->formatColumnValue($column, $item);
+                    $html .= '<td>'.htmlspecialchars($value).'</td>';
+                }
+                $html .= '</tr>';
+                $processed++;
+            }
+        });
+
+        $html .= '</tbody></table>';
+        $html .= '<div style="margin-top: 20px; text-align: center; font-size: 8px;">';
+        $html .= 'Total Records: '.$processed.' | Generated on: '.now()->format('d/m/Y H:i:s');
+        $html .= '</div>';
+        $html .= '</body></html>';
+
+        return $html;
+    }
+
+    private function getCurrentFilters()
+    {
+        return [
+            'filterLoanPhase' => $this->filterLoanPhase,
+            'filterWard' => $this->filterWard,
+            'filterDefaulter' => $this->filterDefaulter,
+            'filterGroupCategory' => $this->filterGroupCategory,
+            'filterGroupActivity' => $this->filterGroupActivity,
+            'filterLoanStatus' => $this->filterLoanStatus,
+            'selectedLoanStatusFilters' => $this->selectedLoanStatusFilters,
+            'filterOptions' => $this->filterOptions,
+        ];
+    }
+
+    private function generateExportFileName($extension)
+    {
+        $fileName = $this->constituencyName . '_' . ($this->reportName ?: 'dynamic_report');
+        return Str::slug($fileName) . '_' . now()->format('Y_m_d_His') . '.' . $extension;
+    }
+
+
+
 
     private function streamLargeReportToCsv($userConstituency)
     {
@@ -1643,88 +1739,6 @@ class DynamicReports extends Component
         return str_replace('"', '""', $value ?? '');
     }
 
-    private function buildOptimizedQuery()
-    {
-        $this->ensureSelectedColumnsIsArray();
-
-        $dataColumns = array_filter($this->selectedColumns, function($col) {
-            return !array_key_exists($col, $this->filterOptions);
-        });
-
-        if (empty($dataColumns)) {
-            return null;
-        }
-
-        // Use database-level formatting for better performance
-        $selectColumns = $this->getOptimizedSelectColumns($dataColumns);
-
-        // Determine query type based on selected columns
-        $needsLoanData = $this->needsLoanData($dataColumns);
-        $selectedLoanStatusFilters = array_filter($this->selectedColumns, function($col) {
-            return array_key_exists($col, $this->filterOptions);
-        });
-
-        if ($needsLoanData || !empty($selectedLoanStatusFilters)) {
-            return $this->buildOptimizedLoanCentricQuery($selectColumns);
-        } else {
-            return $this->buildOptimizedNonLoanQuery($dataColumns);
-        }
-    }
-
-    private function getOptimizedSelectColumns($dataColumns)
-    {
-        $selectColumns = [];
-
-        foreach ($dataColumns as $column) {
-            switch ($column) {
-                case 'arrears':
-                    $selectColumns[] = DB::raw('(group_loans.amount_issued - group_loans.amount_repaid) as arrears');
-                    break;
-                case 'amount_due':
-                    $selectColumns[] = DB::raw('(group_loans.amount_issued - group_loans.amount_repaid) as amount_due');
-                    break;
-                case 'members.disabled':
-                    // Database-level formatting
-                    $selectColumns[] = DB::raw("CASE WHEN members.disabled = 1 THEN 'Yes' WHEN members.disabled = 0 THEN 'No' ELSE 'N/A' END as members_disabled");
-                    break;
-                case 'group_loans.application_date':
-                case 'group_loans.disbursement_date':
-                    // Database-level date formatting
-                    $alias = str_replace('.', '_', $column);
-                    $selectColumns[] = DB::raw("DATE_FORMAT({$column}, '%d/%m/%Y') as {$alias}");
-                    break;
-                default:
-                    $selectColumns[] = $column;
-                    break;
-            }
-        }
-
-        return $selectColumns;
-    }
-
-    private function buildOptimizedLoanCentricQuery($selectColumns)
-    {
-        logger()->info("Building optimized loan-centric query");
-
-        $query = GroupLoan::query();
-
-        // Select only needed columns
-        if (!empty($selectColumns)) {
-            $query->select($selectColumns);
-        }
-
-        // Eager load only necessary relationships
-        $query->with([
-            'group.ward',
-            'loanPhase',
-            'groupMembers.member' => function($query) {
-                $query->select(['id', 'member_Id', 'name', 'number', 'gender', 'disabled']);
-            }
-        ]);
-
-        return $query;
-    }
-
     // Add this method to monitor performance
     private function monitorPerformance($operation, $startTime, $recordCount = null)
     {
@@ -1740,68 +1754,19 @@ class DynamicReports extends Component
         logger()->info($message);
     }
 
-    public function exportToPDF()
-    {
-        if (empty($this->reportData)) {
-            $this->dispatch('export-error', ['message' => 'No data to export']);
-            return;
-        }
-        $fileName = $this->reportName ?: 'dynamic_report';
-        $fileName = Str::slug($fileName) . '_' . now()->format('Y_m_d_His') . '.txt';
-
-        return response()->streamDownload(function () {
-            echo $this->generatePDFContent();
-        }, $fileName);
-    }
-
-    // private function generateExcelContent($exportData = null)
+    // public function exportToPDF()
     // {
-    //     logger()->info("generating excel content...: ". ($exportData ? count($exportData) : 'no export data'));
-    //     $dataToExport = $exportData ?? $this->reportData;
-
-    //     $this->ensureSelectedColumnsIsArray();
-
-    //     // Filter out the filter options from headers
-    //     $displayColumns = array_filter($this->selectedColumns, function($col) {
-    //         return !array_key_exists($col, $this->filterOptions);
-    //     });
-
-    //     $headers = array_map(function($col) {
-    //         return $this->availableColumns[$this->getColumnCategory($col)][$col] ?? $col;
-    //     }, $displayColumns);
-
-    //     $output = "\"" . implode("\",\"", $headers) . "\"\n";
-
-    //     foreach ($dataToExport as $row) {
-    //         $output .= "\"" . implode("\",\"", array_values($row)) . "\"\n";
+    //     if (empty($this->reportData)) {
+    //         $this->dispatch('export-error', ['message' => 'No data to export']);
+    //         return;
     //     }
+    //     $fileName = $this->reportName ?: 'dynamic_report';
+    //     $fileName = Str::slug($fileName) . '_' . now()->format('Y_m_d_His') . '.txt';
 
-    //     return $output;
+    //     return response()->streamDownload(function () {
+    //         echo $this->generatePDFContent();
+    //     }, $fileName);
     // }
-    private function generateExcelContent($exportData = null)
-    {
-        logger()->info("generating excel content...: ". ($exportData ? count($exportData) : 'no export data'));
-        $dataToExport = $exportData ?? $this->reportData;
-
-        $this->ensureSelectedColumnsIsArray();
-
-        // Filter out the filter options from headers
-        $displayColumns = array_filter($this->selectedColumns, function($col) {
-            return !array_key_exists($col, $this->filterOptions);
-        });
-
-        $headers = array_map(function($col) {
-            return $this->availableColumns[$this->getColumnCategory($col)][$col] ?? $col;
-        }, $displayColumns);
-
-        $output = "\"" . implode("\",\"", $headers) . "\"\n";
-
-        foreach ($dataToExport as $row) {
-            $output .= "\"" . implode("\",\"", array_values($row)) . "\"\n";
-        }
-
-        return $output;
-    }
 
     // Add method to check if a column is a filter option
     public function isFilterOption($column)
@@ -1908,5 +1873,50 @@ class DynamicReports extends Component
         $this->loadFilterData();
 
         return view('livewire.reports.dynamic-reports');
+    }
+
+
+    private function applyDefaulterFilter($query, $queryType)
+    {
+        if (!$this->filterDefaulter) {
+            return $query;
+        }
+
+
+
+        // Apply defaulter logic based on query type
+        switch ($queryType['type']) {
+            case 'loan_centric':
+                return $query->where(function($q){
+                    $q->whereRaw('group_loans.amount_issued > COALESCE(group_loans.amount_repaid, 0)')
+                    ->orWhere(function($q2) {
+                        $q2->whereNotNull('group_loans.disbursement_date')
+                            ->where('group_loans.amount_issued', '>', 0)
+                            ->whereRaw('TIMESTAMPDIFF(MONTH, group_loans.disbursement_date, NOW()) > 6');
+                    });
+                });
+
+            case 'member_centric':
+                return $query->whereHas('groupMembers.groupLoan', function($q) {
+                    $q->whereRaw('group_loans.amount_issued > COALESCE(group_loans.amount_repaid, 0)')
+                    ->orWhere(function($q2) {
+                        $q2->whereNotNull('group_loans.disbursement_date')
+                            ->where('group_loans.amount_issued', '>', 0)
+                            ->whereRaw('TIMESTAMPDIFF(MONTH, group_loans.disbursement_date, NOW()) > 6');
+                    });
+                });
+
+            case 'group_centric':
+                return $query->whereHas('groupLoans', function($q) {
+                    $q->whereRaw('group_loans.amount_issued > COALESCE(group_loans.amount_repaid, 0)')
+                    ->orWhere(function($q2) {
+                        $q2->whereNotNull('group_loans.disbursement_date')
+                            ->where('group_loans.amount_issued', '>', 0)
+                            ->whereRaw('TIMESTAMPDIFF(MONTH, group_loans.disbursement_date, NOW()) > 6');
+                    });
+                });
+        }
+
+        return $query;
     }
 }
