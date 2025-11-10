@@ -873,25 +873,26 @@ class DynamicReports extends Component
         }
     }
 
-    public function formatColumnValue($column, $item)
+    public function formatColumnValue($column, $item, $forExport = false)
     {
         // Handle different query types
         if ($item instanceof GroupLoan) {
-            return $this->formatLoanCentricColumn($column, $item);
+            return $this->formatLoanCentricColumn($column, $item, $forExport);
         } elseif ($item instanceof Member) {
-            return $this->formatMemberCentricColumn($column, $item);
+            return $this->formatMemberCentricColumn($column, $item, $forExport);
         } elseif ($item instanceof Group) {
-            return $this->formatGroupCentricColumn($column, $item);
+            return $this->formatGroupCentricColumn($column, $item, $forExport);
         }
 
         return 'N/A';
     }
 
-    private function formatLoanCentricColumn($column, $item)
+    private function formatLoanCentricColumn($column, $item, $forExport = false)
     {
         // calculate fields based on loan-centric query
 
         $calculatedFields = $this->getCalclatedFieldsForLoan($item->disbursement_date, $item->amount_issued, $item->amount_repaid);
+
 
         switch ($column) {
             // Group columns
@@ -934,13 +935,13 @@ class DynamicReports extends Component
             case 'group_loans.disbursement_date':
                 return $item->disbursement_date ? \Carbon\Carbon::parse($item->disbursement_date)->format('d/m/Y') : 'N/A';
             case 'group_loans.amount_applied':
-                return $item->amount_applied ? number_format($item->amount_applied, 2) : '0.00';
+                return $forExport ? ($item->amount_applied ? $item->amount_applied : '0.00') : ($item->amount_applied ? number_format($item->amount_applied, 2) : '0.00');
             case 'group_loans.amount_approved':
-                return $item->amount_approved ? number_format($item->amount_approved, 2) : '0.00';
+                return $forExport ? ($item->amount_approved ? $item->amount_approved : '0.00') : ($item->amount_approved ? number_format($item->amount_approved, 2) : '0.00');
             case 'group_loans.amount_issued':
-                return $item->amount_issued ? number_format($item->amount_issued, 2) : '0.00';
+                return $forExport ? ($item->amount_issued ? $item->amount_issued : '0.00') : ($item->amount_issued ? number_format($item->amount_issued, 2) : '0.00');
             case 'group_loans.amount_repaid':
-                return $item->amount_repaid ? number_format($item->amount_repaid, 2) : '0.00';
+                return $forExport ? ($item->amount_repaid ? $item->amount_repaid : '0.00') : ($item->amount_repaid ? number_format($item->amount_repaid, 2) : '0.00');
             case 'group_loans.loan_status':
                 return $item->loan_status ?? 'N/A';
             case 'group_loans.level':
@@ -995,19 +996,30 @@ class DynamicReports extends Component
 
             // Calculated fields
             case 'arrears':
-                return number_format(max($item->amount_issued - $item->amount_repaid, 0), 2);
+                $arrears = max($item->amount_issued - $item->amount_repaid, 0);
+                if ($forExport) {
+                    return $arrears == 0 ? '0.00' : $arrears;
+                }
+                return number_format($arrears, 2);
             case 'amount_due':
+                if ($forExport) {
+                    return $calculatedFields['amount_due'] == 0 ? '0.00' : max($calculatedFields['amount_due'] ?? 0, 0);
+                }
                 return number_format(max($calculatedFields['amount_due'] ?? 0, 0), 2);
             case 'cumulative_arrears':
-                return number_format(max($calculatedFields['cumulative_arrears'] ?? 0, 0), 2);
+                if ($forExport) {
+                    return $calculatedFields['cumulative_arrears'] == 0 ? '0.00' : max($calculatedFields['cumulative_arrears'] ?? 0, 0);
+                }
+                return $forExport ? (max($calculatedFields['cumulative_arrears'] ?? 0, 0)) : number_format(max($calculatedFields['cumulative_arrears'] ?? 0, 0), 2);
             case 'repayment_date':
                 return $calculatedFields['repayment_date'] ?? 'N/A';
             default:
                 return $item->{$this->getColumnAlias($column)} ?? 'N/A';
         }
+
     }
 
-    private function formatMemberCentricColumn($column, $item)
+    private function formatMemberCentricColumn($column, $item, $forExport = false)
     {
         logger()->info("Formatting member centric column: {$column} for member ID: {$item->id}");
         switch ($column) {
@@ -1124,7 +1136,7 @@ class DynamicReports extends Component
         return $values->isNotEmpty() ? $values->join(', ') : 'N/A';
     }
 
-    private function formatGroupCentricColumn($column, $item)
+    private function formatGroupCentricColumn($column, $item, $forExport = false)
     {
 
         switch ($column) {
@@ -1209,7 +1221,7 @@ class DynamicReports extends Component
         return $values->isNotEmpty() ? $values->join(', ') : 'N/A';
     }
 
-    private function getCalclatedFieldsForLoan($disbursementDate, $amountIssued, $amountRepaid)
+    public function getCalclatedFieldsForLoan($disbursementDate, $amountIssued, $amountRepaid)
     {
         logger()->info("Calculating fields for loan with disbursement date: {$disbursementDate}, amount issued: {$amountIssued}, amount repaid: {$amountRepaid}");
         if ($amountIssued === null || $amountIssued <= 0) {
@@ -1308,33 +1320,6 @@ class DynamicReports extends Component
         }
     }
 
-    // private function formatResults($results)
-    // {
-    //     return $results->map(function ($item) {
-    //         logger()->info("Formatting result item one ID: " . (json_encode($item->group) ?? 'N/A'));
-
-    //         // check if defaulter filter is applied, skip non-defaulters
-    //         // if ($this->filterDefaulter) {
-    //         //     $calculatedFields = $this->getCalclatedFieldsForLoan($item->disbursement_date, $item->amount_issued, $item->amount_repaid);
-    //         //     if (($calculatedFields['amount_due'] - $item->amount_repaid) <= 0) {
-    //         //         return null; // Skip non-defaulters
-    //         //     }
-    //         // }
-
-    //         $row = [];
-
-    //         foreach ($this->selectedColumns as $column) {
-    //             // Skip filter options in the output - they should not appear as columns
-    //             if (array_key_exists($column, $this->filterOptions)) {
-    //                 continue;
-    //             }
-
-    //             $row[$column] = $this->formatColumnValue($column, $item);
-    //         }
-
-    //         return $row;
-    //     })->toArray();
-    // }
 
     private function formatResults($results)
     {
@@ -1428,46 +1413,6 @@ class DynamicReports extends Component
         $this->dispatch('filters-cleared', ['message' => 'Filters have been cleared']);
     }
 
-    // public function exportToExcel()
-    // {
-    //     logger()->info("Exporting to Excel...");
-    //     $this->ensureSelectedColumnsIsArray();
-
-    //     // selected columns validation remove loan status filters columns
-    //     $selectedColumns = array_filter($this->selectedColumns, function ($column) {
-    //         return !array_key_exists($column, $this->filterOptions);
-    //     });
-
-    //     if (empty($selectedColumns)) {
-    //         $this->dispatch('export-error', message: 'No columns selected for export');
-    //         return;
-    //     }
-
-    //     $userConstituency = $this->constituency;
-    //     $this->exportLoading = true;
-
-    //     try {
-    //         $fileName = $this->constituencyName . '_' . ($this->reportName ?: 'dynamic_report');
-    //         $fileName = Str::slug($fileName) . '_' . now()->format('Y_m_d_His') . '.csv';
-
-    //         $this->dispatch('export-started', [
-    //             'message' => "Starting export process..."
-    //         ]);
-
-    //         $this->loading = false;
-
-    //         return response()->streamDownload(function () use ($userConstituency) {
-    //             $this->streamLargeReportToCsv($userConstituency);
-    //         }, $fileName);
-
-    //     } catch (\Exception $e) {
-    //         logger()->error('Export error: ' . $e->getMessage());
-    //         $this->dispatch('export-error', [
-    //             'message' => 'Export failed: ' . $e->getMessage()
-    //         ]);
-    //         $this->loading = false;
-    //     }
-    // }
 
     // In your Livewire component
     public function exportToExcel()
@@ -1502,130 +1447,6 @@ class DynamicReports extends Component
             $this->exportLoading = false;
         }
     }
-
-    // public function exportToPDF()
-    // {
-    //     $this->exportLoading = true;
-
-    //     try {
-    //         $fileName = $this->generateExportFileName('pdf');
-
-    //         // For small datasets, use Excel PDF
-    //         if ($this->totalAvailableRecords <= 1000) {
-    //             return Excel::download(
-    //                 new DynamicReportChunkedExport(
-    //                     $this->selectedColumns,
-    //                     $this->getCurrentFilters(),
-    //                     $this->constituency,
-    //                     $this
-    //                 ),
-    //                 $fileName,
-    //                 \Maatwebsite\Excel\Excel::MPDF
-    //             );
-    //         }
-
-    //         // For large datasets, use custom PDF with chunking
-    //         return response()->streamDownload(function () {
-    //             $this->generateCustomPdf();
-    //         }, $fileName);
-
-    //     } catch (\Exception $e) {
-    //         logger()->error('PDF export error: ' . $e->getMessage());
-    //         $this->dispatch('export-error', [
-    //             'message' => 'PDF export failed: ' . $e->getMessage()
-    //         ]);
-    //         return null;
-    //     } finally {
-    //         $this->exportLoading = false;
-    //     }
-    // }
-
-    // private function generateCustomPdf()
-    // {
-    //     // Build query
-    //     $query = $this->buildSmartQuery();
-    //     $this->applySmartFilters($query, $this->constituency);
-
-    //     // Simple HTML PDF generation
-    //     $html = $this->generatePdfHtml($query);
-
-    //     // Use DomPDF
-    //     $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html);
-    //     echo $pdf->stream();
-    // }
-
-    // private function generatePdfHtml($query)
-    // {
-    //     $headers = $this->getExportHeaders();
-
-    //     $html = '
-    //     <!DOCTYPE html>
-    //     <html>
-    //     <head>
-    //         <style>
-    //             body { font-family: DejaVu Sans, sans-serif; font-size: 10px; }
-    //             table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    //             th { background-color: #2E86C1; color: white; padding: 8px; text-align: left; border: 1px solid #ddd; }
-    //             td { padding: 6px; border: 1px solid #ddd; }
-    //             .header { text-align: center; margin-bottom: 20px; }
-    //             .page-break { page-break-after: always; }
-    //         </style>
-    //     </head>
-    //     <body>
-    //         <div class="header">
-    //             <h2>'.($this->reportName ?: 'Dynamic Report').'</h2>
-    //             <p><strong>Constituency:</strong> '.$this->constituencyName.'</p>
-    //             <p><strong>Generated:</strong> '.now()->format('d/m/Y H:i:s').'</p>
-    //         </div>
-    //         <table>
-    //             <thead>
-    //                 <tr>';
-
-    //     foreach ($headers as $header) {
-    //         $html .= '<th>'.htmlspecialchars($header).'</th>';
-    //     }
-
-    //     $html .= '</tr></thead><tbody>';
-
-    //     // Process data in chunks for PDF
-    //     $chunkSize = 500;
-    //     $processed = 0;
-    //     $maxRowsPerPage = 1000;
-
-    //     $query->chunkById($chunkSize, function ($chunk) use (&$html, &$processed, $maxRowsPerPage, $headers) {
-    //         foreach ($chunk as $item) {
-    //             // Add page break every 1000 rows
-    //             if ($processed > 0 && $processed % $maxRowsPerPage === 0) {
-    //                 $html .= '</tbody></table><div class="page-break"></div>';
-    //                 $html .= '<table><thead><tr>';
-    //                 foreach ($headers as $header) {
-    //                     $html .= '<th>'.htmlspecialchars($header).'</th>';
-    //                 }
-    //                 $html .= '</tr></thead><tbody>';
-    //             }
-
-    //             $html .= '<tr>';
-    //             foreach ($this->selectedColumns as $column) {
-    //                 if (array_key_exists($column, $this->filterOptions)) {
-    //                     continue;
-    //                 }
-    //                 $value = $this->formatColumnValue($column, $item);
-    //                 $html .= '<td>'.htmlspecialchars($value).'</td>';
-    //             }
-    //             $html .= '</tr>';
-    //             $processed++;
-    //         }
-    //     });
-
-    //     $html .= '</tbody></table>';
-    //     $html .= '<div style="margin-top: 20px; text-align: center; font-size: 8px;">';
-    //     $html .= 'Total Records: '.$processed.' | Generated on: '.now()->format('d/m/Y H:i:s');
-    //     $html .= '</div>';
-    //     $html .= '</body></html>';
-
-    //     return $html;
-    // }
-
 
     // In your Livewire component - replace the PDF methods
     public function exportToPDF()
@@ -1665,219 +1486,233 @@ class DynamicReports extends Component
         echo $pdf->stream();
     }
 
-private function generateOfficialPdfHtml($query, $county)
-{
-    $headers = $this->getExportHeaders();
-    $logoPath = public_path('images/docs/doc_logo.png');
+    private function generateOfficialPdfHtml($query, $county)
+    {
+        $headers = $this->getExportHeaders();
+        $logoPath = public_path('images/docs/doc_logo.png');
 
-    $html = '
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-        <style>
-            @page {
-                margin: 100px 20px 20px 20px; /* Increased top margin for header */
-                header: html_header;
-            }
-            body {
-                font-family: "DejaVu Sans", "Arial", sans-serif;
-                font-size: 10px;
-                margin: 0;
-                padding: 0;
-                line-height: 1.2;
-            }
-            .header {
-                position: fixed;
-                top: -80px; /* Adjusted to show full header */
-                left: 0;
-                right: 0;
-                height: 150px; /* Increased height */
-                border-bottom: 2px solid #000;
-                padding: 5px 0;
-                background: white; /* Ensure background covers content */
-                z-index: 1000;
-            }
-            .header-content {
-                position: relative;
-                width: 100%;
-                height: 100%;
-                text-align: center;
-            }
-            .logo-center {
-                display: block;
-                margin: 0 auto 3px auto;
-                height: 50px;
-                width: auto;
-                max-width: 100px;
-            }
-            .main-title {
-                font-size: 14px;
-                font-weight: bold;
-                margin-bottom: 1px;
-                line-height: 1.1;
-            }
-            .info-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin: 3px 0;
-            }
-            .info-table td {
-                width: 25%; /* Equal width for all 4 columns */
-                text-align: center;
-                font-size: 11px;
-                font-weight: bold;
-                border: none;
-                padding: 2px 5px;
-                vertical-align: top;
-            }
-            .info-table td:first-child {
-                text-align: left;
-            }
-            .info-table td:last-child {
-                text-align: right;
-            }
-            .report-title {
-                font-size: 11px;
-                font-weight: bold;
-                margin: 1px 0;
-                line-height: 1.1;
-                border-bottom: 2px solid #000;
-            }
-            .content {
-                margin-top: 70px; /* Space for header */
-                padding-top: 10px;
-            }
-            .data-table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 5px;
-                page-break-inside: auto;
-            }
-            .data-table th {
-                background-color: #D9E1F2;
-                color: #000;
-                padding: 6px 4px;
-                text-align: center;
-                border: 1px solid #000;
-                font-weight: bold;
-                font-size: 8px;
-            }
-            .data-table td {
-                padding: 4px 3px;
-                border: 1px solid #000;
-                font-size: 7px;
-                vertical-align: middle;
-            }
-            .page-break {
-                page-break-after: always;
-            }
-            .serial-no {
-                width: 35px;
-                text-align: center;
-            }
-            .text-center { text-align: center; }
-            .text-right { text-align: right; }
-            .amount-column { text-align: right; }
-        </style>
-    </head>
-    <body>
-
-    <!-- Header for all pages -->
-    <htmlpageheader name="header">
-        <div class="header">
-            <div class="header-content">';
-
-    if ($logoPath && file_exists($logoPath)) {
-        $logoData = base64_encode(file_get_contents($logoPath));
-        $logoExtension = pathinfo($logoPath, PATHINFO_EXTENSION);
-
-        // Add logo at top-center
-        $html .= '<img src="data:image/' . $logoExtension . ';base64,' . $logoData . '" class="logo-center" alt="Logo">';
-    }
-
-    $html .= '
-                <!-- Corrected header order -->
-                <div class="main-title">REPUBLIC OF KENYA</div>
-                <div class="main-title">MINISTRY OF COOPERATIVES AND MSMES DEVELOPMENT</div>
-                <div class="main-title">UWEZO FUND OVERSIGHT BOARD</div>
-                <div class="report-title">' . ($this->reportName ? strtoupper($this->reportName) : 'DYNAMIC REPORT SUBMISSION FORM') . '</div>
-
-                <!-- Single line with four items using table layout -->
-                <table class="info-table">
-                    <tr>
-                        <td>COUNTY: ' . strtoupper($county->county_name) . '</td>
-                        <td>CONSTITUENCY: ' . strtoupper($this->constituency->constituency_name) . '</td>
-                        <td>F/Y: ' . ((now()->month >= 7 ? now()->format('Y') . '/' . now()->addYear()->format('Y') : now()->subYear()->format('Y') . '/' . now()->format('Y'))) . '</td>
-                        <td>AS AT ' . now()->format('jS F, Y') . '</td>
-                    </tr>
-                </table>
-            </div>
-        </div>
-    </htmlpageheader>
-
-    <!-- Content area with proper spacing -->
-    <div class="content">';
-
-    // Table code
-    $html .= '<table class="data-table">';
-    $html .= '<thead><tr>';
-    $html .= '<th class="serial-no">SNo.</th>';
-
-    foreach ($headers as $header) {
-        $html .= '<th>' . htmlspecialchars($header) . '</th>';
-    }
-
-    $html .= '</tr></thead><tbody>';
-
-    // Process data in chunks
-    $chunkSize = 200;
-    $processed = 0;
-    $serialNumber = 1;
-
-    $query->chunkById($chunkSize, function ($chunk) use (&$html, &$processed, &$serialNumber, $headers) {
-        foreach ($chunk as $item) {
-            if ($processed > 0 && $processed % 40 === 0) {
-                $html .= '</tbody></table>';
-                $html .= '<div class="page-break"></div>';
-                $html .= '<table class="data-table"><thead><tr><th class="serial-no">SNo.</th>';
-                foreach ($headers as $header) {
-                    $html .= '<th>' . htmlspecialchars($header) . '</th>';
+        $html = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+            <style>
+                @page {
+                    margin: 100px 20px 20px 20px; /* Increased top margin for header */
+                    header: html_header;
                 }
-                $html .= '</tr></thead><tbody>';
-            }
-
-            $html .= '<tr>';
-            $html .= '<td class="serial-no text-center">' . $serialNumber . '</td>';
-
-            foreach ($this->selectedColumns as $column) {
-                if (array_key_exists($column, $this->filterOptions)) {
-                    continue;
+                body {
+                    font-family: "DejaVu Sans", "Arial", sans-serif;
+                    font-size: 10px;
+                    margin: 0;
+                    padding: 0;
+                    line-height: 1.2;
                 }
-                $value = $this->formatColumnValue($column, $item);
-
-                $cellClass = '';
-                if (str_contains($column, 'amount') || str_contains($column, 'arrears')) {
-                    $cellClass = 'amount-column';
-                } elseif (str_contains($column, 'date')) {
-                    $cellClass = 'text-center';
+                .header {
+                    position: fixed;
+                    top: -80px; /* Adjusted to show full header */
+                    left: 0;
+                    right: 0;
+                    height: 150px; /* Increased height */
+                    border-bottom: 2px solid #000;
+                    padding: 5px 0;
+                    background: white; /* Ensure background covers content */
+                    z-index: 1000;
                 }
+                .header-content {
+                    position: relative;
+                    width: 100%;
+                    height: 100%;
+                    text-align: center;
+                }
+                .logo-center {
+                    display: block;
+                    margin: 0 auto 3px auto;
+                    height: 50px;
+                    width: auto;
+                    max-width: 100px;
+                }
+                .main-title {
+                    font-size: 14px;
+                    font-weight: bold;
+                    margin-bottom: 1px;
+                    line-height: 1.1;
+                }
+                .info-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 3px 0;
+                }
+                .info-table td {
+                    width: 25%; /* Equal width for all 4 columns */
+                    text-align: center;
+                    font-size: 11px;
+                    font-weight: bold;
+                    border: none;
+                    padding: 2px 5px;
+                    vertical-align: top;
+                }
+                .info-table td:first-child {
+                    text-align: left;
+                }
+                .info-table td:last-child {
+                    text-align: right;
+                }
+                .report-title {
+                    font-size: 11px;
+                    font-weight: bold;
+                    margin: 1px 0;
+                    line-height: 1.1;
+                    border-bottom: 2px solid #000;
+                }
+                .content {
+                    margin-top: 70px; /* Space for header */
+                    padding-top: 10px;
+                }
+                .data-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 5px;
+                    page-break-inside: auto;
+                }
+                .data-table th {
+                    background-color: #D9E1F2;
+                    color: #000;
+                    padding: 6px 4px;
+                    text-align: center;
+                    border: 1px solid #000;
+                    font-weight: bold;
+                    font-size: 8px;
+                }
+                .data-table td {
+                    padding: 4px 3px;
+                    border: 1px solid #000;
+                    font-size: 7px;
+                    vertical-align: middle;
+                }
+                .page-break {
+                    page-break-after: always;
+                }
+                .serial-no {
+                    width: 35px;
+                    text-align: center;
+                }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .amount-column { text-align: right; }
+            </style>
+        </head>
+        <body>
 
-                $html .= '<td class="' . $cellClass . '">' . htmlspecialchars($value) . '</td>';
-            }
+        <!-- Header for all pages -->
+        <htmlpageheader name="header">
+            <div class="header">
+                <div class="header-content">';
 
-            $html .= '</tr>';
-            $processed++;
-            $serialNumber++;
+        if ($logoPath && file_exists($logoPath)) {
+            $logoData = base64_encode(file_get_contents($logoPath));
+            $logoExtension = pathinfo($logoPath, PATHINFO_EXTENSION);
+
+            // Add logo at top-center
+            $html .= '<img src="data:image/' . $logoExtension . ';base64,' . $logoData . '" class="logo-center" alt="Logo">';
         }
-    });
 
-    $html .= '</tbody></table>';
-    $html .= '</div>'; // Close content div
-    $html .= '</body></html>';
+        $html .= '
+                    <!-- Corrected header order -->
+                    <div class="main-title">REPUBLIC OF KENYA</div>
+                    <div class="main-title">MINISTRY OF COOPERATIVES AND MSMES DEVELOPMENT</div>
+                    <div class="main-title">UWEZO FUND OVERSIGHT BOARD</div>
+                    <div class="report-title">' . ($this->reportName ? strtoupper($this->reportName) : 'DYNAMIC REPORT SUBMISSION FORM') . '</div>
 
-    return $html;
-}
+                    <!-- Single line with four items using table layout -->
+                    <table class="info-table">
+                        <tr>
+                            <td>COUNTY: ' . strtoupper($county->county_name) . '</td>
+                            <td>CONSTITUENCY: ' . strtoupper($this->constituency->constituency_name) . '</td>
+                            <td>F/Y: ' . ((now()->month >= 7 ? now()->format('Y') . '/' . now()->addYear()->format('Y') : now()->subYear()->format('Y') . '/' . now()->format('Y'))) . '</td>
+                            <td>AS AT ' . now()->format('jS F, Y') . '</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </htmlpageheader>
+
+        <!-- Content area with proper spacing -->
+        <div class="content">';
+
+        // Table code
+        $html .= '<table class="data-table">';
+        $html .= '<thead><tr>';
+        $html .= '<th class="serial-no">SNo.</th>';
+
+        foreach ($headers as $header) {
+            $html .= '<th>' . htmlspecialchars($header) . '</th>';
+        }
+
+        $html .= '</tr></thead><tbody>';
+
+        // Process data in chunks
+        $chunkSize = 200;
+        $processed = 0;
+        $serialNumber = 1;
+
+        $query->chunkById($chunkSize, function ($chunk) use (&$html, &$processed, &$serialNumber, $headers) {
+            foreach ($chunk as $item) {
+                // Apply the same defaulter filter logic for PDF
+                if ($this->filterDefaulter) {
+                    $calculatedFields = $this->getCalclatedFieldsForLoan(
+                        $item->disbursement_date,
+                        $item->amount_issued,
+                        $item->amount_repaid
+                    );
+
+                    if (($calculatedFields['amount_due'] - $item->amount_repaid) <= 0) {
+                        continue; // Skip non-defaulters
+                    }
+                }
+
+                if ($processed > 0 && $processed % 40 === 0) {
+                    $html .= '</tbody></table>';
+                    $html .= '<div class="page-break"></div>';
+                    $html .= '<table class="data-table"><thead><tr><th class="serial-no">SNo.</th>';
+                    foreach ($headers as $header) {
+                        $html .= '<th>' . htmlspecialchars($header) . '</th>';
+                    }
+                    $html .= '</tr></thead><tbody>';
+                }
+
+                $html .= '<tr>';
+                $html .= '<td class="serial-no text-center">' . $serialNumber . '</td>';
+
+                foreach ($this->selectedColumns as $column) {
+                    if (array_key_exists($column, $this->filterOptions)) {
+                        continue;
+                    }
+                    $value = $this->formatColumnValue($column, $item);
+
+                    $cellClass = '';
+                    if (str_contains($column, 'amount') || str_contains($column, 'arrears')) {
+                        $cellClass = 'amount-column';
+                    } elseif (str_contains($column, 'date')) {
+                        $cellClass = 'text-center';
+                    }
+
+                    $html .= '<td class="' . $cellClass . '">' . htmlspecialchars($value) . '</td>';
+                }
+
+                $html .= '</tr>';
+                $processed++;
+                $serialNumber++;
+            }
+        });
+
+
+        $html .= '</tbody></table>';
+        $html .= '</div>'; // Close content div
+        $html .= '</body></html>';
+
+        return $html;
+    }
     private function getCurrentFilters()
     {
         return [

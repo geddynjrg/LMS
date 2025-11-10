@@ -32,6 +32,14 @@ class ReportsController extends Controller
         ]);
     }
 
+    public function dataUpload(Request $request, County $county, Constituency $constituency)
+    {
+        return View('reports.data_upload', [
+            'constituency' => $constituency,
+            'county' => $county,
+        ]);
+    }
+
     public function export(Request $request, County $county, Constituency $constituency)
     {
         dd('Export functionality coming soon.');

@@ -535,7 +535,7 @@
     <div class="card-body p-0">
         @if($totalRecords > 0)
             <div class="table-responsive">
-                <table class="table table-bordered table-striped table-hover mb-0">
+                <table class="table table-bordered table-responsive table-striped table-hover mb-0">
                     {{-- <thead class="thead-dark">
                         <tr>
                             @foreach($selectedColumns as $column)

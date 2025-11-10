@@ -196,6 +196,15 @@
                 </a>
               </li>
               <li class="nav-item">
+                <a href="{{route('const.reports.data-upload', [
+                    Str::slug($county->slug),
+                    Str::slug($currentConstituency->slug),
+                ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.data-upload' ? 'active':''}}">
+                  <i class="fas fa-file-code nav-icon"></i>
+                  <p>Data Upload</p>
+                </a>
+              </li>
+              <li class="nav-item">
                 <a href="#" class="nav-link">
                   <i class="fas fa-file-code nav-icon"></i>
                   <p>Repayment Subm (F.4)</p>

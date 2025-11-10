@@ -63,8 +63,23 @@ class DynamicReportChunkedExport extends DefaultValueBinder implements FromQuery
         return $query;
     }
 
+    // In your DynamicReportWithTemplateExport class
     public function map($row): array
     {
+        // Apply defaulter filter if enabled
+        if ($this->filters['filterDefaulter'] ?? false) {
+            $calculatedFields = $this->component->getCalclatedFieldsForLoan(
+                $row->disbursement_date,
+                $row->amount_issued,
+                $row->amount_repaid
+            );
+
+            // Skip non-defaulters (same logic as formatResults)
+            if (($calculatedFields['amount_due'] - $row->amount_repaid) <= 0) {
+                return []; // Return empty array to skip this row
+            }
+        }
+
         $mappedRow = [];
 
         // Add serial number as first column
@@ -77,7 +92,7 @@ class DynamicReportChunkedExport extends DefaultValueBinder implements FromQuery
             if (array_key_exists($column, $this->filters['filterOptions'] ?? [])) {
                 continue;
             }
-            $mappedRow[] = $this->component->formatColumnValue($column, $row);
+            $mappedRow[] = $this->component->formatColumnValue($column, $row, true);
         }
 
         return $mappedRow;
@@ -329,6 +344,9 @@ class DynamicReportChunkedExport extends DefaultValueBinder implements FromQuery
 
                 // Add serial numbers to all rows
                 $this->addSerialNumbersToAllRows($event);
+
+                // Explicitly set cell data types for numeric columns
+                //$this->setCellDataTypes($event);
             },
         ];
     }
@@ -473,7 +491,7 @@ class DynamicReportChunkedExport extends DefaultValueBinder implements FromQuery
             'group_loans.status' => 'Application Status',
             'group_loans.comments' => 'Comments',
             'loan_phase.phase' => 'Loan Phase',
-            'arrears' => 'Variance in Amounts (Approved and Issued)',
+            'arrears' => 'Outstanding Balance',
             'amount_due' => 'Amount Due',
             'cumulative_arrears' => 'Cumulative Arrears',
             'repayment_date' => 'Date of Repayment Completion',

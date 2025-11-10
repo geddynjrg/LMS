@@ -35,14 +35,14 @@ class SideNav extends Component
         $this->routeName = Route::currentRouteName();
 
         //dd($this->routeName);
-        if ($this->routeName == 'groupsinfo' || $this->routeName == 'groupinfo' || $this->routeName == 'groupMembers') {
+        if ($this->routeName == 'groupsinfo' || $this->routeName == 'groupinfo' || $this->routeName == 'groupMembers' || $this->routeName == 'multiGroupMembers') {
             $this->nav = 'groups';
         }elseif ($this->routeName == 'const.dashboard') {
             $this->nav = 'const.dashboard';
         }elseif ($this->routeName == 'grouploans' || $this->routeName == 'loanreceipts' || $this->routeName == 'loanmembers' || $this->routeName == 'grouploan' || $this->routeName == 'loanapplication' || $this->routeName == 'loanphase' || $this->routeName == 'applicants' || $this->routeName == 'applicant') {
             $this->nav = 'loans';
         }
-        elseif ($this->routeName == 'codelist' || $this->routeName == 'disbursement' ) {
+        elseif ($this->routeName == 'codelist' || $this->routeName == 'disbursement' || $this->routeName == 'dynamic-report' || $this->routeName == 'data-upload' || $this->routeName == 'export') {
             $this->nav = 'reports';
         }
     }
@@ -82,7 +82,7 @@ class SideNav extends Component
             'const.reports.codelist'  => ['const.reports.codelist',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.reports.general'  => ['const.reports.dynamic-report',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.reports.disbursement'  => ['const.reports.disbursement',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
-
+            'const.reports.data-upload'  => ['const.reports.data-upload',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.loans.loanmembers'  => ['const.loans.loanmembers',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'users.viewusers'  => ['users.viewusers', ['county' => $countySlug]],
             'users.adduser'  => ['users.adduser', ['county' => $countySlug]],
