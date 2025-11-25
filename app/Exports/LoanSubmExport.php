@@ -2,155 +2,566 @@
 
 namespace App\Exports;
 
-use App\Models\LoanPhase;
-use Illuminate\Contracts\View\View;
-use Maatwebsite\Excel\Concerns\FromView;
-use Maatwebsite\Excel\Concerns\WithStyles;
+use App\Models\Constituency;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
-use Maatwebsite\Excel\Events\AfterSheet;
+use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
-class LoanSubmExport  implements FromView, WithStyles, WithTitle, WithEvents
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+
+class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithStyles, WithColumnWidths, WithEvents
 {
-    protected $loanPhases;
-    protected $totalAmountApproved;
-    protected $totalAmountIssued;
-    protected $totalAmountRepaid;
+    protected $constituency;
+    protected $phases;
+    protected $levelOrder;
 
-    public function __construct()
+    public function __construct(Constituency $constituency, $phases)
     {
-        $code = session('constituency')->constituency_code;
-
-        $this->loanPhases = LoanPhase::where('constituency_code', $code)
-        ->with(['grouploans' => function($query) {
-            $query->whereIn('loan_status', ['financed', 'cancelled', 'approved']);
-        }, 'grouploans.group'])
-        ->orderBy('id')
-        ->get()
-        ->map(function ($phase) {
-            $phase->grouploans = $phase->grouploans->sortBy(function ($grouploan) {
-                return array_search($grouploan->level, ['New', 'Resubmission', 'Refinancing']);
-            });
-            return $phase;
-        });
-
-         // Calculate total amount across all phases
-        $this->totalAmountIssued = $this->loanPhases->flatMap(function ($phase) {
-            return $phase->grouploans;
-        })->sum('amount_issued');
-
-        $this->totalAmountRepaid = $this->loanPhases->flatMap(function ($phase) {
-            return $phase->grouploans;
-        })->sum('amount_repaid');
-
-        $this->totalAmountApproved = $this->loanPhases->flatMap(function ($phase) {
-            return $phase->grouploans;
-        })->sum('amount_approved');
+        $this->constituency = $constituency;
+        $this->phases = $phases;
+        $this->levelOrder = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
     }
 
-    public function view(): View
+    public function collection()
     {
-        return view('exports.loan_submision', [
-            'phases' => $this->loanPhases,
-            'totalAmountApproved' => $this->totalAmountApproved,
-            'totalAmountIssued' => $this->totalAmountIssued,
-            'totalAmountRepaid'=> $this->totalAmountRepaid,
+        $data = collect();
+        $i = 1;
+
+        foreach ($this->phases as $phase) {
+            foreach ($this->levelOrder as $level) {
+                $levelLoans = $phase->grouploans->where('level', $level);
+
+                if ($levelLoans->isNotEmpty()) {
+                    $data->push([
+                        'S/N' => $phase->phase . ' - ' . $level,
+                        'Date of Disbursement' => '',
+                        'Name of the group/institution' => '',
+                        'G.F.S.CODE' => '',
+                        'Sector' => '',
+                        'Category' => '',
+                        'Amount Approved' => '',
+                        'Actual Amount Issued' => '',
+                        'Variance' => '',
+                        'Amount Due' => '',
+                        'Cummulative Amount repaid' => '',
+                        'Amount in arrears' => '',
+                        'Outstanding Loan Balance' => '',
+                        'Date of Repayment completion' => '',
+                    ]);
+
+                    foreach ($levelLoans as $grouploan) {
+                        $analysis = $this->analyzeSingleLoan($grouploan);
+
+                        $data->push([
+                            'S/N' => $i++,
+                            'Date of Disbursement' => $grouploan->disbursement_date ? Carbon::parse($grouploan->disbursement_date)->format('Y-m-d') : 'N/A',
+                            'Name of the group/institution' => $grouploan->group->name ?? 'N/A',
+                            'G.F.S.CODE' => $grouploan->group->gfs_code ?? 'N/A',
+                            'Sector' => $grouploan->group->activity ?? 'N/A',
+                            'Category' => $grouploan->group->category ?? 'N/A',
+                            'Amount Approved' => $grouploan->amount_approved ?: '0',
+                            'Actual Amount Issued' => $grouploan->amount_issued ?: '0',
+                            'Variance' => (($grouploan->amount_approved ?: 0) - ($grouploan->amount_issued ?: 0)) ?: '0',
+                            //'Variance' => ($levelLoans->sum('amount_approved') ?? 0) - ($levelLoans->sum('amount_issued') ?? 0),
+                            'Amount Due' => $analysis['amount_due'] ?: '0',
+                            'Cummulative Amount repaid' => $grouploan->amount_repaid ?: '0',
+                            'Amount in arrears' => $analysis['arrears'] ?: '0',
+                            'Outstanding Loan Balance' => (($grouploan->amount_issued ?: 0) - ($grouploan->amount_repaid ?: 0)) ?: '0',
+                            'Date of Repayment completion' => $this->calculateRepaymentCompletionDate($grouploan, $analysis),
+                        ]);
+                    }
+
+                    // Add subtotal
+                    $data->push([
+                        'S/N' => 'SubTotal ' . $phase->phase . ' - ' . $level,
+                        'Date of Disbursement' => '',
+                        'Name of the group/institution' => '',
+                        'G.F.S.CODE' => '',
+                        'Sector' => '',
+                        'Category' => '',
+                        'Amount Approved' => $levelLoans->sum('amount_approved') ?: '0',
+                        'Actual Amount Issued' => $levelLoans->sum('amount_issued') ?: '0',
+                        'Variance' => ($levelLoans->sum('amount_approved') - $levelLoans->sum('amount_issued')) ?: '0',
+                        'Amount Due' => $levelLoans->sum(function($loan) {
+                            $analysis = $this->analyzeSingleLoan($loan);
+                            return $analysis['amount_due'];
+                        })?: '0',
+                        'Cummulative Amount repaid' => $levelLoans->sum('amount_repaid')?: '0',
+                        'Amount in arrears' => $levelLoans->sum(function($loan) {
+                            $analysis = $this->analyzeSingleLoan($loan);
+                            return $analysis['arrears'];
+                        })?: '0',
+                        'Outstanding Loan Balance' => ($levelLoans->sum('amount_issued') - $levelLoans->sum('amount_repaid'))?: '0',
+                        'Date of Repayment completion' => '',
+                    ]);
+                }
+            }
+        }
+
+        // Add grand totals
+        $allLoans = $this->phases->flatMap->grouploans;
+        $data->push([
+            'S/N' => 'GRAND TOTALS',
+            'Date of Disbursement' => '',
+            'Name of the group/institution' => '',
+            'G.F.S.CODE' => '',
+            'Sector' => '',
+            'Category' => '',
+            'Amount Approved' => $allLoans->sum('amount_approved'),
+            'Actual Amount Issued' => $allLoans->sum('amount_issued'),
+            'Variance' => $allLoans->sum('amount_approved') - $allLoans->sum('amount_issued'),
+            'Amount Due' => $allLoans->sum(function($loan) {
+                $analysis = $this->analyzeSingleLoan($loan);
+                return $analysis['amount_due'];
+            }),
+            'Cummulative Amount repaid' => $allLoans->sum('amount_repaid'),
+            'Amount in arrears' => $allLoans->sum(function($loan) {
+                $analysis = $this->analyzeSingleLoan($loan);
+                return $analysis['arrears'];
+            }),
+            'Outstanding Loan Balance' => $allLoans->sum('amount_issued') - $allLoans->sum('amount_repaid'),
+            'Date of Repayment completion' => '',
         ]);
+
+        return $data;
+    }
+
+    public function headings(): array
+    {
+        $columnHeaders = [
+            'S/No.',
+            'Date of Disbursement',
+            'Name of the group/institution',
+            'G.F.S.CODE',
+            'Sector',
+            'Category',
+            'Amount Approved (KShs)',
+            'Actual Amount Issued (KShs)',
+            'Variance in Amounts (KShs)',
+            'Amount Due (KShs)',
+            'Cummulative Amount repaid (KShs)',
+            'Amount cummulatively in arrears (KShs)',
+            'Outstanding Loan Balance (KShs)',
+            'Date of Repayment completion'
+        ];
+
+        return [
+            // Row 1: REPUBLIC OF KENYA (merged across all columns)
+            array_fill(0, 14, 'REPUBLIC OF KENYA'),
+
+            // Row 2: MINISTRY OF COOPERATIVES AND MSMES DEVELOPMENT (merged)
+            array_fill(0, 14, 'MINISTRY OF COOPERATIVES AND MSMES DEVELOPMENT'),
+
+            // Row 3: UWEZO FUND OVERSIGHT BOARD (merged)
+            array_fill(0, 14, 'UWEZO FUND OVERSIGHT BOARD'),
+
+            // Row 4: Split header - each part in specific columns
+            array_fill(0, 14, 'UWEZO FUND LOAN REPAYMENT SUBMISSION FORM'),
+
+            // Row 5: Empty row for spacing
+            array_fill(0, 14, ''),
+
+            // Row 6: Report name (merged)
+            $this->createPositionedHeaderRow(14),
+
+
+
+            // Row 7: Column headers
+            $columnHeaders
+
+        ];
+    }
+
+    private function createPositionedHeaderRow($totalColumns)
+    {
+        $row = array_fill(0, $totalColumns, '');
+
+        // A5:2 - COUNTY
+        $row[1] = 'COUNTY: ' . strtoupper($this->constituency->county->county_name);
+
+        // A5:4 - CONSTITUENCY
+        $row[3] = 'CONSTITUENCY: ' . strtoupper($this->constituency->constituency_name);
+
+        // A5:3 - F/Y // if now we are in 2025 any month from 1st jul - 30th june 2026 then F/Y is 2025/2026
+        $row[11] = 'F/Y: ' . (now()->month >= 7 ? now()->format('Y') . '/' . now()->addYear()->format('Y') : now()->subYear()->format('Y') . '/' . now()->format('Y'));
+
+        // A5:lastcolumn - AS AT
+        $row[6] = 'AS AT ' . now()->format('jS F, Y');
+
+        return $row;
+    }
+
+    public function title(): string
+    {
+        return strtoupper($this->constituency->constituency_name).'_Loan Submission Report';
     }
 
     public function styles(Worksheet $sheet)
     {
+        $sheet->mergeCells('A1:N1');
+        $sheet->mergeCells('A2:N2');
+        $sheet->mergeCells('A3:N3');
+        $sheet->mergeCells('A4:N4');
+
+        // Set default font and size
+        $sheet->getParent()->getDefaultStyle()->getFont()->setName('Arial')->setSize(8);
+
         return [
+            // Main headers (row 1)
             1 => [
-                'font' => ['bold' => true, 'name' => 'Times New Roman', 'size' => 10, 'color' => ['rgb' => 'FFFFFF']],
-                'alignment' => ['wrapText' => true, 'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER],
-                'fill' => [
-                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                    'color' => ['rgb' => '00BCD4'] // Cyan background for header
-                ]
+                'font' => ['bold' => true, 'name' => 'Times New Roman', 'size' => 10],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
             ],
-            'A:J' => [
-                'alignment' => ['wrapText' => true],
-                'font' => ['name' => 'Calibri', 'size' => 8]
+            // MINISTRY OF COOPERATIVES AND MSMES DEVELOPMENT
+            2 => [
+                'font' => ['bold' => true, 'name' => 'Times New Roman', 'size' => 10],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
             ],
-            'A1:J1' => [
-                'font' => ['name' => 'Times New Roman', 'size' => 10]
+            // UWEZO FUND OVERSIGHT BOARD
+            3 => [
+                'font' => ['bold' => true, 'name' => 'Times New Roman', 'size' => 10],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
             ],
+            // Row 5: Report name
+            4 => [
+                'font' => ['bold' => true, 'name' => 'Times New Roman', 'size' => 10],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER]
+            ],
+            // Constituency line Times New Roman
+            6 => [
+                'font' => ['bold' => true, 'name' => 'Times New Roman', 'size' => 10],
+                'alignment' => ['vertical' => Alignment::VERTICAL_CENTER]
+            ],
+            7 => [
+                'font' => ['bold' => true, 'name' => 'Tahoma', 'size' => 9],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+                'borders' => [
+                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
+                ],
+            ],
+            // Formula headers (row 2)
+            8 => [
+                'font' => ['bold' => true, 'name' => 'Tahoma', 'size' => 9],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+                'borders' => [
+                    'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
+                ],
+            ],
+            // 'A8:N8' => [
+            //     'font' => ['name' => 'Tahoma'],
+            //     'alignment' => [
+            //         'wrapText' => true,
+            //     ],
+            // ],
+
         ];
     }
 
+    // public function styles(Worksheet $sheet)
+    // {
+    //     $sheet->getParent()->getDefaultStyle()->getFont()->setName('Arial')->setSize(10);
 
-    public function title(): string
+    //     return [
+    //         // Header style
+    //         1 => [
+    //             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+    //             'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '3498DB']],
+    //             'alignment' => ['horizontal' => 'center', 'vertical' => 'center']
+    //         ],
+
+    //         // Section headers
+    //         'A:A' => ['alignment' => ['horizontal' => 'left']],
+    //         'B:N' => ['alignment' => ['horizontal' => 'center']],
+
+    //         // Numeric columns
+    //         'G:N' => ['alignment' => ['horizontal' => 'right']],
+    //     ];
+    // }
+
+    public function columnWidths(): array
     {
-        return 'Loan Subm(F.5) Codelist Return';
+        return [
+            'A' => 8,  // S/N
+            'B' => 12, // Date of Disbursement
+            'C' => 30, // Name of group
+            'D' => 25, // GFS CODE
+            'E' => 12, // Sector
+            'F' => 12, // Category
+            'G' => 15, // Amount Approved
+            'H' => 15, // Amount Issued
+            'I' => 15, // Variance
+            'J' => 15, // Amount Due
+            'K' => 15, // Amount Repaid
+            'L' => 15, // Arrears
+            'M' => 15, // Outstanding Balance
+            'N' => 12, // Repayment completion
+        ];
     }
 
- 
     public function registerEvents(): array
     {
         return [
-            AfterSheet::class => function (AfterSheet $event) {
+            AfterSheet::class => function(AfterSheet $event) {
+
                 $sheet = $event->sheet->getDelegate();
-
-                // Set column widths
-                $columnWidths = [
-                    'A' => 7,
-                    'B' => 14,
-                    'C' => 22,
-                    'D' => 28,
-                    'E' => 12,
-                    'F' => 11,
-                    'G' => 13,
-                    'H' => 12,
-                    'I' => 12,
-                    'J' => 13,
-                ];
-
-                foreach ($columnWidths as $column => $width) {
-                    $sheet->getColumnDimension($column)->setWidth($width);
-                }
-
-                // Apply borders to the entire sheet
                 $highestRow = $sheet->getHighestRow();
                 $highestColumn = $sheet->getHighestColumn();
 
-                $sheet->getStyle("A1:$highestColumn$highestRow")->applyFromArray([
-                    'borders' => [
-                        'allBorders' => [
-                            'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
-                            'color' => ['rgb' => '000000']
-                        ]
-                    ]
-                ]);
+                $event->sheet->getRowDimension(1)->setRowHeight(15);
+                $event->sheet->getRowDimension(2)->setRowHeight(15);
+                $event->sheet->getRowDimension(3)->setRowHeight(15);
+                $event->sheet->getRowDimension(4)->setRowHeight(15);
+                $event->sheet->getRowDimension(6)->setRowHeight(15);
 
-                // Apply styles to the first column starting from row 2
-                for ($row = 2; $row <= $highestRow; $row++) {
-                    $sheet->getStyle("A$row")->applyFromArray([
-                        'font' => ['bold' => true],
-                        'fill' => [
-                            'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                            'color' => ['rgb' => '00BCD4']
-                        ]
-                    ]);
-                }
+                // Add logo (if available)
+                $this->addLogo($event);
 
-                // Apply styles to subtotal and total rows
-                for ($row = 2; $row <= $highestRow; $row++) {
-                    $cellValue = $sheet->getCell("B$row")->getValue();
-                    if (strpos($cellValue, 'Phase') !== false || strpos($cellValue, 'Totals') !== false) {
-                        $sheet->getStyle("A$row:J$row")->applyFromArray([
-                            'font' => ['bold' => true, 'name' => 'Calibri', 'size' => 10, 'color' => ['rgb' => '00040A']],
-                            'fill' => [
-                                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                                'color' => ['rgb' => '9FABBF'] // Grey background for subtotals and totals
+                // Add formula headers row
+                $sheet->insertNewRowBefore(8, 1);
+                $sheet->setCellValue('A8', '');
+                $sheet->setCellValue('B8', '');
+                $sheet->setCellValue('C8', '');
+                $sheet->setCellValue('D8', '');
+                $sheet->setCellValue('E8', '');
+                $sheet->setCellValue('F8', '');
+                $sheet->setCellValue('G8', '');
+                $sheet->setCellValue('H8', 'a');
+                $sheet->setCellValue('I8', '');
+                $sheet->setCellValue('J8', 'b= (a/24 *No of months lapsed since expiry of grace period)');
+                $sheet->setCellValue('K8', 'c');
+                $sheet->setCellValue('L8', 'd=b-c');
+                $sheet->setCellValue('M8', 'e=a-c');
+                $sheet->setCellValue('N8', '');
+
+                $currentRow = 9;
+                while ($currentRow <= $highestRow+1) {
+                    $snoValue = $sheet->getCell('A' . $currentRow)->getValue();
+
+                    // Check if this is a phase header (like "Phase 1")
+                    if (is_string($snoValue) && str_starts_with($snoValue, 'Phase') !== false) {
+                        // Merge cells for phase header
+                        $sheet->mergeCells('A' . $currentRow . ':N' . $currentRow);
+                        $sheet->getStyle('A' . $currentRow . ':N' . $currentRow)->applyFromArray([
+                            'font' => ['bold' => true, 'size' => 9],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D3D3D3']],
+                            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+                            'borders' => [
+                                'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
                             ],
-                            'alignment' => [
-                                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER
-                            ]
                         ]);
                     }
+
+                    // Check if this is a subtotal row
+                    if (is_string($snoValue) && str_starts_with($snoValue, 'SubTotal') !== false) {
+
+                        $sheet->getStyle('A' . $currentRow . ':N' . $currentRow)->applyFromArray([
+                            'font' => ['bold' => true],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D3D3D3']],
+                            'borders' => [
+                                'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
+                            ],
+                        ]);
+                        $sheet->getStyle('A' . $currentRow . ':F' . $currentRow)->applyFromArray([
+                            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+                        ]);
+                        $sheet->mergeCells('A' . $currentRow . ':F' . $currentRow);
+
+                    }
+
+                    // Check if this is a grand total row
+                    if (is_string($snoValue) && str_starts_with($snoValue, 'GRAND') !== false) {
+                        $sheet->mergeCells('A' . $currentRow . ':F' . $currentRow);
+                        $sheet->getStyle('A' . $currentRow . ':N' . $currentRow)->applyFromArray([
+                            'font' => ['bold' => true, 'size' => 9],
+                            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D3D3D3']],
+                            'borders' => [
+                                'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
+                            ],
+                        ]);
+                        $sheet->getStyle('A' . $currentRow . ':F' . $currentRow)->applyFromArray([
+                            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+                        ]);
+                    }
+
+                    // Apply borders to all data rows
+                    $sheet->getStyle('A' . $currentRow . ':N' . $currentRow)->applyFromArray([
+                        'borders' => [
+                            'allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => '000000']],
+                        ],
+                    ]);
+
+                    // Apply number formatting for numeric columns
+                    $numericColumns = ['G', 'H', 'I', 'J', 'K', 'L', 'M'];
+                    foreach ($numericColumns as $column) {
+                        $cellValue = $sheet->getCell($column . $currentRow)->getValue();
+                        if (is_numeric($cellValue)) {
+                            $sheet->getStyle($column . $currentRow)->getNumberFormat()->setFormatCode('#,##0');
+                        }
+                    }
+
+                    $currentRow++;
                 }
-            }
+
+                // $sheet->getStyle("A1:$highestColumn$highestRow")->applyFromArray([
+                //     'borders' => [
+                //         'allBorders' => [
+                //             'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                //             'color' => ['rgb' => '000000']
+                //         ]
+                //     ]
+                // ]);
+                $sheet->getStyle("A10:A$highestRow")->applyFromArray([
+                    'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D3D3D3']],
+                ]);
+
+                $sheet->getSTyle("A10:N$highestRow")->applyFromArray([
+                    'font' => ['name' => 'Tahoma'],
+                    'alignment' => [
+                        'wrapText' => true,
+                    ],
+                ]);
+            },
         ];
+    }
+
+    private function analyzeSingleLoan($loan)
+    {
+        if (!$loan->disbursement_date || $loan->loan_status === 'cancelled') {
+            return [
+                'amount_due' => 0,
+                'arrears' => 0,
+                'months_in_repayment' => 0,
+                'monthly_installment' => 0,
+            ];
+        }
+
+        $disbursementDate = Carbon::parse($loan->disbursement_date);
+        $today = Carbon::now();
+
+        // Grace period: 6 months
+        $gracePeriodEnd = $disbursementDate->copy()->addMonths(6);
+
+        // Check if still in grace period
+        if ($today->lte($gracePeriodEnd)) {
+            return [
+                'amount_due' => 0,
+                'arrears' => 0,
+                'months_in_repayment' => 0,
+                'monthly_installment' => $loan->amount_issued / 24,
+            ];
+        }
+
+        // Repayment period calculation
+        $repaymentStart = $gracePeriodEnd->copy()->addDay();
+        $monthsInRepayment = $repaymentStart->diffInMonths($today);
+
+        // Cap at 24 months for amount due calculation
+        $monthsInRepaymentForDue = min($monthsInRepayment, 24);
+
+        // Monthly installment
+        $monthlyInstallment = $loan->amount_issued / 24;
+
+        // Amount due (what should have been paid by now)
+        $amountDue = $monthlyInstallment * $monthsInRepaymentForDue;
+
+        // Arrears (amount due minus amount repaid)
+        $arrears = max($amountDue - $loan->amount_repaid, 0);
+
+        return [
+            'amount_due' => $amountDue,
+            'arrears' => $arrears,
+            'months_in_repayment' => $monthsInRepaymentForDue,
+            'monthly_installment' => $monthlyInstallment,
+        ];
+    }
+
+    private function calculateRepaymentCompletionDate($grouploan, $analysis)
+    {
+        if (!$grouploan->disbursement_date || $grouploan->loan_status === 'cancelled') {
+            return 'N/A';
+        }
+
+        // If loan is fully repaid
+        // if ($grouploan->amount_repaid >= $grouploan->amount_issued) {
+        //     return 'Fully Repaid';
+        // }
+
+        $disbursementDate = Carbon::parse($grouploan->disbursement_date);
+
+        // If still in grace period
+        $gracePeriodEnd = $disbursementDate->copy()->addMonths(6);
+        if (Carbon::now()->lte($gracePeriodEnd)) {
+            return $disbursementDate->copy()->addMonths(30)->format('Y-m-d');
+        }
+
+        // Calculate based on current repayment rate
+        $remainingAmount = $grouploan->amount_issued - $grouploan->amount_repaid;
+
+        if ($analysis['amount_due'] > 0 && $analysis['months_in_repayment'] > 0) {
+            // Calculate monthly repayment rate based on actual performance
+            $monthlyRepaymentRate = $analysis['amount_due'] / $analysis['months_in_repayment'];
+
+            if ($monthlyRepaymentRate > 0) {
+                $remainingMonths = ceil($remainingAmount / $monthlyRepaymentRate);
+                $completionDate = Carbon::now()->addMonths($remainingMonths);
+                $maxCompletionDate = $disbursementDate->copy()->addMonths(30);
+
+                return $completionDate->min($maxCompletionDate)->format('Y-m-d');
+            }
+        }
+
+        // Fallback: use the monthly installment for calculation
+        if ($analysis['monthly_installment'] > 0) {
+            $remainingMonths = ceil($remainingAmount / $analysis['monthly_installment']);
+            $completionDate = Carbon::now()->addMonths($remainingMonths);
+            $maxCompletionDate = $disbursementDate->copy()->addMonths(30);
+
+            return $completionDate->min($maxCompletionDate)->format('Y-m-d');
+        }
+
+        return 'Not Available';
+    }
+
+    private function addLogo(AfterSheet $event)
+    {
+        try {
+            $logoPath = public_path('images/docs/doc_logo.png'); // Adjust path as needed
+            // $logoPath2 = public_path('images/coat-of-arms.png'); // Kenyan coat of arms
+            // $logoPath3 = storage_path('app/public/logo.png'); // Another possible location
+
+            $usedLogoPath = null;
+
+            // Check which logo file exists
+            if (file_exists($logoPath)) {
+                $usedLogoPath = $logoPath;
+            }
+
+            if ($usedLogoPath) {
+                $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+                $drawing->setName('Logo');
+                $drawing->setDescription('Logo');
+                $drawing->setPath($usedLogoPath);
+                $drawing->setHeight(50); // Adjust height as needed
+                $drawing->setCoordinates('A1');
+                $drawing->setOffsetX(10);
+                $drawing->setOffsetY(10);
+                $drawing->setWorksheet($event->sheet->getDelegate());
+
+                // Adjust header row height to accommodate logo
+                $event->sheet->getRowDimension(1)->setRowHeight(60);
+            }
+
+        } catch (\Exception $e) {
+            // Logo not found or error loading - continue without logo
+            logger()->warning('Logo not found for Excel export: ' . $e->getMessage());
+        }
     }
 }

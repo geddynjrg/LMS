@@ -5,6 +5,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ConstituencyController;
 use App\Http\Controllers\GroupsController;
 use App\Http\Controllers\LoansController;
+use App\Http\Controllers\MeReportingController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\UsersController;
@@ -84,13 +85,16 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/{group}', [LoansController::class, 'groupLoan'])->name('grouploan');
                 Route::get('/members', [LoansController::class, 'members'])->name('loanmembers');
             });
-
             Route::prefix('reports')->name('reports.')->group(function () {
-                Route::get('codelist', [ReportsController::class, 'codeList'])->name('codelist');
+                Route::get('loan-sub-form', [ReportsController::class, 'codeList'])->name('codelist');
                 Route::get('/disbursement', [ReportsController::class, 'disbursement'])->name('disbursement');
                 Route::get('/dynamic-report', [ReportsController::class, 'dynamicReport'])->name('dynamic-report');
                 Route::get('/data-upload', [ReportsController::class, 'dataUpload'])->name('data-upload');
                 Route::get('/export', [ReportsController::class, 'export'])->name('export');
+            });
+            Route::prefix('monitoring')->name('monitoring.')->group(function () {
+                Route::get('/report', [MeReportingController::class, 'home'])->name('monitor_home');
+                Route::get('/dataview', [MeReportingController::class, 'data'])->name('data_view');
             });
 
 

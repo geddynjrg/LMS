@@ -29,441 +29,441 @@
 
 
                         <!-- Select Fields to Include -->
-<div class="row">
-    <div class="col-12">
-        <div class="card card-primary card-outline">
-            <div class="card-header">
-                <h3 class="card-title">
-                    <i class="fas fa-check-square mr-2"></i>
-                    Select Fields to Include
-                </h3>
-                <div class="card-tools">
-                    <div class="form-check">
-                        <input class="form-check-input"
-                            type="checkbox"
-                            id="selectAllFields"
-                            wire:click="toggleAllColumns">
-                        <label class="form-check-label small font-weight-normal">
-                            Select All
-                        </label>
-                        <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                            <i class="fas fa-minus"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <!-- Custom Filters Section -->
-                <div class="p-3 bg-light border-bottom">
-                    <h5 class="mb-3">
-                        <i class="fas fa-filter mr-2 text-primary"></i>
-                        Custom Filters
-                        <small class="text-muted">(These filters won't appear in the exported report)</small>
-                    </h5>
-                    <div wire:ignore class="row">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filterLoanPhase" class="font-weight-bold">
-                                    <i class="fas fa-calendar-alt mr-1 text-info"></i>
-                                    Filter by Loan Phase
-                                </label>
-                                <select class="form-control select2"
-                                        id="filterLoanPhase"
-                                        wire:model.live="filterLoanPhase">
-                                    <option value="">All Phases</option>
-                                    @foreach($loanPhases as $phase)
-                                        <option value="{{ $phase->phase }}">{{ $phase->phase }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filterWard" class="font-weight-bold">
-                                    <i class="fas fa-map-marker-alt mr-1 text-success"></i>
-                                    Filter by Ward
-                                </label>
-                                <select class="form-control select2"
-                                        id="filterWard"
-                                        wire:model.live="filterWard">
-                                    <option value="">All Wards</option>
-                                    @foreach($allWards as $ward)
-                                        <option value="{{ $ward->ward_name }}">{{ $ward->ward_name }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filterGroupCategory" class="font-weight-bold">
-                                    <i class="fas fa-users mr-1 text-info"></i>
-                                    Filter by Group Category
-                                </label>
-                                <select class="form-control select2"
-                                        id="filterGroupCategory"
-                                        wire:model.live="filterGroupCategory">
-                                    <option value="">All Categories</option>
-                                    @foreach($groupCategories as $category)
-                                        <option value="{{ $category }}">{{ $category }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="filterGroupActivity" class="font-weight-bold">
-                                    <i class="fas fa-briefcase mr-1 text-info"></i>
-                                    Filter by Group Activity
-                                </label>
-                                <select class="form-control select2"
-                                        id="filterGroupActivity"
-                                        wire:model.live="filterGroupActivity">
-                                    <option value="">All Activities</option>
-                                    @foreach($groupActivities as $activity)
-                                        <option value="{{ $activity }}">{{ $activity }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-
-                    </div>
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label class="font-weight-bold d-block">
-                                    <i class="fas fa-exclamation-triangle mr-1 text-warning"></i>
-                                    Additional Filters
-                                </label>
-                                <div class="custom-control custom-checkbox mt-2">
-                                    <input class="custom-control-input"
-                                           type="checkbox"
-                                           id="filterDefaulter"
-                                           wire:model.live="filterDefaulter">
-                                    <label for="filterDefaulter" class="custom-control-label font-weight-normal">
-                                        Show Defaulters Only
-                                    </label>
-                                </div>
-                            </div>
-
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="reportName">
-                                    <i class="fas fa-file-signature mr-1"></i>
-                                    Report Name
-                                </label>
-                                <input type="text"
-                                    class="form-control"
-                                    id="reportName"
-                                    placeholder="Enter report name"
-                                    wire:model="reportName"
-                                    required>
-                                <small class="form-text text-muted">This will be the name of the report file.</small>
-                                {{-- error handler --}}
-                                @error('reportName')
-                                    <span class="text-sm text-danger font-weight-bold">{{ $message }}</span>
-                                @enderror
-                            </div>
-                        </div>
-                        {{-- clear filters --}}
-                        <div class="col-md-6 d-flex align-items-end">
-                            <div class="form-group ml-auto">
-                                <button type="button"
-                                        class="btn btn-outline-secondary"
-                                        wire:click="clearFilters">
-                                    <i class="fas fa-broom mr-1"></i> Clear All Filters
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="p-3 row">
-                    <!-- Groups Section -->
-                    <div class="col-md-6 col-xl-3 mb-3 d-flex">
-                        <div class="card card-outline card-success w-100" style="height: 320px;">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <i class="fas fa-layer-group mr-2"></i>
-                                    Groups
-                                    <span class="badge badge-light ml-1">{{ count($availableColumns['groups']) }}</span>
-                                </h3>
-                                <div class="card-tools">
-                                    <input type="checkbox"
-                                        class="category-select-all"
-                                        data-category="groups"
-                                        wire:click="toggleCategory('groups')"
-                                        wire:model="categoryGroupsSelected">
-                                    <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                        <i class="fas fa-minus"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="card-body p-2" style="overflow-y: auto;">
-                                @foreach($availableColumns['groups'] as $key => $label)
-                                    <div class="form-group mb-1">
-                                        <div class="custom-control custom-checkbox">
-                                            <input class="custom-control-input column-checkbox"
-                                                type="checkbox"
-                                                id="groups_{{ $key }}"
-                                                value="{{ $key }}"
-                                                data-category="groups"
-                                                wire:model.live="selectedColumns">
-                                            <label for="groups_{{ $key }}" class="custom-control-label font-weight-normal small">
-                                                {{ $label }}
-                                            </label>
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card card-primary card-outline">
+                                    <div class="card-header">
+                                        <h3 class="card-title">
+                                            <i class="fas fa-check-square mr-2"></i>
+                                            Select Fields to Include
+                                        </h3>
+                                        <div class="card-tools">
+                                            <div class="form-check">
+                                                <input class="form-check-input"
+                                                    type="checkbox"
+                                                    id="selectAllFields"
+                                                    wire:click="toggleAllColumns">
+                                                <label class="form-check-label small font-weight-normal">
+                                                    Select All
+                                                </label>
+                                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                                    <i class="fas fa-minus"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Loans Section -->
-                    <div class="col-md-6 col-xl-3 mb-3 d-flex">
-                        <div class="card card-outline card-warning w-100" style="height: 320px;">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <i class="fas fa-money-bill-wave mr-2"></i>
-                                    Loans
-                                    <span class="badge badge-light ml-1">{{ count($availableColumns['loans']) }}</span>
-                                </h3>
-                                <div class="card-tools">
-                                    <input type="checkbox"
-                                        class="category-select-all"
-                                        data-category="loans"
-                                        wire:click="toggleCategory('loans')"
-                                        wire:model="categoryLoansSelected">
-                                    <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                        <i class="fas fa-minus"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="card-body p-2" style="overflow-y: auto;">
-                                @foreach($availableColumns['loans'] as $key => $label)
-                                    <div class="form-group mb-1">
-                                        <div class="custom-control custom-checkbox">
-                                            <input class="custom-control-input column-checkbox"
-                                                type="checkbox"
-                                                id="loans_{{ $key }}"
-                                                value="{{ $key }}"
-                                                data-category="loans"
-                                                wire:model.live="selectedColumns">
-                                            <label for="loans_{{ $key }}" class="custom-control-label font-weight-normal small">
-                                                {{ $label }}
-                                            </label>
+                                    <div class="card-body p-0">
+                                        <!-- Custom Filters Section -->
+                                        <div class="p-3 bg-light border-bottom">
+                                            <h5 class="mb-3">
+                                                <i class="fas fa-filter mr-2 text-primary"></i>
+                                                Custom Filters
+                                                <small class="text-muted">(These filters won't appear in the exported report)</small>
+                                            </h5>
+                                            <div wire:ignore class="row">
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label for="filterLoanPhase" class="font-weight-bold">
+                                                            <i class="fas fa-calendar-alt mr-1 text-info"></i>
+                                                            Filter by Loan Phase
+                                                        </label>
+                                                        <select class="form-control select2"
+                                                                id="filterLoanPhase"
+                                                                wire:model.live="filterLoanPhase">
+                                                            <option value="">All Phases</option>
+                                                            @foreach($loanPhases as $phase)
+                                                                <option value="{{ $phase->phase }}">{{ $phase->phase }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label for="filterWard" class="font-weight-bold">
+                                                            <i class="fas fa-map-marker-alt mr-1 text-success"></i>
+                                                            Filter by Ward
+                                                        </label>
+                                                        <select class="form-control select2"
+                                                                id="filterWard"
+                                                                wire:model.live="filterWard">
+                                                            <option value="">All Wards</option>
+                                                            @foreach($allWards as $ward)
+                                                                <option value="{{ $ward->ward_name }}">{{ $ward->ward_name }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label for="filterGroupCategory" class="font-weight-bold">
+                                                            <i class="fas fa-users mr-1 text-info"></i>
+                                                            Filter by Group Category
+                                                        </label>
+                                                        <select class="form-control select2"
+                                                                id="filterGroupCategory"
+                                                                wire:model.live="filterGroupCategory">
+                                                            <option value="">All Categories</option>
+                                                            @foreach($groupCategories as $category)
+                                                                <option value="{{ $category }}">{{ $category }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label for="filterGroupActivity" class="font-weight-bold">
+                                                            <i class="fas fa-briefcase mr-1 text-info"></i>
+                                                            Filter by Group Activity
+                                                        </label>
+                                                        <select class="form-control select2"
+                                                                id="filterGroupActivity"
+                                                                wire:model.live="filterGroupActivity">
+                                                            <option value="">All Activities</option>
+                                                            @foreach($groupActivities as $activity)
+                                                                <option value="{{ $activity }}">{{ $activity }}</option>
+                                                            @endforeach
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                            </div>
+                                            <div class="row">
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label class="font-weight-bold d-block">
+                                                            <i class="fas fa-exclamation-triangle mr-1 text-warning"></i>
+                                                            Additional Filters
+                                                        </label>
+                                                        <div class="custom-control custom-checkbox mt-2">
+                                                            <input class="custom-control-input"
+                                                                type="checkbox"
+                                                                id="filterDefaulter"
+                                                                wire:model.live="filterDefaulter">
+                                                            <label for="filterDefaulter" class="custom-control-label font-weight-normal">
+                                                                Show Defaulters Only
+                                                            </label>
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                                <div class="col-md-3">
+                                                    <div class="form-group">
+                                                        <label for="reportName">
+                                                            <i class="fas fa-file-signature mr-1"></i>
+                                                            Report Name
+                                                        </label>
+                                                        <input type="text"
+                                                            class="form-control"
+                                                            id="reportName"
+                                                            placeholder="Enter report name"
+                                                            wire:model="reportName"
+                                                            required>
+                                                        <small class="form-text text-muted">This will be the name of the report file.</small>
+                                                        {{-- error handler --}}
+                                                        @error('reportName')
+                                                            <span class="text-sm text-danger font-weight-bold">{{ $message }}</span>
+                                                        @enderror
+                                                    </div>
+                                                </div>
+                                                {{-- clear filters --}}
+                                                <div class="col-md-6 d-flex align-items-end">
+                                                    <div class="form-group ml-auto">
+                                                        <button type="button"
+                                                                class="btn btn-outline-secondary"
+                                                                wire:click="clearFilters">
+                                                            <i class="fas fa-broom mr-1"></i> Clear All Filters
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="p-3 row">
+                                            <!-- Groups Section -->
+                                            <div class="col-md-6 col-xl-3 mb-3 d-flex">
+                                                <div class="card card-outline card-success w-100" style="height: 320px;">
+                                                    <div class="card-header">
+                                                        <h3 class="card-title">
+                                                            <i class="fas fa-layer-group mr-2"></i>
+                                                            Groups
+                                                            <span class="badge badge-light ml-1">{{ count($availableColumns['groups']) }}</span>
+                                                        </h3>
+                                                        <div class="card-tools">
+                                                            <input type="checkbox"
+                                                                class="category-select-all"
+                                                                data-category="groups"
+                                                                wire:click="toggleCategory('groups')"
+                                                                wire:model="categoryGroupsSelected">
+                                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="card-body p-2" style="overflow-y: auto;">
+                                                        @foreach($availableColumns['groups'] as $key => $label)
+                                                            <div class="form-group mb-1">
+                                                                <div class="custom-control custom-checkbox">
+                                                                    <input class="custom-control-input column-checkbox"
+                                                                        type="checkbox"
+                                                                        id="groups_{{ $key }}"
+                                                                        value="{{ $key }}"
+                                                                        data-category="groups"
+                                                                        wire:model.live="selectedColumns">
+                                                                    <label for="groups_{{ $key }}" class="custom-control-label font-weight-normal small">
+                                                                        {{ $label }}
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Loans Section -->
+                                            <div class="col-md-6 col-xl-3 mb-3 d-flex">
+                                                <div class="card card-outline card-warning w-100" style="height: 320px;">
+                                                    <div class="card-header">
+                                                        <h3 class="card-title">
+                                                            <i class="fas fa-money-bill-wave mr-2"></i>
+                                                            Loans
+                                                            <span class="badge badge-light ml-1">{{ count($availableColumns['loans']) }}</span>
+                                                        </h3>
+                                                        <div class="card-tools">
+                                                            <input type="checkbox"
+                                                                class="category-select-all"
+                                                                data-category="loans"
+                                                                wire:click="toggleCategory('loans')"
+                                                                wire:model="categoryLoansSelected">
+                                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="card-body p-2" style="overflow-y: auto;">
+                                                        @foreach($availableColumns['loans'] as $key => $label)
+                                                            <div class="form-group mb-1">
+                                                                <div class="custom-control custom-checkbox">
+                                                                    <input class="custom-control-input column-checkbox"
+                                                                        type="checkbox"
+                                                                        id="loans_{{ $key }}"
+                                                                        value="{{ $key }}"
+                                                                        data-category="loans"
+                                                                        wire:model.live="selectedColumns">
+                                                                    <label for="loans_{{ $key }}" class="custom-control-label font-weight-normal small">
+                                                                        {{ $label }}
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <!-- Members Section -->
+                                            <div class="col-md-6 col-xl-3 mb-3 d-flex">
+                                                <div class="card card-outline card-primary w-100" style="height: 320px;">
+                                                    <div class="card-header">
+                                                        <h3 class="card-title">
+                                                            <i class="fas fa-users mr-2"></i>
+                                                            Members
+                                                            <span class="badge badge-light ml-1">{{ count($availableColumns['members']) }}</span>
+                                                        </h3>
+                                                        <div class="card-tools">
+                                                            <input type="checkbox"
+                                                                class="category-select-all"
+                                                                data-category="members"
+                                                                wire:click="toggleCategory('members')"
+                                                                wire:model="categoryMembersSelected">
+                                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="card-body p-2" style="overflow-y: auto;">
+                                                        @foreach($availableColumns['members'] as $key => $label)
+                                                            <div class="form-group mb-1">
+                                                                <div class="custom-control custom-checkbox">
+                                                                    <input class="custom-control-input column-checkbox"
+                                                                        type="checkbox"
+                                                                        id="members_{{ $key }}"
+                                                                        value="{{ $key }}"
+                                                                        data-category="members"
+                                                                        wire:model.live="selectedColumns">
+                                                                    <label for="members_{{ $key }}" class="custom-control-label font-weight-normal small">
+                                                                        {{ $label }}
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {{-- loans status filters --}}
+                                            <div class="col-md-6 col-xl-3 mb-3 d-flex">
+                                                <div class="card card-outline card-info w-100" style="height: 320px;">
+                                                    <div class="card-header">
+                                                        <h3 class="card-title">
+                                                            <i class="fas fa-filter mr-2"></i>
+                                                            Loan Status Filters
+                                                            <span class="badge badge-light ml-1">{{ count($filterOptions) }}</span>
+                                                        </h3>
+                                                        <div class="card-tools">
+                                                            <input type="checkbox"
+                                                                class="category-select-all"
+                                                                data-category="filters"
+                                                                wire:click="toggleCategory('filters')"
+                                                                wire:model="categoryFiltersSelected">
+                                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                                                <i class="fas fa-minus"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="card-body p-2" style="overflow-y: auto;">
+                                                        @foreach($filterOptions as $key => $label)
+                                                            <div class="form-group mb-1">
+                                                                <div class="custom-control custom-checkbox">
+                                                                    <input class="custom-control-input column-checkbox"
+                                                                        type="checkbox"
+                                                                        id="filters_{{ $key }}"
+                                                                        value="{{ $key }}"
+                                                                        data-category="filters"
+                                                                        wire:model.live="selectedColumns">
+                                                                    <label for="filters_{{ $key }}" class="custom-control-label font-weight-normal small">
+                                                                        {{ $label }}
+                                                                    </label>
+                                                                </div>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Members Section -->
-                    <div class="col-md-6 col-xl-3 mb-3 d-flex">
-                        <div class="card card-outline card-primary w-100" style="height: 320px;">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <i class="fas fa-users mr-2"></i>
-                                    Members
-                                    <span class="badge badge-light ml-1">{{ count($availableColumns['members']) }}</span>
-                                </h3>
-                                <div class="card-tools">
-                                    <input type="checkbox"
-                                        class="category-select-all"
-                                        data-category="members"
-                                        wire:click="toggleCategory('members')"
-                                        wire:model="categoryMembersSelected">
-                                    <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                        <i class="fas fa-minus"></i>
-                                    </button>
                                 </div>
                             </div>
-                            <div class="card-body p-2" style="overflow-y: auto;">
-                                @foreach($availableColumns['members'] as $key => $label)
-                                    <div class="form-group mb-1">
-                                        <div class="custom-control custom-checkbox">
-                                            <input class="custom-control-input column-checkbox"
-                                                type="checkbox"
-                                                id="members_{{ $key }}"
-                                                value="{{ $key }}"
-                                                data-category="members"
-                                                wire:model.live="selectedColumns">
-                                            <label for="members_{{ $key }}" class="custom-control-label font-weight-normal small">
-                                                {{ $label }}
-                                            </label>
+                        </div>
+                        {{-- Selected Columns Preview --}}
+                        {{-- Selected Columns Preview --}}
+                        {{-- Selected Columns Preview --}}
+                        @if(count(array_filter($selectedColumns, function($col) use ($availableColumns, $filterOptions) { return !array_key_exists($col, $filterOptions); })) > 0)
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="card card-success card-outline">
+                                    <div class="card-header bg-success text-white">
+                                        <h3 class="card-title mb-0">
+                                            <i class="fas fa-check-circle mr-2"></i>
+                                            Selected Fields
+                                            <span class="badge badge-light ml-2">{{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) }}</span>
+                                        </h3>
+                                        <div class="card-tools">
+                                            <button type="button" class="btn btn-tool btn-light"
+                                                    wire:click="clearAllColumns"
+                                                    title="Clear All Fields">
+                                                <i class="fas fa-times"></i> Clear All
+                                            </button>
+                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                                <i class="fas fa-minus"></i>
+                                            </button>
                                         </div>
                                     </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
-                    {{-- loans status filters --}}
-                    <div class="col-md-6 col-xl-3 mb-3 d-flex">
-                        <div class="card card-outline card-info w-100" style="height: 320px;">
-                            <div class="card-header">
-                                <h3 class="card-title">
-                                    <i class="fas fa-filter mr-2"></i>
-                                    Loan Status Filters
-                                    <span class="badge badge-light ml-1">{{ count($filterOptions) }}</span>
-                                </h3>
-                                <div class="card-tools">
-                                    <input type="checkbox"
-                                        class="category-select-all"
-                                        data-category="filters"
-                                        wire:click="toggleCategory('filters')"
-                                        wire:model="categoryFiltersSelected">
-                                    <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                        <i class="fas fa-minus"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="card-body p-2" style="overflow-y: auto;">
-                                @foreach($filterOptions as $key => $label)
-                                    <div class="form-group mb-1">
-                                        <div class="custom-control custom-checkbox">
-                                            <input class="custom-control-input column-checkbox"
-                                                type="checkbox"
-                                                id="filters_{{ $key }}"
-                                                value="{{ $key }}"
-                                                data-category="filters"
-                                                wire:model.live="selectedColumns">
-                                            <label for="filters_{{ $key }}" class="custom-control-label font-weight-normal small">
-                                                {{ $label }}
-                                            </label>
+                                    <div class="card-body">
+                                        <div class="alert alert-info d-flex align-items-center mb-3">
+                                            <i class="fas fa-info-circle mr-2 fa-lg"></i>
+                                            <div>
+                                                <strong>Tip:</strong> Drag fields using the <i class="fas fa-arrows-alt text-primary mx-1"></i> icon to reorder them. Click the <i class="fas fa-times text-danger mx-1"></i>
+                                                icon to remove fields from your report.
+                                            </div>
+                                        </div>
+
+                                        <div class="row" id="selectedColumnsContainer">
+                                            @foreach($selectedColumns as $column)
+                                                @php
+                                                    // Skip filter options in the display
+                                                    if (array_key_exists($column, $filterOptions)) {
+                                                        continue;
+                                                    }
+
+                                                    $columnLabel = collect($availableColumns)
+                                                        ->flatMap(fn($cols) => $cols)
+                                                        ->get($column, $column);
+                                                    $category = $this->getColumnCategory($column);
+                                                    $categoryColors = [
+                                                        'members' => 'primary',
+                                                        'groups' => 'success',
+                                                        'loans' => 'warning'
+                                                    ];
+                                                    $color = $categoryColors[$category] ?? 'secondary';
+                                                    $categoryIcons = [
+                                                        'members' => 'users',
+                                                        'groups' => 'layer-group',
+                                                        'loans' => 'money-bill-wave'
+                                                    ];
+                                                    $icon = $categoryIcons[$category] ?? 'cube';
+                                                @endphp
+                                                <div class="col-xl-3 col-lg-4 col-md-6 mb-3 selected-column-item" data-column="{{ $column }}">
+                                                    <div class="card card-outline card-{{ $color }} h-75 draggable-column">
+                                                        <div class="card-header bg-{{ $color }} bg-opacity-10 py-2 px-3 d-flex justify-content-between align-items-center">
+                                                            <span class="drag-handle mr-auto text-{{ $color }}" style="cursor: grab;" title="Drag to reorder">
+                                                                <i class="fas fa-arrows-alt"></i>
+                                                            </span>
+                                                            <small class="text-muted">
+                                                                <i class="fas fa-{{ $icon }} mr-1"></i>
+                                                                {{ ucfirst($category) }}
+                                                            </small>
+                                                            <button type="button"
+                                                                    class="btn btn-xs btn-outline-{{ $color }} py-0 px-1 ml-auto"
+                                                                    wire:click="removeColumn('{{ $column }}')"
+                                                                    title="Remove {{ $columnLabel }}">
+                                                                <i class="fas fa-times fa-xs"></i>
+                                                            </button>
+                                                        </div>
+                                                        <div class="card-body mb-3">
+                                                            <div class="d-flex align-items-center mb-2">
+                                                                <h6 class="mb-0 text-dark font-weight-bold flex-grow-1">{{ $columnLabel }}</h6>
+                                                            </div>
+                                                            <small class="text-muted">
+                                                                <i class="fas fa-code mr-1"></i>
+                                                                {{ $column }}
+                                                            </small>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+
+                                        <!-- Quick Actions -->
+                                        <div class="mt-3 pt-3 border-top">
+                                            <div class="d-flex justify-content-between align-items-center">
+                                                <div>
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-lightbulb mr-1"></i>
+                                                        You've selected {{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) }} field(s) for your report
+                                                    </small>
+                                                </div>
+                                                <div class="btn-group">
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm"
+                                                            wire:click="clearAllColumns">
+                                                        <i class="fas fa-broom mr-1"></i> Clear All
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-primary btn-sm"
+                                                            wire:click="resetToDefault">
+                                                        <i class="fas fa-undo mr-1"></i> Reset to Default
+                                                    </button>
+                                                    <button type="button"
+                                                            class="btn btn-success btn-sm"
+                                                            wire:click="generateReport"
+                                                            wire:loading.attr="disabled"
+                                                            {{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) === 0 ? 'disabled' : '' }}>
+                                                        <i class="fas fa-play mr-2" wire:loading.class="d-none"></i>
+                                                        <i class="fas fa-spinner fa-spin mr-2" wire:loading></i>
+                                                        Generate Report
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                @endforeach
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{{-- Selected Columns Preview --}}
-{{-- Selected Columns Preview --}}
-{{-- Selected Columns Preview --}}
-@if(count(array_filter($selectedColumns, function($col) use ($availableColumns, $filterOptions) { return !array_key_exists($col, $filterOptions); })) > 0)
-<div class="row mt-3">
-    <div class="col-12">
-        <div class="card card-success card-outline">
-            <div class="card-header bg-success text-white">
-                <h3 class="card-title mb-0">
-                    <i class="fas fa-check-circle mr-2"></i>
-                    Selected Fields
-                    <span class="badge badge-light ml-2">{{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) }}</span>
-                </h3>
-                <div class="card-tools">
-                    <button type="button" class="btn btn-tool btn-light"
-                            wire:click="clearAllColumns"
-                            title="Clear All Fields">
-                        <i class="fas fa-times"></i> Clear All
-                    </button>
-                    <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                        <i class="fas fa-minus"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-info d-flex align-items-center mb-3">
-                    <i class="fas fa-info-circle mr-2 fa-lg"></i>
-                    <div>
-                        <strong>Tip:</strong> Drag fields using the <i class="fas fa-arrows-alt text-primary mx-1"></i> icon to reorder them. Click the <i class="fas fa-times text-danger mx-1"></i>
-                        icon to remove fields from your report.
-                    </div>
-                </div>
-
-                <div class="row" id="selectedColumnsContainer">
-                    @foreach($selectedColumns as $column)
-                        @php
-                            // Skip filter options in the display
-                            if (array_key_exists($column, $filterOptions)) {
-                                continue;
-                            }
-
-                            $columnLabel = collect($availableColumns)
-                                ->flatMap(fn($cols) => $cols)
-                                ->get($column, $column);
-                            $category = $this->getColumnCategory($column);
-                            $categoryColors = [
-                                'members' => 'primary',
-                                'groups' => 'success',
-                                'loans' => 'warning'
-                            ];
-                            $color = $categoryColors[$category] ?? 'secondary';
-                            $categoryIcons = [
-                                'members' => 'users',
-                                'groups' => 'layer-group',
-                                'loans' => 'money-bill-wave'
-                            ];
-                            $icon = $categoryIcons[$category] ?? 'cube';
-                        @endphp
-                        <div class="col-xl-3 col-lg-4 col-md-6 mb-3 selected-column-item" data-column="{{ $column }}">
-                            <div class="card card-outline card-{{ $color }} h-75 draggable-column">
-                                <div class="card-header bg-{{ $color }} bg-opacity-10 py-2 px-3 d-flex justify-content-between align-items-center">
-                                    <span class="drag-handle mr-auto text-{{ $color }}" style="cursor: grab;" title="Drag to reorder">
-                                        <i class="fas fa-arrows-alt"></i>
-                                    </span>
-                                    <small class="text-muted">
-                                        <i class="fas fa-{{ $icon }} mr-1"></i>
-                                        {{ ucfirst($category) }}
-                                    </small>
-                                    <button type="button"
-                                            class="btn btn-xs btn-outline-{{ $color }} py-0 px-1 ml-auto"
-                                            wire:click="removeColumn('{{ $column }}')"
-                                            title="Remove {{ $columnLabel }}">
-                                        <i class="fas fa-times fa-xs"></i>
-                                    </button>
-                                </div>
-                                <div class="card-body mb-3">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <h6 class="mb-0 text-dark font-weight-bold flex-grow-1">{{ $columnLabel }}</h6>
-                                    </div>
-                                    <small class="text-muted">
-                                        <i class="fas fa-code mr-1"></i>
-                                        {{ $column }}
-                                    </small>
                                 </div>
                             </div>
                         </div>
-                    @endforeach
-                </div>
-
-                <!-- Quick Actions -->
-                <div class="mt-3 pt-3 border-top">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <small class="text-muted">
-                                <i class="fas fa-lightbulb mr-1"></i>
-                                You've selected {{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) }} field(s) for your report
-                            </small>
-                        </div>
-                        <div class="btn-group">
-                            <button type="button" class="btn btn-outline-secondary btn-sm"
-                                    wire:click="clearAllColumns">
-                                <i class="fas fa-broom mr-1"></i> Clear All
-                            </button>
-                            <button type="button" class="btn btn-outline-primary btn-sm"
-                                    wire:click="resetToDefault">
-                                <i class="fas fa-undo mr-1"></i> Reset to Default
-                            </button>
-                            <button type="button"
-                                    class="btn btn-success btn-sm"
-                                    wire:click="generateReport"
-                                    wire:loading.attr="disabled"
-                                    {{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) === 0 ? 'disabled' : '' }}>
-                                <i class="fas fa-play mr-2" wire:loading.class="d-none"></i>
-                                <i class="fas fa-spinner fa-spin mr-2" wire:loading></i>
-                                Generate Report
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-@endif
+                        @endif
                         {{-- End Selected Columns Preview --}}
                     </div>
                 </div>

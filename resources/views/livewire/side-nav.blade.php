@@ -168,54 +168,78 @@
               </p>
             </a>
             <ul class="nav nav-treeview">
-              <li class="nav-item">
-                <a href="{{route('const.reports.codelist', [
-                    Str::slug($county->slug),
-                    Str::slug($currentConstituency->slug),
-                ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.codelist' ? 'active':''}}">
-                  <i class="fas fa-file-code nav-icon"></i>
-                  <p>Loan Subm (F.5)</p>
-                </a>
-              </li>
+                <li class="nav-item">
+                    <a href="{{route('const.reports.data-upload', [
+                        Str::slug($county->slug),
+                        Str::slug($currentConstituency->slug),
+                    ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.data-upload' ? 'active':''}}">
+                    <i class="fas fa-file-import nav-icon"></i>
+                    <p>Upload Data</p>
+                    </a>
+                </li>
                 <li class="nav-item">
                     <a href="{{route('const.reports.dynamic-report', [
                         Str::slug($county->slug),
                         Str::slug($currentConstituency->slug),
                     ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.dynamic-report' ? 'active':''}}">
-                    <i class="fas fa-file-code nav-icon"></i>
-                    <p>General Report</p>
+                    <i class="fas fa-folder-open nav-icon"></i>
+                    <p>Generate Report</p>
                     </a>
                 </li>
-              <li class="nav-item">
-                <a href="{{route('const.reports.disbursement', [
-                    Str::slug($county->slug),
-                    Str::slug($currentConstituency->slug),
-                ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.disbursement' ? 'active':''}}">
-                  <i class="fas fa-file-code nav-icon"></i>
-                  <p>Disbursement Reporting</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="{{route('const.reports.data-upload', [
-                    Str::slug($county->slug),
-                    Str::slug($currentConstituency->slug),
-                ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.data-upload' ? 'active':''}}">
-                  <i class="fas fa-file-code nav-icon"></i>
-                  <p>Data Upload</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="#" class="nav-link">
-                  <i class="fas fa-file-code nav-icon"></i>
-                  <p>Repayment Subm (F.4)</p>
-                </a>
-              </li>
-              <li class="nav-item">
-                <a href="#" class="nav-link">
-                  <i class="fas fa-file-code nav-icon"></i>
-                  <p>Sectorial Analysis</p>
-                </a>
-              </li>
+                <li class="nav-item">
+                    <a href="{{route('const.reports.codelist', [
+                        Str::slug($county->slug),
+                        Str::slug($currentConstituency->slug),
+                    ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.codelist' ? 'active':''}}">
+                    <i class="fas fa-file nav-icon"></i>
+                    <p>Loan Subm Form (F.5)</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{route('const.reports.disbursement', [
+                        Str::slug($county->slug),
+                        Str::slug($currentConstituency->slug),
+                    ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.disbursement' ? 'active':''}}">
+                    <i class="fas fa-file nav-icon"></i>
+                    <p>Disbursement Reporting</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="#" class="nav-link">
+                    <i class="fas fa-file nav-icon"></i>
+                    <p>Sectorial Analysis</p>
+                    </a>
+                </li>
+            </ul>
+          </li>
+          <li class="nav-item {{ Route::is('const.monitoring*')? 'menu-open':''}}">
+            <a href="#" class="nav-link text-bold {{ Route::is('const.monitoring*')? 'active':''}}">
+
+              <i class="nav-icon fab fa-watchman-monitoring"></i>
+              <p>
+                M&E
+                <i class="right fas fa-angle-right"></i>
+              </p>
+            </a>
+            <ul class="nav nav-treeview">
+                <li class="nav-item">
+                    <a href="{{route('const.monitoring.data_view', [
+                        Str::slug($county->slug),
+                        Str::slug($currentConstituency->slug),
+                    ])}}" class="nav-link {{ Route::currentRouteName() == 'const.monitoring.data_view' ? 'active':''}}">
+                    <i class="fas fa-folder nav-icon"></i>
+                    <p>View Data</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{route('const.monitoring.monitor_home', [
+                        Str::slug($county->slug),
+                        Str::slug($currentConstituency->slug),
+                    ])}}" class="nav-link {{ Route::currentRouteName() == 'const.monitoring.monitor_home' ? 'active':''}}">
+                    <i class="fas fa-balance-scale nav-icon"></i>
+                    <p>Report</p>
+                    </a>
+                </li>
             </ul>
           </li>
         @endif

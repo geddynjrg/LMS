@@ -23,6 +23,20 @@ class Constituency extends Model
         return $this->hasMany(LoanPhase::class, 'constituency_code', 'constituency_code');
     }
 
+    // Method for eager loading with optimization
+    public function loadOptimizedPhases()
+    {
+        return $this->load([
+            'phases' => function ($query) {
+                $query->with(['grouploans' => function ($q) {
+                    $q->with('group')
+                    ->orderBy('level')
+                    ->orderBy('disbursement_date');
+                }]);
+            }
+        ]);
+    }
+
     public function wards(): HasMany
     {
         return $this->hasMany(Wards::class, 'constituency_code', 'constituency_code');

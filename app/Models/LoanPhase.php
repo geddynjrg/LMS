@@ -28,4 +28,12 @@ class LoanPhase extends Model
     {
         return $this->hasMany(GroupLoan::class);
     }
+
+    //efficient loading
+    public function scopeWithGroupLoansAndGroups($query)
+    {
+        return $query->with(['grouploans' => function ($query) {
+            $query->with('group')->orderBy('level');
+        }]);
+    }
 }

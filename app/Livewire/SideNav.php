@@ -45,6 +45,10 @@ class SideNav extends Component
         elseif ($this->routeName == 'codelist' || $this->routeName == 'disbursement' || $this->routeName == 'dynamic-report' || $this->routeName == 'data-upload' || $this->routeName == 'export') {
             $this->nav = 'reports';
         }
+        elseif ($this->routeName == 'monitor_home' || $this->routeName == 'data_view') {
+            $this->nav = 'monitoring';
+        }
+
     }
 
     public function selected (string $code)
@@ -84,6 +88,8 @@ class SideNav extends Component
             'const.reports.disbursement'  => ['const.reports.disbursement',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.reports.data-upload'  => ['const.reports.data-upload',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.loans.loanmembers'  => ['const.loans.loanmembers',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.monitoring.monitor_home'  => ['const.monitoring.monitor_home',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.monitoring.data_view'  => ['const.monitoring.data_view',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'users.viewusers'  => ['users.viewusers', ['county' => $countySlug]],
             'users.adduser'  => ['users.adduser', ['county' => $countySlug]],
             default => ['const.dashboard',   ['county' => $countySlug, 'constituency' => $constituencySlug]],
