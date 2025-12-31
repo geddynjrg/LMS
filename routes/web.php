@@ -97,6 +97,35 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/dataview', [MeReportingController::class, 'data'])->name('data_view');
             });
 
+            Route::prefix('app')->name('app.')->group(function () {
+                // Dashboard - Shows all applications
+                Route::get('/', [LoansController::class, 'app_dashboard'])->name('app_dashboard');
+
+                // Phases Management (Single page for all phase operations)
+                Route::get('/phases', [LoansController::class, 'app_phases'])->name('app_phases');
+
+                // Review Session (Only accessible when a phase is in_review)
+                Route::get('/review/{phase}', [LoansController::class, 'app_review'])->name('app_review');
+
+                // Phase Details View
+                Route::get('/phase/{phase}', [LoansController::class, 'app_phase_details'])->name('app_phase_details');
+
+                // Existing routes for application viewing
+                Route::get('/loans', [LoansController::class, 'app_loans'])->name('app_loans');
+                Route::get('/application/{applicationId}', [LoansController::class, 'app_loan'])->name('application-view');
+                Route::get('/application/{applicationId}/file/download', [LoansController::class, 'app_loan_files_download'])->name('application.file.download');
+                Route::get('/application/{applicationId}/file/view', [LoansController::class, 'app_loan_files_view'])->name('application.file.view');
+
+                // Route for base64 encoded file paths
+                Route::get('/application/{applicationId}/download/encoded', [LoansController::class, 'app_loan_files_download_encoded'])
+                    ->name('application.file.download.encoded');
+
+                // Route for direct file access (if needed)
+                Route::get('/application/{applicationId}/download/{filename}', [LoansController::class, 'app_loan_files_download_direct'])
+                    ->where('filename', '.*')
+                    ->name('application.file.download.direct');
+            });
+
 
 
         }

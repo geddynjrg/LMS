@@ -18,8 +18,9 @@ use App\Http\Controllers\Api\LoanApplicationController;
 Route::prefix('/v1')->middleware('api.key', 'secure.api')->group(function () {
     Route::post('/application', [LoanApplicationController::class, 'store']);
     Route::get('/application/{id}', [LoanApplicationController::class, 'show']);
-    Route::put('/application/{id}', [LoanApplicationController::class, 'update']);
-
+    // Route::put('/application/{id}', [LoanApplicationController::class, 'update']);
+    // Route::post('/applications/{applicationId}/upload-file', [LoanApplicationController::class, 'uploadFile']);
+    // Route::get('/applications/{applicationId}/files', [LoanApplicationController::class, 'getApplicationFiles']);
     // Health check endpoint
     Route::get('api/health', function () {
         return response()->json([
@@ -29,6 +30,10 @@ Route::prefix('/v1')->middleware('api.key', 'secure.api')->group(function () {
         ]);
     });
 });
+
+//middlware auth download file
+Route::middleware('auth:sanctum')->get('/files/{fileId}/download', [LoanApplicationController::class, 'downloadFile'])->name('api.application.file.download');
+
 
 Route::prefix('/v1/test/secure')->middleware('secure.api')->group(function () {
     Route::post('/application', [LoanApplicationController::class, 'store']);

@@ -21,11 +21,30 @@
         <link rel="stylesheet" href="{{asset('dist/css/adminlte.min.css')}}">
         <link rel="stylesheet" href="{{asset('dist/css/custom.css')}}">
 
+        {{-- toastr --}}
+        <link rel="stylesheet" href="{{asset('plugins/toastr/toastr.min.css')}}">
+
         <!-- DataTables style -->
         <link rel="stylesheet" href="{{asset('plugins/datatables-bs4/css/dataTables.bootstrap4.min.css')}}">
         <link rel="stylesheet" href="{{asset('plugins/datatables-responsive/css/responsive.bootstrap4.min.css')}}">
         <link rel="stylesheet" href="{{asset('plugins/datatables-buttons/css/buttons.bootstrap4.min.css')}}">
+        <style>
+            :root {
+                --uwezo-blue: #003366;   /* Deep Navy */
+                --uwezo-gold: #FFCC00;   /* Gold Accent */
+                --uwezo-light: #f8f9fa;
+            }
 
+            .uwezo-card { border-top: 3px solid var(--uwezo-blue) !important; }
+            .btn-uwezo { background-color: var(--uwezo-blue); color: white; border: none; }
+            .btn-uwezo:hover { background-color: #002244; color: #FFCC00; }
+            .text-uwezo { color: var(--uwezo-blue) !important; }
+            .badge-uwezo-outline {
+                border: 1px solid var(--uwezo-blue);
+                color: var(--uwezo-blue);
+                background: transparent;
+            }
+        </style>
         @livewireStyles
     </head>
 <body class="hold-transition sidebar-mini layout-fixed text-sm layout-footer-fixed layout-navbar-fixed ">
@@ -75,6 +94,8 @@
     <!-- overlayScrollbars -->
     <script src="{{asset('plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js')}}"></script>
 
+    {{-- toastr --}}
+    <script src="{{asset('plugins/toastr/toastr.min.js')}}"></script>
 
     <script src="{{asset('plugins/datatables/jquery.dataTables.min.js')}}"></script>
     <script src="{{asset('plugins/datatables-bs4/js/dataTables.bootstrap4.min.js')}}"></script>

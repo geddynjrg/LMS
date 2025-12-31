@@ -38,7 +38,7 @@
                                                         <h6>Import Instructions:</h6>
                                                         <ul>
                                                             <li>Download the template</li>
-                                                            <li>Fill in constituency codes and phase names</li>
+                                                            <li>Fill in the and phase names</li>
                                                             <li>Upload the completed file</li>
                                                             <li>System will validate and import the data</li>
                                                         </ul>
@@ -352,7 +352,7 @@
                                                             <div class="alert alert-info">
                                                                 <h6><i class="fas fa-info-circle mr-2"></i>Template Requirements</h6>
                                                                 <p class="mb-1">Your Excel file <strong>must</strong> have these columns:</p>
-                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-nowrap">
+                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-wrap">
                                                                     <thead class="bg-light">
                                                                         <tr>
                                                                             <th>S/No*</th>
@@ -593,7 +593,7 @@
                                                                             </h6>
 
                                                                             <div class="table-responsive" style="max-height: 300px;">
-                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-nowrap">
+                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-wrap">
                                                                                     <thead class="text-body">
                                                                                         <tr>
                                                                                             <th width="15%" class="text-center">Row #</th>
@@ -685,7 +685,7 @@
                                                             <div class="alert alert-info">
                                                                 <h6><i class="fas fa-info-circle mr-2"></i>Template Requirements</h6>
                                                                 <p class="mb-1">Your Excel file <strong>must</strong> have these columns:</p>
-                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-nowrap">
+                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-wrap">
                                                                     <thead class="bg-light">
                                                                         <tr>
                                                                             <th>S/No*</th>
@@ -903,7 +903,7 @@
                                                                             </h6>
 
                                                                             <div class="table-responsive" style="max-height: 300px;">
-                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-nowrap">
+                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-wrap">
                                                                                     <thead class="text-body">
                                                                                         <tr>
                                                                                             <th width="15%" class="text-center">Row #</th>
@@ -982,7 +982,7 @@
                                                             <div class="alert alert-info">
                                                                 <h6><i class="fas fa-info-circle mr-2"></i>Template Requirements</h6>
                                                                 <p class="mb-1">Your Excel file <strong>must</strong> have these columns:</p>
-                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-nowrap">
+                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-wrap">
                                                                     <thead class="bg-light">
                                                                         <tr>
                                                                             <th>S/No*</th>
@@ -1215,7 +1215,7 @@
                                                                             </h6>
 
                                                                             <div class="table-responsive" style="max-height: 300px;">
-                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-nowrap">
+                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-wrap">
                                                                                     <thead class="text-body">
                                                                                         <tr>
                                                                                             <th width="15%" class="text-center">Row #</th>

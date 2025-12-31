@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
@@ -112,5 +113,21 @@ class Group extends Model
     public function groupLoans(): HasMany
     {
         return $this->hasMany(GroupLoan::class);
+    }
+
+    /**
+     * Get the applications associated with this group.
+     */
+    public function tempApplications(): HasMany
+    {
+        return $this->hasMany(TempApplication::class);
+    }
+
+    /**
+     * Helper to get the most recent application.
+     */
+    public function currentLoan(): HasOne
+    {
+        return $this->hasOne(GroupLoan::class)->latestOfMany();
     }
 }

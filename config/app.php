@@ -196,6 +196,7 @@ return [
     'allowed_ips' => [
         env('ALLOWED_IP_1', '127.0.0.1'),
         env('ALLOWED_IP_2', '::1'),
+        'http://172.29.0.1:3000',
         // Add your production server IPs here
     ],
 

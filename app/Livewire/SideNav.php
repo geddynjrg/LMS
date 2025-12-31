@@ -30,46 +30,55 @@ class SideNav extends Component
         $this->navigation();
     }
 
-    function navigation()
+    private function navigation(): void
     {
         $this->routeName = Route::currentRouteName();
 
-        //dd($this->routeName);
-        if ($this->routeName == 'groupsinfo' || $this->routeName == 'groupinfo' || $this->routeName == 'groupMembers' || $this->routeName == 'multiGroupMembers') {
+        if (Route::is('const.groups.*') || Route::is('groups*')) {
             $this->nav = 'groups';
-        }elseif ($this->routeName == 'const.dashboard') {
-            $this->nav = 'const.dashboard';
-        }elseif ($this->routeName == 'grouploans' || $this->routeName == 'loanreceipts' || $this->routeName == 'loanmembers' || $this->routeName == 'grouploan' || $this->routeName == 'loanapplication' || $this->routeName == 'loanphase' || $this->routeName == 'applicants' || $this->routeName == 'applicant') {
+            return;
+        }
+        if (Route::is('const.loans.*') || Route::is('grouploans*')) {
             $this->nav = 'loans';
+            return;
         }
-        elseif ($this->routeName == 'codelist' || $this->routeName == 'disbursement' || $this->routeName == 'dynamic-report' || $this->routeName == 'data-upload' || $this->routeName == 'export') {
+        if (Route::is('const.reports.*')) {
             $this->nav = 'reports';
+            return;
         }
-        elseif ($this->routeName == 'monitor_home' || $this->routeName == 'data_view') {
+        if (Route::is('const.monitoring.*')) {
             $this->nav = 'monitoring';
+            return;
+        }
+        if (Route::is('const.app.*')) {
+            $this->nav = 'app';
+            return;
         }
 
+        $this->nav = null;
     }
 
     public function selected (string $code)
     {
-        // 1.  Find the constituency by its code
-        $constituency = Constituency::where('constituency_code', $code)->firstOrFail();
-
-        // 2.  Authorisation – make sure user is assigned to it
-        if (! $this->user->constituencies()->wherePivot('constituency_code', $code)->exists()) {
-            return redirect()->route('dashboard')
-                ->with('error', 'You are not authorised for that constituency.');
+        $constituency = Constituency::with('county')->where('constituency_code', $code)->first();
+        if (! $constituency) {
+            session()->flash('error', 'Constituency not found.');
+            return redirect()->route('dashboard');
         }
 
-        // 3.  Persist as the user’s current constituency
+        if (! $this->user->constituencies->contains('constituency_code', $code)) {
+            session()->flash('error', 'You are not authorised for that constituency.');
+            return redirect()->route('dashboard');
+        }
+
         $this->user->update(['current_constituency_code' => $code]);
+        session(['activeConstituencyCode' => $code]);
 
         // 4.  Optional: keep a copy in session for quick access
         session(['activeConstituency' => $constituency]);
 
         // 5.  Build the URL pieces (slug form)
-        $countySlug = $constituency->county->slug ?? Str::slug($constituency->county->county_name);
+        $countySlug = $constituency->county?->slug ?? Str::slug(optional($constituency->county)->county_name ?? 'unknown');
 
         $constituencySlug  = $constituency->slug;
 
@@ -90,6 +99,14 @@ class SideNav extends Component
             'const.loans.loanmembers'  => ['const.loans.loanmembers',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.monitoring.monitor_home'  => ['const.monitoring.monitor_home',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.monitoring.data_view'  => ['const.monitoring.data_view',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.app.app_dashboard'  => ['const.app.app_dashboard',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.app.app_loans'  => ['const.app.app_loans',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.app.app_loan'  => ['const.app.app_loan',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.app.app_review'  => ['const.app.app_review',  [
+                    'county' => $countySlug,
+                    'constituency' => $constituencySlug,
+                    'phase' => 1, // You'll need to get the active phase ID
+                ]],
             'users.viewusers'  => ['users.viewusers', ['county' => $countySlug]],
             'users.adduser'  => ['users.adduser', ['county' => $countySlug]],
             default => ['const.dashboard',   ['county' => $countySlug, 'constituency' => $constituencySlug]],

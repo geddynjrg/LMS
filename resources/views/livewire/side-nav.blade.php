@@ -159,6 +159,65 @@
                 </li>
               </ul>
           </li>
+            <li class="nav-item {{ Route::is('const.app*')? 'menu-open':''}}">
+                <a href="#" class="nav-link text-bold {{ Route::is('const.app*')? 'active':''}}">
+                    <i class="nav-icon fas fa-laptop-house"></i>
+                    <p>
+                        APPLICATIONS
+                        <i class="right fas fa-angle-right"></i>
+                    </p>
+                </a>
+                <ul class="nav nav-treeview">
+                    <li class="nav-item">
+                        <a href="{{route('const.app.app_dashboard', [
+                            Str::slug($county->slug),
+                            Str::slug($currentConstituency->slug),
+                        ])}}" class="nav-link {{ Route::currentRouteName() == 'const.app.app_dashboard' ? 'active':''}}">
+                            <i class="fas fa-tachometer-alt nav-icon"></i>
+                            <p>Dashboard</p>
+                        </a>
+                    </li>
+
+                    <!-- NEW: Phase Management -->
+                    <li class="nav-item">
+                        <a href="{{route('const.app.app_phases', [
+                            Str::slug($county->slug),
+                            Str::slug($currentConstituency->slug),
+                        ])}}" class="nav-link {{ Route::currentRouteName() == 'const.app.app_phases' ? 'active':''}}">
+                            <i class="fas fa-layer-group nav-icon"></i>
+                            <p>Phases</p>
+                        </a>
+                    </li>
+
+                    <!-- Dynamic: Review Session (only shows when active) -->
+                    @php
+                        // You would need to check if there's an active review phase
+                        // This could be done with a Livewire computed property or session variable
+                        $hasActiveReview = false; // Replace with actual logic
+                    @endphp
+
+                    @if($hasActiveReview)
+                    <li class="nav-item">
+                        <a href="{{-- route to active review --}}" class="nav-link">
+                            <i class="fas fa-clipboard-check nav-icon"></i>
+                            <p>Review Session</p>
+                            <span class="badge badge-danger badge-pill ml-auto">Active</span>
+                        </a>
+                    </li>
+                    @endif
+
+                    <!-- Existing route -->
+                    <li class="nav-item">
+                        <a href="{{route('const.app.app_loans', [
+                            Str::slug($county->slug),
+                            Str::slug($currentConstituency->slug),
+                        ])}}" class="nav-link {{ Route::currentRouteName() == 'const.app.app_loans' ? 'active':''}}">
+                            <i class="fas fa-file-invoice-dollar nav-icon"></i>
+                            <p>Applied Loans</p>
+                        </a>
+                    </li>
+                </ul>
+            </li>
           <li class="nav-item {{ Route::is('const.reports*')? 'menu-open':''}}">
             <a href="#" class="nav-link text-bold {{ Route::is('const.reports*')? 'active':''}}">
               <i class="nav-icon fas fa-envelope-open-text"></i>
