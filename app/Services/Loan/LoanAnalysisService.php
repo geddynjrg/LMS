@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Loan;
 
 use Carbon\Carbon;
 use App\Models\GroupLoan;
