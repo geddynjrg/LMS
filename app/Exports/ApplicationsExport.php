@@ -66,4 +66,9 @@ class ApplicationsExport implements FromCollection, WithHeadings, WithMapping, S
             $phases ?: 'Not assigned',
         ];
     }
+
+    public function chunkSize(): int
+    {
+        return 500; // Process 500 rows at a time
+    }
 }
