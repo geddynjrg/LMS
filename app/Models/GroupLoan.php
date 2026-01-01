@@ -38,6 +38,7 @@ class GroupLoan extends Model
     protected $fillable = [
         'loan_phase_id',
         'group_id',
+        'level',
         'application_date',
         'disbursement_date',
         'amount_applied',
@@ -48,6 +49,10 @@ class GroupLoan extends Model
         'amount_repaid',
         'status',
         'comments',
+        'is_defaulted',
+        'months_defaulted',
+        'total_arrears',
+        'default_status_updated_at',
     ];
 
     public function loanPhase(): BelongsTo
@@ -73,6 +78,57 @@ class GroupLoan extends Model
     public function loanReceipts(): HasMany
     {
         return $this->hasMany(LoanReceipts::class, 'group_loans_id', 'id');
+    }
+
+    /**
+     * Scope: Loans that are still in progress (not fully repaid or cancelled)
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+
+    /**
+     * Scope: Loans that are currently in default (based on computed flag)
+     */
+    public function scopeDefaulted($query)
+    {
+        return $query->where('is_defaulted', true);
+    }
+
+    /**
+     * Scope: All loans that are not yet completed or cancelled
+     */
+    public function scopeInProgress($query)
+    {
+        return $query->whereIn('status', ['active']);
+    }
+
+    /**
+     * Accessor: Human-readable status including default info
+     */
+    public function getDisplayStatusAttribute(): string
+    {
+        if ($this->status === 'cancelled') {
+            return 'Cancelled';
+        }
+
+        if ($this->status === 'completed') {
+            return 'Completed';
+        }
+
+        // Active loan
+        return $this->is_defaulted
+            ? "Active (Defaulted - {$this->months_defaulted} months)"
+            : 'Active';
+    }
+
+    /**
+     * Accessor: Quick check if loan is problematic
+     */
+    public function getIsProblematicAttribute(): bool
+    {
+        return $this->is_defaulted || $this->status === 'cancelled';
     }
 
 }
