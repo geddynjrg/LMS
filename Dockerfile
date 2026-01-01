@@ -37,10 +37,14 @@ WORKDIR /var/www/html
 # 5. Copy project files into the image
 COPY . /var/www/html
 
-# 6. Install Laravel dependencies
+# 6. Increase PHP memory limit for both Composer and the App
+RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/memory-limit.ini
+
+# 7. Install Laravel dependencies
 # Increase the timeout to 300 seconds (5 minutes)
 RUN COMPOSER_PROCESS_TIMEOUT=300 composer install --no-interaction --optimize-autoloader --no-dev
-# 7. Set permissions so Laravel can write to logs and cache
+
+# 8. Set permissions so Laravel can write to logs and cache
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 80

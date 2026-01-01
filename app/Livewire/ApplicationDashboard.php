@@ -63,20 +63,6 @@ class ApplicationDashboard extends Component
         $this->reviewDate = now()->addDays(7)->format('Y-m-d');
     }
 
-    // public function updatedSelectAll($value)
-    // {
-    //     if ($value) {
-    //         // i need to select all filtered application ids who do not have a phase assigned
-    //         $this->selectedApplications = $this->getFilteredApplicationsQuery()
-    //             ->whereDoesntHave('phaseApplication')
-    //             ->pluck('id')
-    //             ->toArray();
-    //     } else {
-    //         $this->selectedApplications = [];
-    //     }
-    //     $this->loadSelectedAppsList();
-    // }
-
     public function updatedSelectAll($value)
     {
         if ($value) {
