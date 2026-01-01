@@ -1,0 +1,87 @@
+Yes — your understanding is correct, and the current calculation is **accurate** based on how the loan analysis logic works.
+
+Let me explain step-by-step why this loan shows:
+
+- `is_defaulted = true`
+- `months_defaulted = 19`
+- `total_arrears = 80,000.00`
+
+and why **19 months** is the right number of defaulted months (not the full period since 2015).
+
+### Key Dates & Assumptions
+- **Disbursement date**: 2015-01-09  
+- **Grace period**: 6 months → ends ~2015-07-09  
+- **Repayment start**: ~2015-07-10  
+- **Original repayment period**: 24 months (standard in your service) → full repayment due by ~2017-07-09  
+- **Today** (current date): January 02, 2026
+
+### How the Calculation Works (Recap from Your Service)
+
+1. **Grace period check** (first 6 months): No repayment due → not defaulted  
+2. **Repayment months elapsed**: From 2015-07-10 to today (Jan 2026)  
+   → ~126 months have passed since repayment started  
+   → But capped at 24 months in the logic: `$monthsInRepayment = min(..., 24)`  
+   → So it only considers **24 months** of required repayment
+
+3. **Amount due** = monthly installment × 24  
+   - Monthly installment = 100,000 / 24 ≈ 4,166.67  
+   - Total due after 24 months ≈ 100,000 (principal only, assuming 0% interest)
+
+4. **Amount repaid** = 20,000 (as per your example)
+
+5. **Arrears** = amount due − amount repaid  
+   = 100,000 − 20,000 = **80,000**
+
+6. **Is defaulted?** Yes, arrears > 0 → `is_defaulted = true`
+
+7. **Months defaulted** = floor(arrears / monthly installment)  
+   = floor(80,000 / 4,166.67) = floor(19.2) = **19 months**
+
+### Why Only 19 Months Defaulted (Not 126 Months Since 2015)?
+
+The service **intentionally caps** the calculation at the original repayment period (24 months):
+
+```php
+$monthsInRepayment = min($repaymentStart->diffInMonths($today), 24);
+```
+
+This is correct for most loan systems because:
+- After the contractual period ends (2017-07-09), the loan is **overdue as a whole**.
+- But the **defaulted months** are only counted for the **scheduled repayment period** (24 months).
+- The remaining arrears (80,000) represent **19 missed monthly payments** during those 24 months.
+- The extra time since 2017 (8+ years) is **accumulated overdue**, not additional "defaulted months" — it's just **worsening arrears**, not new missed installments.
+
+In simple terms:
+- The borrower was supposed to pay 24 installments.
+- They only paid ~4.8 installments (20,000 / 4,166.67).
+- They missed **19 installments** → `months_defaulted = 19`
+
+### Is This Behavior Desired?
+
+**Yes — in most microfinance/loan tracking systems**, defaulted months are counted against the **original repayment schedule**, not forever.  
+After the due date passes, the loan is simply "overdue" or "in default" (flag = true), but the "months defaulted" metric stops growing at the contractual end.
+
+This prevents absurd numbers like "126 months defaulted" on very old loans.
+
+### If You Want to Change It
+
+If you prefer **unlimited defaulted months** (count every month since repayment start until fully paid):
+
+Remove the `min(..., 24)` cap:
+
+```php
+$monthsInRepayment = $repaymentStart->diffInMonths($today);
+```
+
+Then `months_defaulted` would be **much higher** for old loans (e.g. ~126 in your example).
+
+But I recommend **keeping the cap** — it's standard and prevents misleading metrics.
+
+### Summary for Disbursement 2015-01-09 amount issued 100000 amount repaid 20000 total due 80000
+
+- **Repayment due by**: ~2017-07-09 (after 24 months)
+- **Missed installments during scheduled period**: 19 months
+- **Current arrears**: 80,000 (equivalent to 19 missed payments)
+- **is_defaulted = true** — correct
+- **months_defaulted = 19** — correct (only counts the scheduled period)
+
