@@ -11,21 +11,29 @@ use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
+use App\Services\Loan\DefaultAnalysisService;
+use App\Models\Member;
+use App\Models\Group;
 
 class ApplicationView extends Component
 {
     protected LoanPhaseService $phaseService;
     protected TempApplicationService $appService;
+    protected DefaultAnalysisService $defaultService;
 
+    public $isDataLoaded = false;
 
     public $applicationId;
     public $county;
     public $constituency;
     public $application;
+    public $defaultMembers;
 
     // links
     public $suggestedMatches = [];
     public $isSearching = false;
+    public ?Group $linkedGroup;
 
     public $selectedPhaseForQuickAssign = '';
     public $selectedPhaseId;
@@ -38,10 +46,14 @@ class ApplicationView extends Component
     public $remarks = '';
     public $actionTaken = false;
 
-    public function boot(LoanPhaseService $phaseService, TempApplicationService $appService)
+    // member
+    public $selectedMember;
+
+    public function boot(LoanPhaseService $phaseService, TempApplicationService $appService, DefaultAnalysisService $defaultService)
     {
         $this->phaseService = $phaseService;
         $this->appService = $appService;
+        $this->defaultService = $defaultService;
     }
 
     public function mount($constituency, $applicationId)
@@ -49,15 +61,30 @@ class ApplicationView extends Component
         $this->constituency = $constituency->load('county');
         $this->county = $this->constituency->county;
         $this->applicationId = $applicationId;
+
+        $this->linkedGroup = null;
+
+        $this->defaultMembers = [];
+
         $this->loadApplication();
+        $this->isDataLoaded = true;
     }
+
 
     public function refreshData()
     {
+        unset($this->riskFlags);
+        unset($this->riskFlagsCount);
         unset($this->activePhases);
+
         $this->appService->invalidateApplicationCache($this->application);
         $this->loadApplication();
 
+    }
+
+    public function updatedActiveTab($value)
+    {
+        $this->loadApplication();
     }
 
     public function assignToPhase()
@@ -122,6 +149,7 @@ class ApplicationView extends Component
 
         try {
             $this->appService->unLinkFromMasterGroup($this->application);
+            $this->linkedGroup = null;
             $this->dispatch('flash-success', message: 'Application Successfully unlinked from master group');
             $this->refreshData();
         } catch (ValidationException $e) {
@@ -142,11 +170,23 @@ class ApplicationView extends Component
 
     public function loadApplication()
     {
-        $this->application = $this->appService->getDetailedApplication(
+        $this->application = $this->appService->getEnrichedApplication(
             $this->applicationId,
             $this->constituency->constituency_code
         );
+
+        $this->linkedGroup = null;
+
+        // if a group is linked the load also its relations
+        if ($this->application->link_status === 'linked')
+            $this->linkedGroup = $this->defaultService->getGroupWithMetrics($this->application->linkedGroup);
+
+        //if (isset(($this->application->groupMembers->first()->is_defaulter))) dd('set', $this->application->groupMembers->first()->is_defaulter);
+        if ($this->application->groupMembers->first() && !isset($this->application->groupMembers->first()->is_defaulter)) {
+            $this->loadDefaultMembers(); // Manually re-run the hydration logic
+        }
     }
+
 
     /**
      *  Attempt Link
@@ -165,10 +205,16 @@ class ApplicationView extends Component
     public function confirmLink($groupId)
     {
         try {
+            unset($this->riskFlags);
+            unset($this->riskFlagsCount);
+
             $this->appService->linkToMasterGroup($this->application, $groupId);
+
             $this->refreshData();
+
             $this->dispatch('close-modal', name: 'modal-group-linker');
             $this->dispatch('flash-success', message: 'Group linked successfully!');
+
             $this->reset('searchTerm');
         } catch (ValidationException $e) {
             $this->dispatch('flash-error', message: collect($e->errors())->flatten()->first());
@@ -297,44 +343,73 @@ class ApplicationView extends Component
         $this->dispatch('openLinker', id: $this->application->id);
     }
 
-    public function getRiskFlagsProperty()
+    #[Computed]
+    public function riskFlags()
     {
-        $flags = ['flags'];
+        // Only show if group is linked
+        if (!$this->application->group_id || $this->linkedGroup === null) {
+            return ['Group not linked - cannot assess risk.'];
+        }
 
-        // // Check for multi-group members
-        // $memberIds = $this->application->groupMembers->pluck('id_number');
-        // $duplicates = \App\Models\Member::whereIn('id_number', $memberIds)
-        //     ->where('group_id', '!=', $this->application->group_id)
-        //     ->count();
+        $flags = [];
+        $group = $this->linkedGroup;
+        //dd($group);
+        if ($group->currentLoan->is_defaulted) {
+            $flags[] = "Group is a defaulter: {$group->defaulted_count} defaulted loans, KES " .
+                       number_format($group->total_arrears) . " in arrears.";
+        }
 
-        // if ($duplicates > 0) {
-        //     $flags[] = "$duplicates members are already in other groups.";
+        $serviceRisks = $this->defaultService->getRiskFlags($group);
+
+
+        // // 3. Cross-default members (members in other defaulted groups)
+        // // Cross-default members (optimized: only check application members)
+        // $appMemberIds = $this->application->groupMembers->pluck('id_number')->toArray();
+        // $crossDefaults = 0;// $this->defaultService->getCrossDefaultMembers($appMemberIds, $group->id);
+
+        // $crossCount = 0;//$crossDefaults->count();
+        // if ($crossCount > 0) {
+        //     $flags[] = "$crossCount member(s) have defaulted loans in other groups.";
         // }
 
-        // // Check for existing unpaid loans if linked
-        // if ($this->application->group_id) {
-        //     $hasArrears = $this->application->group->loans()
-        //         ->whereIn('status', ['active', 'defaulted'])
-        //         ->exists();
-        //     if ($hasArrears) $flags[] = "Group has an active/defaulted loan.";
+        // return $flags;
+
+        // // Optional: Add more flags (e.g. overdue loans not defaulted yet)
+        // $overdueLoans = $group->currentLoan()->where('total_arrears', '>', 0)->where('is_defaulted', false)->count();
+        // if ($overdueLoans > 0) {
+        //     $flags[] = "$overdueLoans overdue loan(s) (not yet defaulted).";
         // }
 
-        return $flags;
+        return array_merge($flags, $serviceRisks);
+    }
+
+    #[Computed]
+    public function riskFlagsCount()
+    {
+        return count($this->riskFlags);
     }
 
     public function getMemberConflictCountProperty()
     {
-        return 2;
-        // Scans for any member in this application whose ID is found in other groups
-        // return \App\Models\Member::whereIn('id_number', $this->application->groupMembers->pluck('id_number'))
-        //     ->where('group_id', '!=', $this->application->group_id)
-        //     ->count();
+        if (!$this->application || !$this->application->groupMembers) {
+            return 0;
+        }
+        return $this->application->groupMembers->where('is_defaulter', true)->count();
     }
 
-    public function getRiskFlagsCountProperty()
+
+    public function viewMember($memberId)
     {
-        return count($this->riskFlags);
+        // Find the member within the already loaded collection
+        $this->selectedMember = $this->application->groupMembers
+            ->where('id', $memberId)
+            ->first();
+
+        // 2. Dispatch the event to open the modal
+        $this->dispatchBrowserEvent('open-modal', ['id' => '#memberModal']);
     }
+
+
 
     public function render()
     {

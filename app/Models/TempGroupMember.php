@@ -38,6 +38,13 @@ class TempGroupMember extends Model
         'confirmation_confirmed_at' => 'datetime',
     ];
 
+    protected $appends = ['is_defaulter'];
+
+    public function getIsDefaulterAttribute()
+    {
+        return $this->attributes['is_defaulter'] ?? false;
+    }
+
     // Relationships
     public function application()
     {

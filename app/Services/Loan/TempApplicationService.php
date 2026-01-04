@@ -12,9 +12,18 @@ use Illuminate\Support\Collection;
 use App\Models\GroupLoan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\Loan\DefaultAnalysisService;
 
 class TempApplicationService
 {
+    protected $analysisService;
+
+    // Laravel automatically resolves this for you
+    public function __construct(DefaultAnalysisService $analysisService)
+    {
+        $this->analysisService = $analysisService;
+    }
+
     /**
      * Invalidate cache when application is updated/assigned/etc.
     */
@@ -41,8 +50,7 @@ class TempApplicationService
 
         Cache::forget("temp_app_{$applicationId}_{$constituencyCode}");
         Cache::forget("temp_app_detail_{$applicationId}_{$constituencyCode}");
-
-        // Add other cache keys if needed (e.g. stats)
+        cache::forget("temp_app_default_members_{$applicationId}_{$constituencyCode}");
     }
 
     /**
@@ -176,9 +184,47 @@ class TempApplicationService
 
             // Optional: append useful computed data
             $application->append(['current_phase', 'approval_progress']);
-
             return $application;
         });
+    }
+
+    private function loadDefaultMembers(TempApplication $application)
+    {
+        if ($application->groupMembers->isEmpty()) {
+            return;
+        }
+
+        // Cross-default members (optimized: only check application members)
+        $appMemberIds = $application->groupMembers->pluck('id_number')->toArray();
+
+        $defaulterData =  $this->analysisService->getApplicationDefaulterMembers(
+            $appMemberIds,
+            $application->application_id,
+            $application->constituency_code
+        )->keyBy('member_Id');
+
+        $application->groupMembers->transform(function ($appMember) use ($defaulterData) {
+            // Find if this specific member has a default record
+            $history = $defaulterData->get($appMember->id_number);
+
+            // Attach comprehensive data to the object
+            $appMember->is_defaulter = !is_null($history);
+            $appMember->default_history = $history ? $history->groupMembers : collect();
+
+            return $appMember;
+        });
+    }
+
+    /**
+     * Enrich application with default member data
+     */
+    public function getEnrichedApplication(string $applicationId, string $constituencyCode): TempApplication
+    {
+        $application = $this->getDetailedApplication($applicationId, $constituencyCode);
+
+        $this->loadDefaultMembers($application);
+
+        return $application;
     }
 
 
@@ -267,7 +313,7 @@ class TempApplicationService
     {
         $group = Group::findOrFail($groupId);
 
-        // Example business rule: Check if group is in same constituency
+        //  Check if group is in same constituency
         if ($group->ward->constituency_code !== $application->constituency_code) {
             throw ValidationException::withMessages([
                 'group' => 'Group must be in the same constituency.',
@@ -460,7 +506,7 @@ class TempApplicationService
     */
     public function getGroupOfficials(TempApplication $application): array
     {
-        $members = $application->groupMembers;
+        $members = $application->groupMembers ?? collect();
 
         $chairperson = $members->firstWhere('position', 'Chairperson');
         $secretary = $members->firstWhere('position', 'Secretary');
