@@ -174,9 +174,6 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="card-footer text-muted small">
-                            Last touched by: {{ auth()->user()->name }}
-                        </div>
                     </div>
 
                 {{-- Risk assesment --}}
@@ -211,7 +208,7 @@
                 </div>
                 </div>
             </div>
-            <div class="col-md-9">
+            <div class="col-md-9" wire:ignore.self>
                 <div class="card card-primary card-outline card-tabs">
                     <div class="card-header p-1 pt-1 border-bottom-0">
                         <!-- Tabs Navigation -->
@@ -600,7 +597,7 @@
                                                                             <span class="badge badge-danger">Defaulter</span>
                                                                             <div class="small text-muted">
                                                                                 Previously defaulted in:
-                                                                                {{ $member->default_history->map(fn($gm) => $gm->groupLoan->group->name)->implode(', ') }}
+                                                                                {{ $member->default_history->map(fn($gm) => $gm->groupLoan->group->name)->implode('; ') }}
                                                                             </div>
                                                                         @else
                                                                             <span class="badge badge-success">Clean Record</span>
@@ -651,7 +648,121 @@
                             @endif
 
                             @if($activeTab === 'loan-history')
-                            jnn
+                            <div class="tab-pane fade show active">
+                                <div class="card card-secondary card-outline">
+                                    @if ($this->application->link_status === 'linked')
+                                        <div class="card-header">
+                                            <h3 class="card-title">Prior Loans ({{ count($linkedGroup->groupLoans) }})</h3>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="tab-pane" id="loan-history">
+                                                <div class="timeline timeline-inverse mt-3">
+                                                    @forelse ($linkedGroup->groupLoans as $loan)
+                                                        <div class="time-label">
+                                                            <span class="bg-{{ $loan->total_arrears <= 0 ? 'success' : 'danger' }}">
+                                                                {{$loan->loanPhase->phase}}: {{ date('l, j F, Y', strtotime($loan->disbursement_date)) }}
+                                                                <br>Amount Issued: {{ number_format($loan->amount_issued, 0) }}/=
+                                                            </span>
+                                                        </div>
+                                                        <div>
+                                                            <i class="fas fa-history bg-gradient-orange"></i>
+                                                            <div class="timeline-item">
+                                                                <span class="time"><i class="fas fa-clock"> </i></span>
+                                                                <h3 class="timeline-header text-primary text-bold">Amount Repaid - KES {{ number_format($loan->amount_repaid, 0) }}/=
+                                                                    <br>
+                                                                    <small class="text-gray text-bold">Balance - KES {{ number_format($loan->amount_issued - $loan->amount_repaid, 0) }}/=</small>
+                                                                </h3>
+                                                                <div class="timeline-body">
+                                                                    <div class="card collapsed-card {{$loan->amount_repaid >= $loan->amount_issued?'card-success':'card-danger'}}">
+                                                                        <div class="card-header">
+                                                                        <div class="row">
+                                                                            <div class="col-12">
+                                                                            <h3 class="card-title">Receipts</h3>
+
+                                                                            <div class="card-tools float-right">
+                                                                                <button type="button" class="btn btn-tool" data-card-widget="collapse"><i class="fas fa-plus"></i>
+                                                                                </button>
+                                                                                <button type="button" class="btn btn-tool" data-card-widget="maximize">
+                                                                                    <i class="fas fa-expand"></i>
+                                                                                </button>
+
+                                                                            </div>
+                                                                            <!-- /.card-tools -->
+                                                                            </div>
+
+                                                                        </div>
+
+                                                                        </div>
+                                                                        <!-- /.card-header -->
+                                                                        <div class="card-body table-responsive p-1">
+                                                                            <table class="table table-sm">
+                                                                                <thead>
+                                                                                <tr>
+                                                                                    <th style="">#</th>
+                                                                                    <th>Reciept</th>
+                                                                                    <th>Date</th>
+                                                                                    <th>Amount</th>
+                                                                                    <th>Ref No.</th>
+                                                                                </tr>
+                                                                                </thead>
+                                                                                <tbody>
+                                                                                @php
+                                                                                    $j = 1;
+                                                                                @endphp
+                                                                                @foreach ($loan->loanReceipts as $repayment)
+                                                                                    <tr>
+                                                                                        <td>{{$j++}}.</td>
+                                                                                        <td>{{$repayment->receipt_number}}</td>
+                                                                                        <td>{{$repayment->transaction_date}}</td>
+                                                                                        <td>{{ number_format($repayment->amount, 0)}}/=</td>
+                                                                                        <td>{{$repayment->reference_number}}</td>
+                                                                                    </tr>
+                                                                                @endforeach
+                                                                                </tbody>
+                                                                            </table>
+                                                                        </div>
+                                                                        <!-- /.card-body -->
+                                                                    </div>
+                                                                    <!-- /.card -->
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @empty
+
+                                                    @endforelse
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @elseif ($this->application->link_status === 'attempted_no_match')
+                                        <div class="text-center p-5">
+                                            <p class="small text-success mb-3 text-bold">
+                                                <i class="fas fa-exclamation-triangle"></i> An attempt was posted but no link to a Master Group record.
+                                            </p>
+                                            <x-modal-trigger
+                                                target="findMatches"
+                                                label="Attempt To Link Again?"
+                                                icon="fas fa-link"
+                                                variant="primary"
+                                                block="true"
+                                            />
+                                        </div>
+                                    @else
+                                        <div class="text-center p-5">
+                                            <p class="small text-success mb-3 text-bold">
+                                                <i class="fas fa-exclamation-triangle"></i> Not yet linked to a Master Group record.
+                                            </p>
+
+                                            <x-modal-trigger
+                                                target="findMatches"
+                                                label="Link Application"
+                                                icon="fas fa-link"
+                                                variant="primary"
+                                                block="true"
+                                            />
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
                             @endif
 
                             <!-- Tab 4: Documents -->
@@ -699,6 +810,131 @@
                                 </div>
                             @endif
 
+                           {{-- Tab 5: Audit Trail --}}
+                            @if($activeTab === 'audit')
+                                <div class="tab-pane active">
+                                    <div class="timeline timeline-inverse mt-3">
+
+                                        {{-- 1. Loop through Status/Phase History --}}
+                                        @forelse($application->audit_logs ?? [] as $log)
+                                            {{-- Note: Replace 'audit_logs' with your actual relationship name, e.g., 'activities' or 'logs' --}}
+                                            <div class="time-label">
+                                                <span class="bg-gray small">{{ $log->created_at->format('d M, Y') }}</span>
+                                            </div>
+
+                                            <div>
+                                                {{-- Determine Icon based on action --}}
+                                                @php
+                                                    $icon = 'fas fa-info-circle bg-primary';
+                                                    if(str_contains($log->action, 'Approved')) $icon = 'fas fa-check bg-success';
+                                                    if(str_contains($log->action, 'Rejected')) $icon = 'fas fa-times bg-danger';
+                                                    if(str_contains($log->action, 'Phase')) $icon = 'fas fa-step-forward bg-info';
+                                                @endphp
+
+                                                <i class="{{ $icon }}"></i>
+                                                <div class="timeline-item shadow-sm border">
+                                                    <span class="time"><i class="fas fa-clock"></i> {{ $log->created_at->format('H:i A') }}</span>
+
+                                                    <h3 class="timeline-header no-border">
+                                                        <span class="text-primary font-weight-bold">{{ $log->user->name ?? 'System' }}</span>
+                                                        {{ $log->action }}
+                                                    </h3>
+
+                                                    @if($log->remarks)
+                                                        <div class="timeline-body bg-light m-2 rounded small text-muted">
+                                                            <i class="fas fa-comment-dots mr-1"></i> "{{ $log->remarks }}"
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @empty
+                                            {{-- 2. Fallback: Show Basic Application Milestones if no logs exist --}}
+                                            <div class="time-label">
+                                                <span class="bg-success">{{ $application->created_at->format('d M, Y') }}</span>
+                                            </div>
+                                            <div>
+                                                <i class="fas fa-file-import bg-blue"></i>
+                                                <div class="timeline-item shadow-sm border">
+                                                    <span class="time"><i class="fas fa-clock"></i> {{ $application->created_at->format('H:i A') }}</span>
+                                                    <h3 class="timeline-header no-border">Application Submitted via Portal</h3>
+                                                </div>
+                                            </div>
+
+                                            @if($application->phaseApplication)
+                                                <div>
+                                                    <i class="fas fa-route bg-info"></i>
+                                                    <div class="timeline-item shadow-sm border">
+                                                        <span class="time"><i class="fas fa-clock"></i> {{ $application->phaseApplication->created_at->format('H:i A') }}</span>
+                                                        <h3 class="timeline-header no-border">
+                                                            Assigned to Phase: <span class="badge badge-info">{{ $application->phaseApplication->reviewPhase->name }}</span>
+                                                        </h3>
+                                                    </div>
+                                                </div>
+                                            @endif
+                                        @endforelse
+                                        @forelse($application->activities()->latest()->get() as $activity)
+                {{-- Date Label --}}
+                <div class="time-label">
+                    <span class="bg-gray-light border px-2 small">
+                        {{ $activity->created_at->format('d M, Y') }}
+                    </span>
+                </div>
+
+                <div>
+                    {{-- Logic for Icons/Colors --}}
+                    @php
+                        $icon = 'fas fa-edit bg-primary';
+                        if($activity->description === 'created') $icon = 'fas fa-plus bg-success';
+                        if($activity->description === 'deleted') $icon = 'fas fa-trash bg-danger';
+                        if(isset($activity->properties['attributes']['status'])) $icon = 'fas fa-sync bg-info';
+                    @endphp
+
+                    <i class="{{ $icon }}"></i>
+
+                    <div class="timeline-item shadow-sm">
+                        <span class="time"><i class="fas fa-clock"></i> {{ $activity->created_at->format('H:i') }}</span>
+
+                        <h3 class="timeline-header no-border">
+                            <span class="text-primary font-weight-bold">
+                                {{ $activity->causer->name ?? 'System' }}
+                            </span>
+                            {{ ucfirst($activity->description) }} application
+                        </h3>
+
+                        @if($activity->properties->has('attributes'))
+                            <div class="timeline-body p-2">
+                                <table class="table table-sm table-bordered mb-0" style="font-size: 0.8rem;">
+                                    <tr class="bg-light">
+                                        <th>Field</th>
+                                        <th>Previous</th>
+                                        <th>New Value</th>
+                                    </tr>
+                                    @foreach($activity->properties['attributes'] as $key => $value)
+                                        <tr>
+                                            <td class="font-weight-bold">{{ ucfirst(str_replace('_', ' ', $key)) }}</td>
+                                            <td class="text-muted">{{ $activity->properties['old'][$key] ?? 'N/A' }}</td>
+                                            <td class="text-success">{{ $value }}</td>
+                                        </tr>
+                                    @endforeach
+                                </table>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            @empty
+                <div class="text-center p-5">
+                    <p class="text-muted">No audit logs found for this application.</p>
+                </div>
+            @endforelse
+
+                                        {{-- Final Icon --}}
+                                        <div>
+                                            <i class="fas fa-dot-circle bg-gray"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+
                             <div class="tab-pane fade show active">
                                 <div wire:loading wire:target="$set('activeTab', 'members')" class="text-center p-5">
                                     <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
@@ -721,7 +957,7 @@
     </div>
 
     {{-- link modal --}}
-    <div wire:ignore.self class="modal fade" id="modal-group-linker" tabindex="-1" role="dialog">
+    <div wire:ignore.self class="modal fade shadow-lg" id="modal-group-linker" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-xl" role="document">
             <div class="modal-content">
                 {{-- Loading Overlay for Manual Search/Toggling --}}
@@ -862,7 +1098,7 @@
     </div>
 
     {{-- member modal --}}
-    <div class="modal fade shadow-lg" id="memberModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div wire:ignore.self class="modal fade shadow-lg" id="memberModal" tabindex="-1" role="dialog" aria-hidden="true">
         <div class="modal-dialog modal-lg" role="document">
             <div class="modal-content border-0">
                 @if($selectedMember)
@@ -913,17 +1149,66 @@
                             <p class="text-muted text-uppercase small font-weight-bold mb-3">Credit Risk Assessment</p>
 
                             @if($selectedMember->is_defaulter)
-                                <div class="alert alert-danger-light border-danger py-2 mb-3">
-                                    <h6 class="text-danger font-weight-bold small mb-1"><i class="fas fa-exclamation-triangle mr-1"></i> Default History Detected</h6>
-                                    <p class="small mb-0 text-dark">
-                                        Defaulted in: <b>{{ $selectedMember->default_history->map(fn($gm) => $gm->groupLoan->group->name)->implode(', ') }}</b>
-                                    </p>
-                                </div>
-                            @else
-                                <div class="alert alert-success-light border-success py-2 mb-3">
-                                    <span class="text-success small font-weight-bold"><i class="fas fa-check-circle mr-1"></i> Clean Credit Record</span>
-                                </div>
-                            @endif
+    <div class="alert alert-danger shadow-sm border-danger py-3 mb-3" style="background-color: #fff5f5;">
+        <h6 class="text-danger font-weight-bold small mb-2">
+            <i class="fas fa-exclamation-triangle mr-1"></i> HIGH RISK: DEFAULT HISTORY DETECTED
+        </h6>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
+                <thead>
+                    <tr class="text-muted border-bottom">
+                        <th>Group Name</th>
+                        <th>Role in Group</th>
+                        <th class="text-right">Default Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($selectedMember->default_history as $history)
+                        <tr>
+                            <td class="">
+
+                                <a href="{{ route('const.groups.group', [
+                                    'county' => $county->slug,
+                                    'constituency' => $constituency->slug,
+                                    'group' => $history->groupLoan->group->slug
+                                ]) }}" class="font-weight-bold text-dark">
+                                    {{ $history->groupLoan->group->name }}
+                                </a>
+                            </td>
+                            <td>
+                                <span class="badge badge-light border">
+                                    {{ ucfirst($history->role ?? 'Member') }}
+                                </span>
+                            </td>
+                            <td class="text-right text-danger font-weight-bold">
+                                KES {{ number_format($history->groupLoan->total_arrears ?? 0) }}
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+                <tfoot>
+                    <tr class="border-top">
+                        <td colspan="2" class="text-success font-weight-bold">Total Exposure</td>
+                        <td class="text-right text-danger font-weight-bold h6">
+                            KES {{ number_format($selectedMember->default_history->sum(fn($h) => $h->groupLoan->total_arrears ?? 0)) }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+@else
+    <div class="alert alert-success-light border-success py-3 mb-3 shadow-sm" style="background-color: #f0fff4;">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-check-circle fa-2x text-success mr-3"></i>
+            <div>
+                <span class="text-success d-block font-weight-bold">Clean Credit Record</span>
+                <small class="text-muted">No prior default history found across the system for this ID.</small>
+            </div>
+        </div>
+    </div>
+@endif
 
                             <p class="text-muted text-uppercase small font-weight-bold mb-2">Attached Documents</p>
                             <div class="d-flex flex-wrap">
@@ -1083,6 +1368,12 @@
             Livewire.on('flash-error', ({message}) => {
                 toastr.error(message);
             });
+
+            Livewire.on('error', (event) => {
+                // This forces the UI to unlock if the server crashes
+                console.error('Livewire Error:', event);
+            });
+
         });
 
         window.addEventListener('open-modal', event => {
@@ -1093,11 +1384,6 @@
             $('#' + event.detail.name).modal('hide');
         });
 
-        document.addEventListener('livewire:init', () => {
-            Livewire.on('error', (event) => {
-                // This forces the UI to unlock if the server crashes
-                console.error('Livewire Error:', event);
-            });
-        });
+
     </script>
 @endpush

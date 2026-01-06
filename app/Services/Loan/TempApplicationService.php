@@ -176,6 +176,9 @@ class TempApplicationService
                 ->where('constituency_code', $constituencyCode) // security: same constituency only
                 ->with([
                     'groupMembers',                    // all members + their files
+                    'activities' => function($query) {
+                        $query->with('causer')->latest();
+                    },
                     'expenses',                        // business expenses
                     'phaseApplication.reviewPhase',   // assigned phases
                     // 'phaseApplication.reviews.user',  // future: individual reviews (if you add later)
@@ -188,10 +191,10 @@ class TempApplicationService
         });
     }
 
-    private function loadDefaultMembers(TempApplication $application)
+    private function loadDefaultMembers(TempApplication $application): Collection
     {
         if ($application->groupMembers->isEmpty()) {
-            return;
+            return Collect();
         }
 
         // Cross-default members (optimized: only check application members)
@@ -200,10 +203,11 @@ class TempApplicationService
         $defaulterData =  $this->analysisService->getApplicationDefaulterMembers(
             $appMemberIds,
             $application->application_id,
+            $application->group_id,
             $application->constituency_code
         )->keyBy('member_Id');
 
-        $application->groupMembers->transform(function ($appMember) use ($defaulterData) {
+        $app = $application->groupMembers->transform(function ($appMember) use ($defaulterData) {
             // Find if this specific member has a default record
             $history = $defaulterData->get($appMember->id_number);
 
@@ -213,6 +217,8 @@ class TempApplicationService
 
             return $appMember;
         });
+
+        return $app;
     }
 
     /**

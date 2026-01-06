@@ -220,7 +220,7 @@ class DefaultAnalysisService
     /**
      * Check for contagion risk specifically for the members in the current application
      */
-    public function getApplicationDefaulterMembers(array $idNumbers, $applicationId, $constituencyCode): Collection
+    public function getApplicationDefaulterMembers(array $idNumbers, $applicationId, ?int $excludeGroupId = null, $constituencyCode): Collection
     {
         // Return an empty collection instead of null
         if (empty($idNumbers)) {
@@ -229,13 +229,21 @@ class DefaultAnalysisService
 
         $cacheKey = "temp_app_default_members_{$applicationId}_{$constituencyCode}";
 
-        return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($idNumbers) {
+        return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($idNumbers, $excludeGroupId) {
             return Member::whereIn('member_Id', $idNumbers)
-                ->whereHas('groupMembers.groupLoan', function ($query) {
+                ->whereHas('groupMembers.groupLoan', function ($query) use ($excludeGroupId) {
                     $query->where('is_defaulted', true);
+                    if ($excludeGroupId) {
+                        $query->whereHas('groupMembers.groupLoan.group', fn($q2) => $q2->where('id', '!=', $excludeGroupId));
+                    }
                 })
-                ->with(['groupMembers.groupLoan.group', 'groupMembers.groupLoan.loanPhase'])
-                ->get();
+                ->with([
+                    'groupMembers.groupLoan',
+                    'groupMembers.groupLoan.group',
+                    'groupMembers.groupLoan.loanPhase'
+                    ])
+                ->get()
+                ->keyBy('member_Id');
         });
 
     }
@@ -302,7 +310,7 @@ class DefaultAnalysisService
                 $query->where('is_defaulted', true);
             }])
             ->with([
-                'groupLoans',
+                'groupLoans.loanReceipts',
                 'currentLoan' => function($q) {
                 $q->withCount([
                     'groupMembers',

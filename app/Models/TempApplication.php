@@ -6,11 +6,29 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Activity;
 
 class TempApplication extends Model
 {
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'group_id', 'sync_status', 'link_status', 'temp_user_id'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
+    }
+
+    /**
+     * Relationship to get activities for this specific application
+     */
+    public function activities()
+    {
+        return $this->morphMany(Activity::class, 'subject');
+    }
     protected $fillable = [
         'application_id',
         'external_id',
@@ -75,6 +93,10 @@ class TempApplication extends Model
         'last_sync_at' => 'datetime',
         'raw_data' => 'array',
     ];
+
+    // protected $with  = [
+    //     'groupMembers'
+    // ];
 
     // Relationships
     public function user()

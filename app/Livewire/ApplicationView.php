@@ -15,6 +15,7 @@ use Livewire\Attributes\On;
 use App\Services\Loan\DefaultAnalysisService;
 use App\Models\Member;
 use App\Models\Group;
+use App\Models\TempGroupMember;
 
 class ApplicationView extends Component
 {
@@ -29,6 +30,7 @@ class ApplicationView extends Component
     public $constituency;
     public $application;
     public $defaultMembers;
+    public $groupMembers;
 
     // links
     public $suggestedMatches = [];
@@ -49,6 +51,12 @@ class ApplicationView extends Component
     // member
     public $selectedMember;
 
+    // approval
+    public $approvalAmount;
+    public $approvalComments;
+    public $manualGroupCode;
+    public $groupIdentifier;
+
     public function boot(LoanPhaseService $phaseService, TempApplicationService $appService, DefaultAnalysisService $defaultService)
     {
         $this->phaseService = $phaseService;
@@ -66,13 +74,17 @@ class ApplicationView extends Component
 
         $this->defaultMembers = [];
 
+        $this->groupMembers = null;
+
         $this->loadApplication();
         $this->isDataLoaded = true;
+        $this->approvalAmount = $this->application->amount_applied;
     }
 
 
     public function refreshData()
     {
+        Cache::forget("app_enrichment_{$this->applicationId}");
         unset($this->riskFlags);
         unset($this->riskFlagsCount);
         unset($this->activePhases);
@@ -82,9 +94,26 @@ class ApplicationView extends Component
 
     }
 
-    public function updatedActiveTab($value)
+    public function updating()
     {
         $this->loadApplication();
+    }
+
+    public function rendering()
+    {
+        $this->loadApplication();
+    }
+
+
+
+    public function updatedActiveTab($value)
+    {
+        // $this->loadApplication();
+    }
+
+    public function updatedSelectedPhaseId($value)
+    {
+        // $this->loadApplication();
     }
 
     public function assignToPhase()
@@ -157,6 +186,7 @@ class ApplicationView extends Component
         } catch (\Exception $e) {
             $this->dispatch('flash-error', message: $e->getMessage());
         }
+        // $this->loadApplication();
     }
 
     #[Computed]
@@ -170,10 +200,17 @@ class ApplicationView extends Component
 
     public function loadApplication()
     {
-        $this->application = $this->appService->getEnrichedApplication(
-            $this->applicationId,
-            $this->constituency->constituency_code
-        );
+        $cacheKey = "app_enrichment_{$this->applicationId}";
+
+        $this->application = Cache::remember($cacheKey, now()->addSeconds(10), function () {
+            return $this->appService->getEnrichedApplication(
+                $this->applicationId,
+                $this->constituency->constituency_code
+            );
+        });
+
+        //dd($this->application->groupMembers);
+        $this->groupMembers = $this->application->groupMembers;
 
         $this->linkedGroup = null;
 
@@ -193,6 +230,7 @@ class ApplicationView extends Component
      */
     public function findMatches()
     {
+        $this->loadApplication();
         $this->isSearching = true;
 
         $this->suggestedMatches = $this->appService->findMatchingGroups($this->application);
@@ -201,6 +239,7 @@ class ApplicationView extends Component
 
         $this->dispatch('open-modal', name: 'modal-group-linker');
     }
+
 
     public function confirmLink($groupId)
     {
@@ -244,11 +283,25 @@ class ApplicationView extends Component
         }
     }
 
+    // public function updated($property, $value)
+    // {
+    //     dd($property, $value);
+    //     // Log::info($property . ' was changed to ' . $value);
+    // }
+
+    // public function updating()
+    // {
+    //     dd('updating');
+    // }
+
+
     /**
      * Perform manual search as the user types
      */
     public function updatedSearchTerm()
     {
+        // $this->loadApplication();
+
         if (strlen($this->searchTerm) < 3) {
             $this->suggestedMatches = [];
             return;
@@ -400,13 +453,14 @@ class ApplicationView extends Component
 
     public function viewMember($memberId)
     {
+        $this->loadApplication();
         // Find the member within the already loaded collection
         $this->selectedMember = $this->application->groupMembers
             ->where('id', $memberId)
             ->first();
 
         // 2. Dispatch the event to open the modal
-        $this->dispatchBrowserEvent('open-modal', ['id' => '#memberModal']);
+        $this->dispatch('open-modal', name: 'memberModal');
     }
 
 

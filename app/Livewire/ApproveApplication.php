@@ -3,7 +3,7 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use Livewire\Attributes\On; 
+use Livewire\Attributes\On;
 use App\Models\Group;
 use App\Models\GroupLoan;
 
@@ -19,13 +19,13 @@ class ApproveApplication extends Component
     public $identifier;
     public $group;
 
-    /*#[On('show-approve-modal')] 
+    /*#[On('show-approve-modal')]
     public function updatePostList($title)
     {
         dd('application');
     }*/
 
-    #[On('approve-modal')] 
+    #[On('approve-modal')]
     public function approve($appliedLoan)
     {
         $this->appliedLoan = $appliedLoan;
@@ -33,7 +33,7 @@ class ApproveApplication extends Component
         if($appliedLoan['level'] === 'New'){
             $this->generateGfsCode();
         }
-        
+
     }
 
     public function updatedCode($value)
@@ -43,12 +43,12 @@ class ApproveApplication extends Component
 
     public function approveNewApplication()
     {
-        
+
         $this->code = $this->code->toString();
         $this->validate([
             'code' => ['required', 'string', 'regex:/^[0-9]+$/', function($attribute, $value, $fail){
-                $existingCode = Group::whereHas('ward.constituency', function($query) {
-                    $query->where('constituency_code', session('constituency')->constituency_code);
+                $existingCode = Group::whereHas('ward', function($query) {
+                    $query->where('constituency_code', '026');
                 })->where('code', $this->code)->first();
 
                 if($existingCode) {
@@ -61,7 +61,7 @@ class ApproveApplication extends Component
         ]);
 
         $group = Group::find($this->appliedLoan['group']['id']);
-        
+
 
         #save to database, code, gfscode, identifier, loan_status
         if($group)
@@ -77,7 +77,7 @@ class ApproveApplication extends Component
             $groupLoan->save();
 
             $this->dispatch('loanApproved', message: 'success');
-            
+
         } else{
             $this->dispatch('loanApproved', message: 'error');
         }
@@ -117,8 +117,8 @@ class ApproveApplication extends Component
 
     private function generateGfsCode()
     {
-        $lastCode = Group::whereHas('ward.constituency', function($query) {
-            $query->where('constituency_code', session('constituency')->constituency_code);
+        $lastCode = Group::whereHas('ward', function($query) {
+            $query->where('constituency_code', '026');
         })->where('code', '!=', null)->with('groupLoans')->orderBy('id')->latest()->get()->last()->code;
         $this->code = str($lastCode+1);
 
@@ -137,7 +137,7 @@ class ApproveApplication extends Component
             'Agriculture' => '4',
             'Other' => '5',
         ];
-        $this->gfCode = '4-'.$county_code.'-'.session('constituency')->constituency_code.'-411020'.$categories[$this->appliedLoan['group']['category']].'-'.$sectors[$this->appliedLoan['group']['activity']].'0'.$categories[$this->appliedLoan['group']['category']].'-';
+        $this->gfCode = '4-'.$county_code.'-'.'026'.'-411020'.$categories[$this->appliedLoan['group']['category']].'-'.$sectors[$this->appliedLoan['group']['activity']].'0'.$categories[$this->appliedLoan['group']['category']].'-';
         $this->gfscode = $this->gfCode.str($this->code);
     }
 
@@ -146,5 +146,5 @@ class ApproveApplication extends Component
         return view('livewire.loan.approve-application');
     }
 
-  
+
 }
