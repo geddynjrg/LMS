@@ -21,6 +21,9 @@
         <link rel="stylesheet" href="{{asset('dist/css/adminlte.min.css')}}">
         <link rel="stylesheet" href="{{asset('dist/css/custom.css')}}">
 
+          <!-- SweetAlert2 -->
+        <link rel="stylesheet" href="{{ asset('plugins/sweetalert2-theme-bootstrap-4/bootstrap-4.min.css') }}">
+
         {{-- toastr --}}
         <link rel="stylesheet" href="{{asset('plugins/toastr/toastr.min.css')}}">
 
@@ -94,8 +97,30 @@
     <!-- overlayScrollbars -->
     <script src="{{asset('plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js')}}"></script>
 
+    <!-- SweetAlert2 -->
+    <script src="{{ asset('plugins/sweetalert2/sweetalert2.min.js') }}"></script>
+
     {{-- toastr --}}
     <script src="{{asset('plugins/toastr/toastr.min.js')}}"></script>
+    <script>
+    toastr.options = {
+        "closeButton": true,
+        "debug": false,
+        "newestOnTop": true,
+        "progressBar": true, // Adds a visual countdown
+        "positionClass": "toast-top-right",
+        "preventDuplicates": false,
+        "onclick": null,
+        "showDuration": "300",
+        "hideDuration": "1000",
+        "timeOut": "5000",
+        "extendedTimeOut": "2000",
+        "showEasing": "swing",
+        "hideEasing": "linear",
+        "showMethod": "fadeIn",
+        "hideMethod": "fadeOut"
+    };
+    </script>
 
     <script src="{{asset('plugins/datatables/jquery.dataTables.min.js')}}"></script>
     <script src="{{asset('plugins/datatables-bs4/js/dataTables.bootstrap4.min.js')}}"></script>

@@ -118,16 +118,23 @@ class Group extends Model
     /**
      * Get the applications associated with this group.
      */
-    public function tempApplications(): HasMany
+    public function phaseApplications(): HasMany
     {
-        return $this->hasMany(TempApplication::class);
+        return $this->hasMany(PhaseApplication::class);
     }
 
     /**
-     * Helper to get the most recent application.
+     * Helper to get the most recent financed application.
      */
     public function currentLoan(): HasOne
     {
-        return $this->hasOne(GroupLoan::class)->latestOfMany();
+        return $this->hasOne(GroupLoan::class)
+        ->latestOfMany()
+        ->where(function ($query) {
+            $query->where('loan_status', 'financed')
+                  ->orWhere('amount_issued', '>', 0);
+        });
     }
+
+
 }

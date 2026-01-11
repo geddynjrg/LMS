@@ -151,7 +151,7 @@ class DefaultAnalysisService
 
     /**
      * Calculate risk level for a group (0-100 score, low to high risk)
-     *
+     * members are based on the current loan
      * Algorithm:
      * - 50% weight: Arrears percentage of issued amount
      * - 30% weight: Number of defaulted loans
@@ -160,42 +160,197 @@ class DefaultAnalysisService
      * @param Group $group
      * @return float Risk score (0-100)
      */
-    public function calculateGroupRiskLevel(?Group $group, $applicationDefaultMembers =null): float
+    public function calculateGroupRiskLevel(?Group $group, $applicationMembers = null): array
     {
-        if (is_null($group)) {
-            return 0.0;
+        $reasons = [];
+        $allReasons = [];
+        $categoryScores = [
+            'financial' => ['score' => 0, 'category' => 'No Risk', 'reasons' => []],
+            'historical' => ['score' => 0, 'category' => 'No Risk', 'reasons' => []],
+            'contagion' => ['score' => 0, 'category' => 'No Risk', 'reasons' => []],
+            'member_exposure' => ['score' => 0, 'category' => 'No Risk', 'reasons' => []],
+        ];
+
+        $cfg = config('risk');
+
+        if ($group) {
+            // 1. Financial Risk (Current Arrears in linked Group) — highest priority
+            $financial = $this->calculateFinancialRisk($group, $cfg);
+            $categoryScores['financial'] = $financial;
+            if ($financial['score'] > 0) {
+                $allReasons = array_merge($allReasons, $financial['reasons']);
+            }
+
+            // 2. Historical Risk (Past defaulted loans in linked Group)
+            $historical = $this->calculateHistoricalRisk($group, $cfg);
+            $categoryScores['historical'] = $historical;
+            if ($historical['score'] > 0) {
+                $allReasons = array_merge($allReasons, $historical['reasons']);
+            }
+
         }
 
-        // 1. Arrears percentage
-        $totalIssued = $group->total_issued;
-        $totalArrears = $group->total_arrears;
 
-        $arrearsRatio = $totalIssued > 0 ? ($totalArrears / $totalIssued) : 0;
-        // We cap the ratio at 1.0 (100%) so the score doesn't exceed 50
-        $arrearsScore = min($arrearsRatio, 1.0) * 50;
+        // 3. Contagion Risk (Multiple external defaulters)
+        $contagion = $this->calculateContagionRisk($group, $applicationMembers, $cfg);
+        $categoryScores['contagion'] = $contagion;
+        if ($contagion['score'] > 0) {
+            $allReasons = array_merge($allReasons, $contagion['reasons']);
+        }
 
-        // 2. Defaulted loans count (capped at 5 for scoring)
+
+        // 4. Member Exposure (Average arrears per defaulter member)
+        $memberExposure = $this->calculateMemberExposureRisk($applicationMembers, $cfg);
+        $categoryScores['member_exposure'] = $memberExposure;
+        if ($memberExposure['score'] > 0) {
+            $allReasons = array_merge($allReasons, $memberExposure['reasons']);
+        }
+
+        // Weighted total score (adjust weights in config if needed)
+        $totalScore = (
+            ($categoryScores['financial']['score'] ?? 0) * 0.40 +
+            ($categoryScores['contagion']['score'] ?? 0) * 0.25 +
+            ($categoryScores['historical']['score'] ?? 0) * 0.20 +
+            ($categoryScores['member_exposure']['score'] ?? 0) * 0.15
+        );
+
+        // Overall category = highest severity
+        $maxScore = max(array_column($categoryScores, 'score'));
+        $overallCategory = $maxScore > $cfg['categories']['high'] ? 'High Risk' :
+                        ($maxScore > $cfg['categories']['medium'] ? 'Medium Risk' : 'Low Risk');
+
+        // If any category is High Risk, overall is High
+        if ($overallCategory === 'High Risk' && $maxScore <= 100) {
+            $totalScore = 100.0;
+        }
+
+        return [
+            'total_score' => (float) round(min(100, $totalScore), 2),
+            'overall_category' => $overallCategory,
+            'categories' => $categoryScores,
+            'reasons' => array_unique($allReasons),
+        ];
+    }
+
+    /**
+     * Financial Risk (Current Arrears)
+     */
+    private function calculateFinancialRisk($group, $cfg): array
+    {
+        $arrears = $group->total_arrears ?? 0;
+        $score = $arrears > 0 ? $cfg['policy']['any_arrears'] : 0;
+
+        return [
+            'score' => $score,
+            'category' => $score >= $cfg['categories']['high'] ? 'High Risk' : ($score > 0 ? 'Medium Risk' : 'No Risk'),
+            'reasons' => $arrears > 0 ? ["Active arrears: KES " . number_format($arrears)] : [],
+        ];
+    }
+
+    /**
+     * Contagion Risk (Multiple external defaulters)
+     */
+    private function calculateContagionRisk($group, $applicationMembers, $cfg): array
+    {
+        $score = 0;
+        $reasons = [];
+
+        $totalMembers = $applicationMembers ? count($applicationMembers) : ($group->currentLoan?->group_members_count ?? 0);
+
+        $defaulterMembers = 0;
+        $totalMemberArrears = 0;
+        $multiGroupCount = 0;
+
+        if ($applicationMembers && $applicationMembers->isNotEmpty()) {
+            foreach ($applicationMembers as $gm) {
+                if ($gm->is_defaulter ?? false) {
+                    $defaulterMembers++;
+
+                    $history = $gm->default_history ?? collect();
+
+                    $memberArrears = $history->sum('default_arrears');
+                    $totalMemberArrears += $memberArrears;
+
+                    // Multi-group check: Count unique groups this member defaulted in
+                    $uniqueDefaultGroups = $history->pluck('groupLoan.group.name')->unique()->count();
+                    if ($uniqueDefaultGroups > 1) {
+                        $multiGroupCount++;
+                    }
+
+                    // per-member reason
+                    if ($memberArrears > 0) {
+                        $reasons[] = "Member {$gm->name} (ID: {$gm->id_number}) has KES " .
+                            number_format($memberArrears) . " in external arrears across {$uniqueDefaultGroups} group(s).";
+                    }
+                }
+            }
+        } else {
+            $defaulterMembers = $group->currentLoan?->defaulter_members_count ?? 0;
+        }
+
+        if ($defaulterMembers >= $cfg['thresholds']['contagion']['min_members'] ||
+            ($totalMembers > 0 && ($defaulterMembers / $totalMembers) >= $cfg['thresholds']['contagion']['min_percentage'])) {
+            $score = 100; // Immediate high risk
+            $reasons[] = "High contagion: {$defaulterMembers}/{$totalMembers} members have external defaults.";
+        } elseif ($defaulterMembers > 0) {
+            $score = ($defaulterMembers / $totalMembers) * 50; // Proportional
+            $reasons[] = "{$defaulterMembers} member(s) with external defaults ({$score}% contagion risk).";
+        }
+
+        return [
+            'score' => (float) round($score, 2),
+            'category' => $score >= $cfg['categories']['high'] ? 'High Risk' : ($score > 0 ? 'Medium Risk' : 'No Risk'),
+            'reasons' => $reasons,
+        ];
+    }
+
+    /**
+     * Historical Risk (Past defaulted loans in this group)
+     */
+    private function calculateHistoricalRisk($group, $cfg): array
+    {
         $defaultedCount = $group->defaulted_count ?? 0;
-        $defaultedLoansScore = min($defaultedCount * 6, 30);
+        $score = min($defaultedCount * 20, 100); // e.g. 5 defaults = 100%
 
-        // 3. Cross-default members percentage
-        $totalMembers = $group->currentLoan?->group_members_count ?? 0;
+        return [
+            'score' => $score,
+            'category' => $score >= $cfg['categories']['high'] ? 'High Risk' : ($score > 0 ? 'Medium Risk' : 'No Risk'),
+            'reasons' => $defaultedCount > 0 ? ["{$defaultedCount} historical defaulted loans."] : [],
+        ];
+    }
 
-        $defaulterMembers = $group->currentLoan?->defaulter_members_count ?? 0;
+    /**
+     * Member Exposure (Average arrears per defaulter member)
+     */
+    private function calculateMemberExposureRisk($applicationMembers, $cfg): array
+    {
+        if (!$applicationMembers || $applicationMembers->isEmpty()) {
+            return ['score' => 0, 'category' => 'No Risk', 'reasons' => []];
+        }
 
-        $crossDefaultScore = $totalMembers > 0
-            ? ($defaulterMembers / $totalMembers) * 20 // Max 20 points
-            : 0;
+        $defaulterMembers = 0;
+        $totalArrears = 0;
 
-        $riskScore = $arrearsScore + $defaultedLoansScore + $crossDefaultScore;
+        foreach ($applicationMembers as $gm) {
+            if ($gm->is_defaulter ?? false) {
+                $defaulterMembers++;
+                $history = $gm->default_history ?? collect();
+                $totalArrears += $history->sum(fn($item) => (float) ($item->groupLoan->total_arrears ?? 0));
+            }
+        }
 
-        Log::info("Calculated risk for group {$group->id}: {$riskScore}", [
-            'arrears_score' => $arrearsScore,
-            'defaulted_loans_score' => $defaultedLoansScore,
-            'cross_default_score' => $crossDefaultScore,
-        ]);
+        if ($defaulterMembers === 0) {
+            return ['score' => 0, 'category' => 'No Risk', 'reasons' => []];
+        }
 
-        return (float) round(min(100, $riskScore), 2);  // Cap at 100
+        $avgArrears = $totalArrears / $defaulterMembers;
+        $score = min(log($avgArrears + 1) / log(1000000) * 100, 100); // Log scale to 100
+
+        return [
+            'score' => (float) round($score, 2),
+            'category' => $score >= $cfg['categories']['high'] ? 'High Risk' : ($score > 0 ? 'Medium Risk' : 'Low Risk'),
+            'reasons' => $defaulterMembers > 0 ? ["Avg arrears per defaulter member: KES " . number_format($avgArrears)] : [],
+        ];
     }
 
     /**
@@ -206,15 +361,22 @@ class DefaultAnalysisService
      */
     public function getDefaulterMembersInGroup(Group $group): Collection
     {
-        // If we have eager-loaded the current loan and its members,
-        // we can filter the collection in PHP memory rather than hitting the DB again.
         if (!$group->currentLoan || !$group->currentLoan->groupMembers) {
             return collect();
         }
 
-        return $group->currentLoan->groupMembers
-            ->filter(fn($gm) => $gm->member->is_defaulter) // Assuming an accessor or loaded relation
-            ->map(fn($gm) => $gm->member);
+        $idNumbers = $group->currentLoan->groupMembers->pluck('member_Id')->toArray();
+        $excludeGroupId = $group->id;
+
+        return Member::whereIn('member_Id', $idNumbers)
+            ->whereHas('groupMembers.groupLoan', function ($query) use ($excludeGroupId) {
+                $query->where('is_defaulted', true);
+                if ($excludeGroupId) {
+                    $query->whereHas('groupMembers.groupLoan.group', fn($q2) => $q2->where('id', '!=', $excludeGroupId));
+                }
+            })
+            ->get()
+            ->keyBy('member_Id');
     }
 
     /**
@@ -238,14 +400,24 @@ class DefaultAnalysisService
                     }
                 })
                 ->with([
-                    'groupMembers.groupLoan',
-                    'groupMembers.groupLoan.group',
-                    'groupMembers.groupLoan.loanPhase'
+                    'groupMembers' => fn($q) => $q->select('id', 'member_Id', 'group_loans_id', 'role'),
+                    'groupMembers.groupLoan' => fn($q) => $q->select(
+                        'id',
+                        'group_id',
+                        'loan_phase_id',
+                        'total_arrears',
+                        'months_defaulted',
+                        'is_defaulted',
+                        'amount_issued'
+                    ),
+                    'groupMembers.groupLoan.group' => fn($q) => $q->select('id', 'name', 'ward_id', 'slug'),
+                    'groupMembers.groupLoan.group.ward' => fn($q) => $q->select('id', 'ward_name', 'constituency_code'),
+                    'groupMembers.groupLoan.group.ward.constituency',
+                    'groupMembers.groupLoan.loanPhase' => fn($q) => $q->select('id', 'phase')
                     ])
                 ->get()
                 ->keyBy('member_Id');
         });
-
     }
 
     /**
@@ -260,42 +432,6 @@ class DefaultAnalysisService
     }
 
     /**
-     * Detect members from a list of ID numbers who appear in other defaulted groups
-     *
-     * @param array $idNumbers Array of member ID numbers (e.g. from application members)
-     * @param int|null $excludeGroupId Optional: Group ID to exclude (current group)
-     * @return Collection Members with their defaulted loans count
-     */
-    public function getCrossDefaultMembers(array $idNumbers, ?int $excludeGroupId = null): Collection
-    {
-        if (empty($idNumbers)) {
-            return collect();
-        }
-
-        $query = Member::whereIn('member_Id', $idNumbers)
-            ->whereHas('groupMembers.groupLoan', function ($q) use ($excludeGroupId) {
-                $q->where('is_defaulted', true);
-
-                // Exclude the current group if provided
-                if ($excludeGroupId) {
-                    $q->whereHas('groupMembers.groupLoan.group', fn($q2) => $q2->where('id', '!=', $excludeGroupId));
-                }
-            })
-            ->withCount([
-                'groupMembers as defaulted_loans_count' => function ($q) use ($excludeGroupId) {
-                    $q->whereHas('groupLoan', fn($q2) => $q2->where('is_defaulted', true));
-
-                    if ($excludeGroupId) {
-                        $q->whereHas('groupLoan.group', fn($q3) => $q3->where('id', '!=', $excludeGroupId));
-                    }
-                }
-            ])
-            ->get();
-
-        return $query;
-    }
-
-    /**
      * Prepare a group or a query builder with the necessary metrics
     */
     public function getGroupWithMetrics($group)
@@ -303,23 +439,34 @@ class DefaultAnalysisService
         // If $group is an object, get its ID. Otherwise, use it as the ID.
         $groupId = is_object($group) ? $group->id : $group;
 
-        return Group::where('id', $groupId) // Specifically filter for this group
-            ->withSum('groupLoans as total_issued', 'amount_issued')
-            ->withSum('groupLoans as total_arrears', 'total_arrears')
-            ->withCount(['groupLoans as defaulted_count' => function ($query) {
-                $query->where('is_defaulted', true);
-            }])
-            ->with([
-                'groupLoans.loanReceipts',
-                'currentLoan' => function($q) {
-                $q->withCount([
-                    'groupMembers',
-                    'groupMembers as defaulter_members_count' => function($sq) {
-                        $sq->whereHas('member.groupMembers.groupLoan', fn($l) => $l->where('is_defaulted', true));
-                    }
-                ]);
-            }])
-            ->first(); // Now first() correctly returns the record matching the ID
+        $cacheKey = "temp_app_linked_group_{$groupId}";
+
+
+        return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($groupId) {
+            return Group::where('id', $groupId) // Specifically filter for this group
+                ->withSum('groupLoans as total_issued', 'amount_issued')
+                ->withSum('groupLoans as total_repaid', 'amount_repaid')
+                ->withSum('groupLoans as total_arrears', 'total_arrears')
+                ->withCount(['groupLoans as defaulted_count' => function ($query) {
+                    $query->where('is_defaulted', true);
+                }])
+                ->with([
+                    'groupLoans.loanReceipts',
+                    'currentLoan' => function($q) use ($groupId){
+                    $q->withCount([
+                        'groupMembers',
+                        'groupMembers as defaulter_members_count' => function($sq) use ($groupId){
+                            $sq->whereHas('member.groupMembers.groupLoan', function($l) use ($groupId) {
+                                $l->where('is_defaulted', true)
+                                ->whereHas('group', function($g) use ($groupId) {
+                                    $g->where('id', '!=', $groupId);
+                                });
+                            });
+                        }
+                    ]);
+                }])
+                ->first();
+        });
     }
 
     /**
@@ -404,10 +551,10 @@ class DefaultAnalysisService
         };
     }
 
-    public function getGroupRiskAnalysis(Group $group): array
+    public function getGroupRiskAnalysis(Group $group, $isApplicationRisk = false): array
     {
         // Reuse our optimized calculation
-        $score = $this->calculateGroupRiskLevel($group);
+        $score = $this->calculateGroupRiskLevel($group, $isApplicationRisk);
         $category = $this->getRiskCategory($score);
 
         return [
@@ -425,66 +572,65 @@ class DefaultAnalysisService
         ];
     }
 
-    public function getRiskFlags(Group $group): array
+    public function getRiskFlags(Group $group, $applicationMembers = null): array
     {
-        $flags = [];
-        $riskAnalysis = $this->getGroupRiskAnalysis($group);
-        $riskLevel = $riskAnalysis['score'];
+        $flags  = [];
+        // $flags[] = $this->calculateGroupRiskLevel($group, $applicationMembers);
 
-        // 1. Primary Risk Level Flags
-        if ($riskLevel > 80) {
-            $flags[] = "CRITICAL RISK: This group has a risk score of " . number_format($riskLevel, 0) . "%. Immediate intervention or rejection is advised.";
-        } elseif ($riskLevel > 50) {
-            $flags[] = "HIGH RISK: Group risk score is " . number_format($riskLevel, 0) . "%. Requires senior management approval.";
-        } elseif ($riskLevel > 20) {
-            $flags[] = "MEDIUM RISK: Group risk score is " . number_format($riskLevel, 0) . "%. Monitor repayment closely.";
-        }
+        dd($this->calculateGroupRiskLevel($group, $applicationMembers));
+        // foreach ($applicationMembers as $gm) {
+        //     if ($gm->is_defaulter ?? false) {
 
-        // 2. Specific Contagion/Social Flags (from our Part 3 logic)
-        $defaulterCount = $group->currentLoan?->defaulter_members_count ?? 0;
-        if ($defaulterCount > 0) {
-            $flags[] = "CONTAGION RISK: {$defaulterCount} member(s) in this group have defaulted in other groups.";
-        }
 
-        // 3. Arrears Exposure Flags (from our Part 1 logic)
-        if ($group->total_arrears > 0 && $group->total_issued > 0) {
-            $arrearsRatio = ($group->total_arrears / $group->total_issued) * 100;
-            if ($arrearsRatio > 25) {
-                $flags[] = "FINANCIAL RISK: Historical arrears exceed " . number_format($arrearsRatio, 0) . "% of total borrowed funds.";
-            }
-        }
+        //         $history = $gm->default_history ?? collect();
+        //         $memberArrears = $history->sum('default_arrears');
+        //         dd($history->sum(fn($item) => (float) ($item->groupLoan->total_arrears ?? 0)));
+        //         dd($history->sum(fn($item) => $item->groupLoan->total_arrears ?? 0));
+        //         dd($history->map(fn($item) => [
+        //             'group' => $item->groupLoan->group->name ?? 'N/A',
+        //             'arrears' => $item->groupLoan->total_arrears ?? 0,
+        //             'months' => $item->groupLoan->months_defaulted ?? 0,
+        //         ]));
+        //         $totalMemberArrears += $history->sum('arrears') ?? 0;
 
-        return $flags;
-    }
+        //         $defaultGroups = $history->pluck('group_name')->unique()->count();
+        //         if ($defaultGroups > 1) {
+        //             $multiGroupCount++;
+        //         }
+        //     }
+        // }
+        // $score = $this->calculateGroupRiskLevel($group, $applicationMembers);
 
-    public function getApplicationRiskFlags(Group $group): array
-    {
-        $flags = [];
-        $riskAnalysis = $this->getGroupRiskAnalysis($group);
-        $riskLevel = $riskAnalysis['score'];
+        // $riskAnalysis = [
+        //     'score' => $score,
+        //     'breakdown' => [
+        //         'financial_risk' => min(($group->total_arrears / ($group->total_issued ?: 1)), 1) * 50,
+        //         'historical_risk' => min(($group->defaulted_count ?? 0) * 6, 30),
+        //         'social_risk' => count($applicationMembers) > 0
+        //             ? ($applicationMembers
+        //                 ->filter(fn($gm) => $gm->is_defaulter)
+        //                 ->count() / count($applicationMembers) * 20)
+        //             : 0,
+        //     ]
+        // ];
 
-        // 1. Primary Risk Level Flags
-        if ($riskLevel > 80) {
-            $flags[] = "CRITICAL RISK: This group has a risk score of " . number_format($riskLevel, 0) . "%. Immediate intervention or rejection is advised.";
-        } elseif ($riskLevel > 50) {
-            $flags[] = "HIGH RISK: Group risk score is " . number_format($riskLevel, 0) . "%. Requires senior management approval.";
-        } elseif ($riskLevel > 20) {
-            $flags[] = "MEDIUM RISK: Group risk score is " . number_format($riskLevel, 0) . "%. Monitor repayment closely.";
-        }
+        // $riskLevel = $riskAnalysis['score'];
 
-        // 2. Specific Contagion/Social Flags (from our Part 3 logic)
-        $defaulterCount = $group->currentLoan?->defaulter_members_count ?? 0;
-        if ($defaulterCount > 0) {
-            $flags[] = "CONTAGION RISK: {$defaulterCount} member(s) in this group have defaulted in other groups.";
-        }
+        // if ($riskLevel > 80) {
+        //     $flags[] = "CRITICAL RISK: This group has a risk score of " . number_format($riskLevel, 0) . "%. Immediate intervention or rejection is advised.";
+        // } elseif ($riskLevel > 50) {
+        //     $flags[] = "HIGH RISK: Group risk score is " . number_format($riskLevel, 0) . "%. Requires Monitoring closely.";
+        // } elseif ($riskLevel > 20) {
+        //     $flags[] = "MEDIUM RISK: Group risk score is " . number_format($riskLevel, 0) . "%. Monitor repayment closely.";
+        // }
 
-        // 3. Arrears Exposure Flags (from our Part 1 logic)
-        if ($group->total_arrears > 0 && $group->total_issued > 0) {
-            $arrearsRatio = ($group->total_arrears / $group->total_issued) * 100;
-            if ($arrearsRatio > 25) {
-                $flags[] = "FINANCIAL RISK: Historical arrears exceed " . number_format($arrearsRatio, 0) . "% of total borrowed funds.";
-            }
-        }
+        // if ($riskAnalysis['breakdown']['financial_risk'] > 25){
+        //     $flags[] = "FINANCIAL RISK: Group has failed to pay " . round(($group->total_arrears / ($group->total_issued ?: 1)) * 100) . "% of historical loans.";
+        // }
+
+        // if ($group->defaulted_count > 0) {
+        //     $flags[] = "HISTORICAL RISK: Group has {$group->defaulted_count} fully defaulted loans.";
+        // }
 
         return $flags;
     }

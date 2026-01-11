@@ -309,7 +309,7 @@
                                             <span class="badge badge-info" title="{{ $app->phaseApplication->reviewPhase->phase }}">
                                                 {{ $app->phaseApplication->reviewPhase->phase }}
                                             </span>
-                                            @if($app->phaseApplication->reviewPhase->status === 'draft')
+                                            @if($app->phaseApplication->status === 'pending')
                                             <button class="btn btn-sm btn-danger p-0 px-1 ml-1"
                                                     wire:click="removeFromPhase({{ $app->phaseApplication->reviewPhase->id }}, {{ $app->id }})"
                                                     onclick="return confirm('Remove from phase?')"
@@ -469,6 +469,17 @@
                             <i class="fas fa-info-circle"></i>
                             Assigning {{ $this->selectedAppsCount }} selected applications to phase
                         </div>
+
+                        @error('applications')
+                            <div class="alert alert-warning">
+                                <strong>Some applications were skipped:</strong>
+                                <ul>
+                                    @foreach($errors->get('applications') as $message)
+                                        <li>{{ $message }}</li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                        @enderror
 
                         @if($this->selectedAppsCount > 0)
                         <div class="small text-muted">

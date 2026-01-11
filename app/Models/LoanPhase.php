@@ -89,7 +89,7 @@ class LoanPhase extends Model
         return $this->hasMany(PhaseComment::class);
     }
 
-public function hqReview(): HasOne
+    public function hqReview(): HasOne
     {
         return $this->hasOne(HqReview::class);
     }
@@ -121,10 +121,10 @@ public function hqReview(): HasOne
         $stats = $this->phaseApplications()
             ->selectRaw('
                 COUNT(*) as total_applications,
-                SUM(CASE WHEN committee_decision = "approved" THEN 1 ELSE 0 END) as approved,
-                SUM(CASE WHEN committee_decision = "rejected" THEN 1 ELSE 0 END) as rejected,
-                SUM(CASE WHEN committee_decision = "adjusted" THEN 1 ELSE 0 END) as adjusted,
-                SUM(CASE WHEN committee_decision = "pending" THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = "approved" THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN status = "rejected" THEN 1 ELSE 0 END) as rejected,
+                SUM(CASE WHEN status = "adjusted" THEN 1 ELSE 0 END) as adjusted,
+                SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending,
                 SUM(amount_applied) as total_amount_applied,
                 SUM(amount_approved) as total_amount_approved
             ')
@@ -140,10 +140,10 @@ public function hqReview(): HasOne
     {
         return [
             'total_applications' => $this->phaseApplications()->count(),
-            'approved' => $this->phaseApplications()->where('committee_decision', 'approved')->count(),
-            'rejected' => $this->phaseApplications()->where('committee_decision', 'rejected')->count(),
-            'adjusted' => $this->phaseApplications()->where('committee_decision', 'adjusted')->count(),
-            'pending' => $this->phaseApplications()->where('committee_decision', 'pending')->count(),
+            'approved' => $this->phaseApplications()->where('status', 'approved')->count(),
+            'rejected' => $this->phaseApplications()->where('status', 'rejected')->count(),
+            'adjusted' => $this->phaseApplications()->where('status', 'adjusted')->count(),
+            'pending' => $this->phaseApplications()->where('status', 'pending')->count(),
             'total_amount_applied' => $this->total_amount_applied,
             'total_amount_approved' => $this->total_amount_approved,
             'committee_members' => $this->committeeMembers()->count(),

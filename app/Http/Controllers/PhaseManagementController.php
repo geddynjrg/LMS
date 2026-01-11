@@ -67,7 +67,7 @@ class PhaseManagementController extends Controller
                     ],
                     [
                         'amount_applied' => $tempApp->loan_amount,
-                        'committee_decision' => 'pending',
+                        'status' => 'pending',
                     ]
                 );
 
@@ -238,19 +238,19 @@ class PhaseManagementController extends Controller
         ])->firstOrFail();
 
         $request->validate([
-            'committee_decision' => 'required|in:approved,rejected,adjusted,deferred',
-            'amount_approved' => 'required_if:committee_decision,approved,adjusted|numeric|min:0',
-            'committee_comments' => 'nullable|string',
-            'rejection_reason' => 'required_if:committee_decision,rejected|string',
+            'status' => 'required|in:approved,rejected,adjusted,deferred',
+            'amount_approved' => 'required_if:status,approved,adjusted|numeric|min:0',
+            'comments' => 'nullable|string',
+            'rejection_reason' => 'required_if:status,rejected|string',
             'is_priority' => 'nullable|boolean',
             'recommendation' => 'nullable|in:strongly_recommend,recommend,neutral,not_recommend',
         ]);
 
         DB::transaction(function () use ($phaseApp, $request, $phaseId) {
             $phaseApp->update([
-                'committee_decision' => $request->committee_decision,
+                'status' => $request->status,
                 'amount_approved' => $request->amount_approved ?? null,
-                'committee_comments' => $request->committee_comments,
+                'comments' => $request->comments,
                 'rejection_reason' => $request->rejection_reason,
                 'is_priority' => $request->is_priority ?? false,
                 'recommendation' => $request->recommendation,
@@ -317,7 +317,7 @@ class PhaseManagementController extends Controller
         }
 
         $pendingApplications = $phase->phaseApplications()
-            ->where('committee_decision', 'pending')
+            ->where('status', 'pending')
             ->count();
 
         if ($pendingApplications > 0) {

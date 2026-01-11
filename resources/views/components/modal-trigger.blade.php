@@ -5,12 +5,14 @@
     'size' => 'sm',
     'icon' => 'fas fa-link',
     'label' => 'Click Me',
-    'block' => false
+    'block' => false,
+    'disabled' => false
 ])
 
 <button
     wire:click="{{ $target }}"
     wire:loading.attr="disabled"
+    {{ $disabled ? 'disabled' : '' }}
     {{ $attributes->merge(['class' => "btn btn-{$variant} btn-{$size} " . ($block ? 'btn-block' : '')]) }}
 >
     {{-- Normal State --}}

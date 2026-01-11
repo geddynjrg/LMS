@@ -15,18 +15,28 @@ class PhaseApplication extends Model
     protected $fillable = [
         'loan_phase_id',
         'temp_application_id',
-        'committee_decision',
+        'group_id',
+        'group_code',
+        'gfs_code',
         'amount_applied',
         'amount_approved',
-        'committee_comments',
+        'amount_issued',
+        'status',
+        'cheque_number',
+        'disbusement_date',
+        'comments',
         'rejection_reason',
         'is_priority',
         'recommendation',
+        'user_id',
+        'level',
+        'action',
     ];
 
     protected $casts = [
         'amount_applied' => 'decimal:2',
         'amount_approved' => 'decimal:2',
+        'amount_issued' => 'decimal:2',
         'is_priority' => 'boolean',
     ];
 
@@ -34,7 +44,7 @@ class PhaseApplication extends Model
     {
         return LogOptions::defaults()
             ->useLogName('phase-application')
-            ->logOnly(['loan_phase_id', 'temp_application_id', 'amount_applied', 'committee_decision'])
+            ->logOnly(['loan_phase_id', 'temp_application_id', 'amount_applied', 'status', 'amount_issued', 'amount_approved', 'rejection_reason'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs();
     }
@@ -53,6 +63,14 @@ class PhaseApplication extends Model
     public function documents(): HasMany
     {
         return $this->hasMany(PhaseApplicationDocument::class);
+    }
+
+    /**
+     * Get the permanent Group record linked to this application.
+     */
+    public function linkedGroup(): BelongsTo
+    {
+        return $this->belongsTo(Group::class, 'group_id');
     }
 
     public function comments(): HasMany
@@ -133,12 +151,12 @@ class PhaseApplication extends Model
     // Status helpers
     public function isApproved(): bool
     {
-        return in_array($this->committee_decision, ['approved', 'adjusted']);
+        return in_array($this->status, ['approved', 'adjusted']);
     }
 
     public function isRejected(): bool
     {
-        return $this->committee_decision === 'rejected';
+        return $this->status === 'rejected';
     }
 
     public function getStatusBadgeClass(): string
@@ -151,6 +169,6 @@ class PhaseApplication extends Model
             'deferred' => 'secondary',
         ];
 
-        return $classes[$this->committee_decision] ?? 'secondary';
+        return $classes[$this->status] ?? 'secondary';
     }
 }

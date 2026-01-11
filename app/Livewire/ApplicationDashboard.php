@@ -244,8 +244,9 @@ class ApplicationDashboard extends Component
             foreach ($e->errors() as $field => $messages) {
                 foreach ($messages as $message) {
                     $this->addError($field, $message);
+                    $this->dispatch('flash-error', message: $message);
                 }
-                $this->dispatch('flash-error', message: 'Please correct the errors in the form.');
+
             }
         } catch (\Exception $e) {
             $this->dispatch('flash-error', message: $e->getMessage());
@@ -331,7 +332,6 @@ class ApplicationDashboard extends Component
     public function render()
     {
         $applications = $this->getFilteredApplicationsQuery()->paginate((int)$this->perPage);
-
         return view('livewire.loan.app.application-dashboard', [
             'applications' => $applications,
             'stats' => $this->stats,

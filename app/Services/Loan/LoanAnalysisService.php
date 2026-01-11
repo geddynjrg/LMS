@@ -4,6 +4,7 @@ namespace App\Services\Loan;
 
 use Carbon\Carbon;
 use App\Models\GroupLoan;
+use App\Models\Group;
 
 class LoanAnalysisService
 {
@@ -44,6 +45,38 @@ class LoanAnalysisService
             'arrears' => $arrears,
             'months_defaulted' => $months,
             'monthly_installment' => $installment,
+        ];
+    }
+
+    /**
+     * Calculate limits and balances for a group.
+     */
+    public function getEligibilityData(?Group $group): array
+    {
+        // Default for New Groups
+        if (!$group->id) {
+            return [
+                'min' => 50000,
+                'max' => 100000,
+                'balance' => 0,
+                'can_borrow' => true
+            ];
+        }
+
+        // Calculate Global Balance (Total Approved - Total Repaid)
+        $balance = ($group->total_issued ?? 0) - ($group->total_repaid ?? 0);
+
+        // Calculate Ceiling (2x Last Issued Amount)
+        $lastLoan = $group->currentLoan;
+
+        $maxCeiling = $lastLoan ? ($lastLoan->amount_issued * 2) : 100000;
+
+        $maximum = min($maxCeiling, 500000);
+        return [
+            'min' => 50000,
+            'max' => $maximum,
+            'balance' => $balance,
+            'can_borrow' => $balance <= 0 // Eligibility check
         ];
     }
 }

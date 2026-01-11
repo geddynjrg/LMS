@@ -42,11 +42,16 @@
                 <div class="sticky-top" style="top: 20px; z-index: 1020;">
 
                     <!-- Phase Assignment Section -->
-                    <div class="card card-outline card-info">
+                    <div class="card card-outline card-info {{ !is_null($application->phaseApplication) ? 'collapsed-card' : '' }}">
                         <div class="card-header">
                             <h3 class="card-title font-weight-bold">
                                 <i class="fas fa-layer-group mr-1"></i> Phase Assignment
                             </h3>
+                             <div class="card-tools">
+                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                    <i class="fas {{ !is_null($application->phaseApplication) ? 'fa-plus' : 'fa-minus' }}"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body">
                             @if(is_null($application->phaseApplication))
@@ -80,42 +85,51 @@
                                     <i class="fas fa-check-circle"></i> Assigned to:
                                     <span class="badge badge-info mr-1">{{ $application->phaseApplication->reviewPhase->phase }}</span>
                                 </p>
-
+                                @if($application->phaseApplication->status === 'pending')
                                 <x-loading-button
                                     target="removeFromPhase"
                                     class="btn-outline-danger"
                                     icon="fas fa-unlink"
                                     label="Remove from Phase"
                                     block="true"
-                                    onclick="confirm('Are you sure you want to remove this application from phase?') || event.stopImmediatePropagation()"
+                                    {{-- onclick="confirm('Are you sure you want to remove this application from phase?') || event.stopImmediatePropagation()" --}}
                                 />
+                                @endif
                             @endif
                         </div>
                     </div>
 
                     {{-- Group Linking --}}
-                    <div class="card card-{{ $application->group_id ? 'success' : 'warning' }} card-outline">
+                    @if(!is_null($application->phaseApplication))
+                    <div class="card card-{{ $application->phaseApplication->group_id ? 'success' : 'warning' }} card-outline {{ $application->phaseApplication->group_id ? 'collapsed-card' : '' }}">
                         <div class="card-header">
                             <h3 class="card-title font-weight-bold">
                                 <i class="fas fa-fingerprint mr-1"></i> Identity Status
                             </h3>
+                            <div class="card-tools">
+                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                    <i class="fas {{ $application->phaseApplication->group_id ? 'fa-plus' : 'fa-minus' }}"></i>
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body p-3">
-                            @if ($application->link_status === 'linked')
+                            @if (!is_null($application->phaseApplication->group_id))
                                 <div class="text-center mb-2">
                                     <span class="badge badge-success px-3 py-2">{{ $application->loan_type }} (Linked)</span>
                                 </div>
                                 <p class="small text-muted mb-1 text-center">
-                                    Linked to: <strong>{{ $application->linkedGroup->name }}</strong> • <strong>{{ $application->linkedGroup->code }}</strong>
+                                    Linked to: <strong>{{ $application->phaseApplication->linkedGroup->name }}</strong> • <strong>{{ $application->phaseApplication->linkedGroup->code }}</strong>
                                 </p>
+                                @if($application->phaseApplication->status === 'pending')
                                 <x-modal-trigger
                                     target="removeLink"
                                     label="Unlink Application"
                                     variant="outline-danger"
                                     icon="fas fa-unlink"
                                     block="true"
-                                    onclick="confirm('Are you sure you want to remove this group link?') || event.stopImmediatePropagation()"
+                                    {{-- onclick="confirm('Are you sure you want to remove this group link?') || event.stopImmediatePropagation()" --}}
                                 />
+                                @endif
                             @elseif($application->link_status === 'attempted_no_match')
                                 <div class="text-center mb-2">
                                     <span class="badge badge-warning px-3 py-2">{{ $application->loan_type }} (Attempted. No Link Found)</span>
@@ -123,6 +137,7 @@
                                 <p class="small text-success mb-3 text-bold">
                                     <i class="fas fa-exclamation-triangle"></i> An attempt was posted but no link to a Master Group record.
                                 </p>
+                                @if($application->phaseApplication->status === 'pending')
                                 <x-modal-trigger
                                     target="findMatches"
                                     label="Attempt To Link Again?"
@@ -130,6 +145,7 @@
                                     variant="primary"
                                     block="true"
                                 />
+                                @endif
                             @else
                                 <div class="text-center mb-2">
                                     <span class="badge badge-warning px-3 py-2">{{ $application->loan_type }} (Not Linked)</span>
@@ -137,7 +153,7 @@
                                 <p class="small text-success mb-3 text-bold">
                                     <i class="fas fa-exclamation-triangle"></i> Not yet linked to a Master Group record.
                                 </p>
-
+                                @if($application->phaseApplication->status === 'pending')
                                 <x-modal-trigger
                                     target="findMatches"
                                     label="Link Application"
@@ -145,10 +161,13 @@
                                     variant="primary"
                                     block="true"
                                 />
+                                @endif
                             @endif
                         </div>
                     </div>
 
+
+                    @if(in_array($this->application->link_status, ['attempted_no_match', 'linked']))
                     {{-- Vetting Descisions --}}
                     <div class="card card-primary card-outline">
                         <div class="card-header">
@@ -157,14 +176,16 @@
                             </h3>
                         </div>
                         <div class="card-body">
+                            @if($application->phaseApplication->status === 'pending')
                             <div class="btn-group-vertical w-100">
-                                <button wire:click="confirmApprove"
-                                        class="btn btn-success mb-2"
-                                        @if(!$application->group_id) disabled @endif
-                                        wire:loading.attr="disabled">
-                                    <span wire:loading.remove><i class="fas fa-check-circle"></i> APPROVE</span>
-                                    <span wire:loading><i class="fas fa-spinner fa-spin"></i> Processing...</span>
-                                </button>
+                                <x-modal-trigger class="mb-2"
+                                    target="approve"
+                                    label="APPROVE"
+                                    icon="fas fa-check-circle"
+                                    :disabled="$application->link_status === 'not_attempted'"
+                                    variant="success"
+                                    block="true"
+                                />
 
                                 <button wire:click="confirmReject"
                                         class="btn btn-danger"
@@ -173,39 +194,111 @@
                                     <span wire:loading><i class="fas fa-spinner fa-spin"></i> Processing...</span>
                                 </button>
                             </div>
+                            @endif
                         </div>
                     </div>
 
-                {{-- Risk assesment --}}
-                <div wire:key="risk-assessment-section-{{ $application->group_id ?? 'unlinked' }}">
-                    @if($this->riskFlagsCount > 0)
-                        <div class="card card-danger card-outline mt-3">
-                            <div class="card-header">
-                                <h3 class="card-title font-weight-bold">
-                                    <i class="fas fa-biohazard mr-1"></i> Risk Alerts ({{ $this->riskFlagsCount }})
-                                </h3>
-                            </div>
-                            <div class="card-body p-3">
-                                <ul class="list-unstyled small mb-0">
-                                    @foreach($this->riskFlags as $index => $flag)
-                                        {{-- Use a unique key for each list item too --}}
-                                        <li class="mb-2 text-danger" wire:key="flag-{{ $index }}">
-                                            <i class="fas fa-exclamation-triangle mr-2"></i> {{ $flag }}
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            </div>
-                        </div>
-                    @else
-                        <div class="card card-success card-outline mt-3">
-                            <div class="card-body p-3">
-                                <p class="text-success mb-0">
-                                    <i class="fas fa-check-circle mr-2"></i> No risk flags detected.
-                                </p>
-                            </div>
-                        </div>
+                    <div class="card card-primary card-outline">
+    <div class="card-header">
+        <h3 class="card-title font-weight-bold">
+            <i class="fas fa-gavel mr-1"></i> Vetting Decision
+        </h3>
+    </div>
+    <div class="card-body">
+        @if($application->phaseApplication->status === 'pending')
+            {{-- YOUR EXISTING ACTION BUTTONS --}}
+            <div class="btn-group-vertical w-100">
+                <x-modal-trigger class="mb-2" target="approve" label="APPROVE" icon="fas fa-check-circle" :disabled="$application->link_status === 'not_attempted'" variant="success" block="true" />
+                <button wire:click="confirmReject" class="btn btn-danger" wire:loading.attr="disabled">
+                    <span wire:loading.remove><i class="fas fa-times-circle"></i> REJECT</span>
+                    <span wire:loading><i class="fas fa-spinner fa-spin"></i> Processing...</span>
+                </button>
+            </div>
+        @else
+            {{-- SHOW THIS AFTER APPROVAL/REJECTION --}}
+            <div class="text-center mb-3">
+                @if($application->phaseApplication->status === 'pending_submission_to_hq')
+                    <div class="p-3 border border-success rounded bg-light">
+                        <i class="fas fa-check-circle text-success fa-3x mb-2"></i>
+                        <h6 class="text-success font-weight-bold">APPLICATION APPROVED</h6>
+                    </div>
+                @else
+                    <div class="p-3 border border-danger rounded bg-light">
+                        <i class="fas fa-times-circle text-danger fa-3x mb-2"></i>
+                        <h5 class="text-danger font-weight-bold">APPLICATION REJECTED</h5>
+                    </div>
+                @endif
+            </div>
+
+            <table class="table table-sm table-borderless small border-top pt-2">
+                <tr>
+                    <td class="text-muted">Vetted By:</td>
+                    <td class="text-right font-weight-bold">{{ auth()->user()->name }}</td>
+                </tr>
+                <tr>
+                    <td class="text-muted">Decision Date:</td>
+                    <td class="text-right font-weight-bold">{{ $application->phaseApplication->updated_at->format('d M Y, H:i') }}</td>
+                </tr>
+                @if($application->phaseApplication->comments)
+                <tr>
+                    <td colspan="2" class="text-muted pb-0">Remarks:</td>
+                </tr>
+                <tr>
+                    <td colspan="2" class="bg-light p-2 rounded small">
+                        "{{ $application->phaseApplication->comments }}"
+                    </td>
+                </tr>
+                @endif
+            </table>
+
+            <hr>
+            {{-- Navigation Helper for the Officer --}}
+            <button class="btn btn-default btn-block btn-sm shadow-sm" onclick="window.location.href='#'">
+                <i class="fas fa-arrow-left mr-1"></i> Back to Phase List
+            </button>
+        @endif
+    </div>
+</div>
                     @endif
-                </div>
+                    @endif
+
+                    {{-- Risk assesment --}}
+                    <div wire:key="risk-assessment-section-{{ $application->phaseApplication->group_id ?? 'unlinked' }}">
+                        {{-- Check if there are any reasons/flags --}}
+                        @if($this->riskFlagsCount > 0)
+                            <div class="card {{ $this->riskCategory == 'High Risk' ? 'card-danger' : 'card-warning' }} card-outline mt-3">
+                                <div class="card-header">
+                                    <h3 class="card-title font-weight-bold">
+                                        <i class="fas fa-biohazard mr-1"></i>
+                                        Risk Alerts ({{ $this->riskFlagsCount }})
+                                    </h3>
+                                    <div class="card-tools">
+                                        <span class="badge {{ $this->riskCategory == 'High Risk' ? 'badge-danger' : 'badge-warning' }}">
+                                            {{ $this->riskCategory }} (Score: {{ $this->riskAssessment['total_score'] }})
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="card-body p-3">
+                                    <ul class="list-unstyled small mb-0">
+                                        @foreach($this->riskFlags as $index => $flag)
+                                            <li class="mb-2 {{ $this->riskCategory == 'High Risk' ? 'text-danger' : 'text-warning' }}"
+                                                wire:key="flag-{{ $index }}">
+                                                <i class="fas fa-exclamation-triangle mr-2"></i> {{ $flag }}
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        @else
+                            <div class="card card-success card-outline mt-3">
+                                <div class="card-body p-3">
+                                    <p class="text-success mb-0 font-weight-bold">
+                                        <i class="fas fa-check-circle mr-2"></i> No risk flags detected.
+                                    </p>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
                 </div>
             </div>
             <div class="col-md-9" wire:ignore.self>
@@ -239,11 +332,6 @@
                                         wire:click="$set('activeTab', 'loan-history')" type="button">
                                     <i class="fas fa-history mr-1"></i>
                                     Loan History
-                                    @if($application->group_id)
-                                        <span class="badge badge-success ml-1">Endeleza</span>
-                                    @else
-                                        <span class="badge badge-info ml-1">Wezesha</span>
-                                    @endif
                                 </button>
                             </li>
 
@@ -264,8 +352,16 @@
                             </li>
                         </ul>
                     </div>
-                    <div class="card-body">
+                    <div class="card-body position-relative">
                         <!-- Tab Content -->
+                        <div wire:loading.flex wire:target="activeTab"
+                            class="w-100 h-100 position-absolute justify-content-center align-items-center"
+                            style="background: rgba(255,255,255,0.7); z-index: 1000; top: 0; left: 0; min-height: 100px;">
+                            <div class="text-center">
+                                <i class="fas fa-circle-notch fa-spin fa-3x text-navy"></i>
+                                <p class="text-navy font-weight-bold mt-2"> Loading Application Data...</p>
+                            </div>
+                        </div>
                         <div class="tab-content mt-4">
                             <!-- Tab 1: Group & Loan -->
                             @if($activeTab === 'group-loan')
@@ -286,7 +382,7 @@
                                                 </div>
 
                                                 <div class="card-body pt-0">
-                                                    <div class="row">
+                                                    <div class="row mt-3">
                                                         <div class="col-md-6 border-right">
                                                             <p class="text-muted text-uppercase small font-weight-bold mb-3">Identification</p>
                                                             <ul class="list-group list-group-unbordered">
@@ -308,6 +404,20 @@
                                                                         {{ ucfirst($application->nature_of_group) }}
                                                                     </span>
                                                                 </li>
+                                                                @if($application->linked_status === 'linked')
+                                                                <li class="list-group-item border-bottom-0">
+                                                                    <b>Group code:</b><br>
+                                                                    <span class="badge badge-primary py-1 px-3 text-sm">
+                                                                        {{ $groupCode }}
+                                                                    </span>
+                                                                </li>
+                                                                <li class="list-group-item border-bottom-0">
+                                                                    <b>GFS code:</b><br>
+                                                                    <span class="badge badge-primary py-1 px-3 text-sm">
+                                                                        {{ $gfsCode }}
+                                                                    </span>
+                                                                </li>
+                                                                @endif
                                                             </ul>
                                                         </div>
 
@@ -317,8 +427,7 @@
                                                                 <li class="list-group-item">
                                                                     <b>Physical Location:</b><br>
                                                                     <span class="text-left text-dark font-weight-bold">
-                                                                        <span>Ward: <span class="text-muted">{{ $application->ward_name }}</span></span><br>
-                                                                        <span>Constituency: <span class="text-muted">{{ $application->constituency_name }}</span></span>
+                                                                        <span>Ward: <span class="text-muted">{{ $application->ward_name }}</span></span>
                                                                     </span>
                                                                 </li>
                                                                 <li class="list-group-item">
@@ -329,10 +438,12 @@
                                                                 </li>
                                                                 <li class="list-group-item border-bottom-0">
                                                                     <b>Key Activities</b>
-                                                                    <div class="mt-2">
+                                                                    <div class="mt-2 d-flex flex-wrap" style="gap: 4px;">
                                                                         @if(is_array($application->key_activities))
                                                                             @foreach($application->key_activities as $activity)
-                                                                                <span class="badge badge-info py-1 px-2 text-sm mr-1 shadow-sm">{{ $activity }}</span>
+                                                                                <ul class="text-sm shadow-sm border-bottom-2">
+                                                                                    <li class="p-2 text-muted font-weight-bold">{{ $activity }}</li>
+                                                                                </ul>
                                                                             @endforeach
                                                                         @endif
                                                                     </div>
@@ -502,7 +613,7 @@
                                                         </div>
                                                     </div>
                                                     <p class="text-muted mb-1 small uppercase border-top mt-3 pt-2">Approved Amount</p>
-                                                    <h2 class="text-black-50 font-weight-bold mb-3">KES {{ number_format($application->loan_amount, 2) }}</h2>
+                                                    <h2 class="text-black-50 font-weight-bold mb-3">KES {{ number_format($application->phaseApplication?->amount_approved, 2) }}</h2>
                                                 </div>
                                             </div>
                                             <div class="card card-outline card-success shadow-sm">
@@ -567,7 +678,7 @@
                                         </div>
                                         <div class="card-body p-0">
                                             <div class="table-responsive">
-                                                <table class="table table-hover table-sm" wire:key="members-table-{{ $application->id }}-{{ $this->memberConflictCount }}">
+                                                <table class="table table-hover table-sm table-bordered" wire:key="members-table-{{ $application->id }}-{{ $this->memberConflictCount }}">
                                                     <thead class="bg-light">
                                                         <tr>
                                                             <th>Name & ID</th>
@@ -594,10 +705,17 @@
                                                                             <small class="badge badge-info">PWD</small>
                                                                         @endif
                                                                         @if($member->is_defaulter)
-                                                                            <span class="badge badge-danger">Defaulter</span>
-                                                                            <div class="small text-muted">
-                                                                                Previously defaulted in:
-                                                                                {{ $member->default_history->map(fn($gm) => $gm->groupLoan->group->name)->implode('; ') }}
+                                                                            <span class="badge badge-danger mb-1">Defaulter</span>
+                                                                            <div class="small text-danger">
+                                                                                <strong>Default History:</strong>
+                                                                                <ul class="list-unstyled mb-0 mt-1">
+                                                                                    @foreach($member->default_history as $history)
+                                                                                        <li>
+                                                                                            <i class="fas fa-exclamation-triangle mr-1" style="font-size: 0.8rem;"></i>
+                                                                                            {{ $history->groupLoan->group->name }}
+                                                                                        </li>
+                                                                                    @endforeach
+                                                                                </ul>
                                                                             </div>
                                                                         @else
                                                                             <span class="badge badge-success">Clean Record</span>
@@ -960,15 +1078,6 @@
     <div wire:ignore.self class="modal fade shadow-lg" id="modal-group-linker" tabindex="-1" role="dialog">
         <div class="modal-dialog modal-xl" role="document">
             <div class="modal-content">
-                {{-- Loading Overlay for Manual Search/Toggling --}}
-                {{-- <div wire:loading wire:target="searchTerm, toggleSearchMode, markAsNoMatch"
-                    class="position-absolute w-100 h-100 d-flex justify-content-center align-items-center"
-                    style="top:0; left:0; background: rgba(255,255,255,0.7); z-index: 1050; border-radius: .3rem;">
-                    <div class="text-center">
-                        <i class="fas fa-circle-notch fa-spin fa-3x text-primary"></i>
-                        <p class="mt-2 font-weight-bold">Processing...</p>
-                    </div>
-                </div> --}}
 
                 <div class="modal-header {{ $isManualSearch ? 'bg-primary' : 'bg-info' }}">
                     <h5 class="modal-title text-white">
@@ -978,7 +1087,7 @@
                     <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
                 </div>
 
-                <div class="modal-body">
+                <div class="modal-body position-relative">
                     {{-- Toggle Buttons --}}
                     <div class="d-flex justify-content-end mb-3">
                         <button wire:click="toggleSearchMode" wire:loading.attr="disabled" class="btn btn-sm {{ $isManualSearch ? 'btn-outline-info' : 'btn-outline-primary' }}">
@@ -1009,6 +1118,7 @@
                             <small class="text-muted">Searching within {{ $application->ward->constituency->constituency_name ?? 'Current Constituency' }}</small>
                         </div>
                     @endif
+
                     <div class="d-flex justify-content-between align-items-center mt-3">
                         <h6 class="mb-0 text-bold">Results</h6>
                         {{-- This will appear and disappear smoothly without blocking clicks --}}
@@ -1023,13 +1133,21 @@
                                     <th>Score</th>
                                     <th>Group Identity</th>
                                     <th>Ward</th>
-                                    <th>GFS Code</th>
+                                    <th>Group Code</th>
                                     <th>Current Phase</th>
                                     <th>Basis of Match (Why?)</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
+                                <div wire:loading.flex wire:target="searchTerm, toggleSearchMode, markAsNoMatch"
+                                    class="w-100 h-100 position-absolute justify-content-center align-items-center"
+                                    style="background: rgba(255,255,255,0.7); z-index: 1000; top: 0; left: 0; min-height: 100px;">
+                                    <div class="text-center">
+                                        <i class="fas fa-circle-notch fa-spin fa-3x text-navy"></i>
+                                        <p class="text-navy font-weight-bold mt-2"> Loading...</p>
+                                    </div>
+                                </div>
                                 @foreach($suggestedMatches as $match)
                                     <tr class="{{ $match->match_score > 90 ? 'table-success' : '' }}">
                                         <td>
@@ -1047,7 +1165,7 @@
                                             </div>
                                         </td>
                                         <td>{{ $match->ward->ward_name }}</td>
-                                        <td>{{ $match->gfs_code }}</td>
+                                        <td>{{ $match->code }}</td>
                                         <td>{{ $match->currentLoan?->loanPhase->phase ?? 'N/A' }}</td>
                                         <td class="align-middle">
                                             @if(is_array($match->match_reasons) || is_object($match->match_reasons))
@@ -1149,67 +1267,73 @@
                             <p class="text-muted text-uppercase small font-weight-bold mb-3">Credit Risk Assessment</p>
 
                             @if($selectedMember->is_defaulter)
-    <div class="alert alert-danger shadow-sm border-danger py-3 mb-3" style="background-color: #fff5f5;">
-        <h6 class="text-danger font-weight-bold small mb-2">
-            <i class="fas fa-exclamation-triangle mr-1"></i> HIGH RISK: DEFAULT HISTORY DETECTED
-        </h6>
+                                <div class="alert alert-danger shadow-sm border-danger py-3 mb-3" style="background-color: #fff5f5;">
+                                    <h6 class="text-danger font-weight-bold small mb-2">
+                                        <i class="fas fa-exclamation-triangle mr-1"></i> HIGH RISK: DEFAULT HISTORY DETECTED
+                                    </h6>
 
-        <div class="table-responsive">
-            <table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
-                <thead>
-                    <tr class="text-muted border-bottom">
-                        <th>Group Name</th>
-                        <th>Role in Group</th>
-                        <th class="text-right">Default Amount</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($selectedMember->default_history as $history)
-                        <tr>
-                            <td class="">
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-borderless mb-0" style="font-size: 0.85rem;">
+                                            <thead>
+                                                <tr class="text-muted border-bottom">
+                                                    <th>Group Name</th>
+                                                    <th>Role in Group</th>
+                                                    <th class="text-right">Default Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($selectedMember->default_history as $history)
+                                                    <tr>
+                                                        <td class="">
 
-                                <a href="{{ route('const.groups.group', [
-                                    'county' => $county->slug,
-                                    'constituency' => $constituency->slug,
-                                    'group' => $history->groupLoan->group->slug
-                                ]) }}" class="font-weight-bold text-dark">
-                                    {{ $history->groupLoan->group->name }}
-                                </a>
-                            </td>
-                            <td>
-                                <span class="badge badge-light border">
-                                    {{ ucfirst($history->role ?? 'Member') }}
-                                </span>
-                            </td>
-                            <td class="text-right text-danger font-weight-bold">
-                                KES {{ number_format($history->groupLoan->total_arrears ?? 0) }}
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-                <tfoot>
-                    <tr class="border-top">
-                        <td colspan="2" class="text-success font-weight-bold">Total Exposure</td>
-                        <td class="text-right text-danger font-weight-bold h6">
-                            KES {{ number_format($selectedMember->default_history->sum(fn($h) => $h->groupLoan->total_arrears ?? 0)) }}
-                        </td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-    </div>
-@else
-    <div class="alert alert-success-light border-success py-3 mb-3 shadow-sm" style="background-color: #f0fff4;">
-        <div class="d-flex align-items-center">
-            <i class="fas fa-check-circle fa-2x text-success mr-3"></i>
-            <div>
-                <span class="text-success d-block font-weight-bold">Clean Credit Record</span>
-                <small class="text-muted">No prior default history found across the system for this ID.</small>
-            </div>
-        </div>
-    </div>
-@endif
+                                                            <a href="{{ route('const.groups.group', [
+                                                                'county' => $county->slug,
+                                                                'constituency' => $constituency->slug,
+                                                                'group' => $history->groupLoan->group->slug
+                                                            ]) }}" class="font-weight-bold text-dark">
+                                                                {{ $history->groupLoan->group->name }}
+                                                            </a>
+                                                            <small class="text-uwezo">Constituency: {{ $history->groupLoan->group->ward->constituency->constituency_name }}</small> <br>
+                                                            <small class="text-uwezo">Ward: {{ $history->groupLoan->group->ward->ward_name }}</small>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge badge-light border">
+                                                                {{ ucfirst($history->role ?? 'Member') }}
 
+                                                            </span>
+                                                            <br>
+                                                            <small class="text-uwezo">{{ $history->groupLoan->loanPhase->phase }}</small>
+                                                        </td>
+                                                        <td class="text-right text-danger font-weight-bold">
+                                                            KES {{ number_format($history->groupLoan->total_arrears ?? 0) }}
+                                                            <br>
+                                                            <small class="text-uwezo">Amount Issued: {{ number_format($history->groupLoan->amount_issued) }}</small>
+                                                        </td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                            <tfoot>
+                                                <tr class="border-top">
+                                                    <td colspan="2" class="text-success font-weight-bold">Total Exposure</td>
+                                                    <td class="text-right text-danger font-weight-bold h6">
+                                                        KES {{ number_format($selectedMember->default_history->sum(fn($h) => $h->groupLoan->total_arrears ?? 0)) }}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            @else
+                                <div class="alert alert-success-light border-success py-3 mb-3 shadow-sm" style="background-color: #f0fff4;">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-check-circle fa-2x text-success mr-3"></i>
+                                        <div>
+                                            <span class="text-success d-block font-weight-bold">Clean Credit Record</span>
+                                            <small class="text-muted">No prior default history found across the system for this ID.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
                             <p class="text-muted text-uppercase small font-weight-bold mb-2">Attached Documents</p>
                             <div class="d-flex flex-wrap">
                                 @if($selectedMember->photo_member_id)
@@ -1233,6 +1357,102 @@
                 </div>
                 @endif
             </div>
+        </div>
+    </div>
+
+    {{-- modal approve --}}
+    <div wire:ignore.self class="modal fade" id="modal-approve" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-md">
+            <form wire:submit.prevent="confirmApproval">
+                <div class="modal-content">
+                    <div class="modal-header bg-success">
+                        <h5 class="modal-title"><i class="fas fa-check-circle mr-2"></i> Approve Application</h5>
+                        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div class="alert alert-info py-2">
+                            <small><i class="fas fa-info-circle mr-1"></i>
+                                Applied Amount: <strong>KES {{ number_format($application->loan_amount, 2) }}</strong>
+
+                            </small>
+                        </div>
+
+                        {{-- CASE 1: NOT LINKED - Needs Group Identification --}}
+                        @if($application->link_status !== 'linked')
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>Group Code <span class="text-danger">*</span></label>
+                                        <input type="text" wire:model.blur="groupCode" class="form-control form-control-sm" placeholder="Enter Code">
+                                        @error('groupCode') <span class="text-danger small">{{ $message }}</span> @enderror
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>GFS Code: </label> <code>AUTO-GENERATED</code>
+                                        <input type="text" class="form-control form-control-sm" value="{{ $gfsCode.$groupCode ?? 'AUTO-GEN' }}" disabled>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr>
+                        @endif
+
+                        @if ($application->ward_id === null)
+                        <div class="form-group">
+                            <label>Ward <span class="text-danger">*</span> <code>{{ $application->ward_name }}</code></label>
+                            <select wire:model.live="selectedWardId" class="form-control">
+                                <option value="">-- Select Correct Ward --</option>
+                                {{-- Accessing the eager-loaded relationship --}}
+                                @foreach($constituency->wards as $ward)
+                                    <option value="{{ $ward->id }}">{{ $ward->ward_name }}</option>
+                                @endforeach
+                            </select>
+                            @error('selectedWardId') <span class="text-danger small">{{ $message }}</span> @enderror
+                        </div>
+                        @endif
+
+                        {{-- SHARED FIELDS --}}
+                        <div class="form-group">
+                            <label>Approved Amount (KES) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text font-weight-bold">KES</span>
+                                </div>
+                                <input type="number" wire:model.live="approvalAmount" class="form-control form-control-lg text-success font-weight-bold">
+                            </div>
+                            @error('approvalAmount') <span class="text-danger small">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="form-group">
+                            <label>Comments / Approval Remarks</label>
+                            <textarea wire:model="approvalComments" class="form-control" rows="3" placeholder="Optional notes for this approval..."></textarea>
+                            @error('approvalComments') <span class="text-danger small">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+
+                    <div class="modal-footer justify-content-between">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+
+                        @if($eligibility['can_borrow'])
+                            {{-- Show Active Button if Eligible --}}
+                            <x-btn-submit
+                                label="Approve"
+                                icon="fas fa-check-circle"
+                                color="success"
+                                target="confirmApproval"
+                            />
+                        @else
+                            {{-- Show Reason Button if NOT Eligible --}}
+                            <div class="d-flex flex-column align-items-end">
+                                <button type="button" class="btn btn-secondary" disabled>
+                                    Uncleared Balance: Kes {{ number_format($eligibility['balance']) }}
+                                </button>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1372,6 +1592,91 @@
             Livewire.on('error', (event) => {
                 // This forces the UI to unlock if the server crashes
                 console.error('Livewire Error:', event);
+            });
+
+            Livewire.on('confirm-action', (eventData) => {
+                const data = Array.isArray(eventData) ? eventData[0] : eventData;
+                Swal.fire({
+                    title: data.title || "Are you sure?",
+                    text: data.text || "This action cannot be undone!",
+                    icon: data.icon || "warning",
+                    showCancelButton: true,
+                    confirmButtonColor: "#3085d6",
+                    cancelButtonColor: "#d33",
+                    confirmButtonText: data.confirmText || "Yes, proceed!",
+                    reverseButtons: true // Places "Cancel" on the left
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // If confirmed, tell Livewire to call the actual function
+                        // 'componentId' and 'action' must be passed from the backend
+                        Livewire.find(data.componentId).call(data.action, data.params);
+                    }
+                });
+            });
+
+            Livewire.on('confirm-approve-action', (eventData) => {
+                const data = Array.isArray(eventData) ? eventData[0] : eventData;
+                Swal.fire({
+                    title: data.title || "Are you sure?",
+                    html: data.html || "This action cannot be undone!",
+                    icon: data.icon || "warning",
+                    showCancelButton: true,
+                    confirmButtonColor: "#3085d6",
+                    cancelButtonColor: "#d33",
+                    confirmButtonText: data.confirmText || "Yes, proceed!",
+                    reverseButtons: true // Places "Cancel" on the left
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // If confirmed, tell Livewire to call the actual function
+                        // 'componentId' and 'action' must be passed from the backend
+                        Livewire.find(data.componentId).call(data.action, data.params);
+                    }
+                });
+            });
+
+            Livewire.on('approval-completed', (eventData) => {
+                const data = Array.isArray(eventData) ? eventData[0] : eventData;
+
+                // Hide the previous confirmation/modal
+                $('#modal-approve').modal('hide');
+
+                if (data.isPhaseComplete) {
+                    Swal.fire({
+                        title: 'Phase Fully Vetted!',
+                        text: 'Great job! You have reached the end of this phase list.',
+                        icon: 'success',
+                        confirmButtonText: '<i class="fas fa-file-export mr-1"></i> Proceed to Submission',
+                        showCancelButton: true
+                    }).then((result) => {
+                        if (result.isConfirmed) window.location.href = '/phases/submission';
+                    });
+                } else {
+                    // SCENARIO: Provide summary of the NEXT application
+                    Swal.fire({
+                        title: 'Approved!',
+                        html: `
+                            <div class="alert alert-success py-2">Success! Current application finalized.</div>
+                            <div class="card card-outline card-primary mt-3">
+                                <div class="card-header"><h3 class="card-title">Up Next:</h3></div>
+                                <div class="card-body text-left">
+                                    <strong>Group:</strong> ${data.nextSummary.group_name}<br>
+                                    <strong>Application ID:</strong> ${data.nextSummary.app_id}<br>
+                                    <strong>Amount Applied:</strong> KES ${data.nextSummary.amount}
+                                </div>
+                            </div>
+                        `,
+                        icon: 'success',
+                        showDenyButton: true,
+                        confirmButtonColor: '#28a745',
+                        denyButtonColor: '#6c757d',
+                        confirmButtonText: 'Vet Next <i class="fas fa-chevron-right ml-1"></i>',
+                        denyButtonText: 'Close',
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = '/applications/' + data.nextId + '/vetting';
+                        }
+                    });
+                }
             });
 
         });

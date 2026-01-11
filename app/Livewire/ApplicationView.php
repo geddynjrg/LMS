@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Cache;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
+use App\Services\Loan\LoanAnalysisService;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
@@ -16,12 +17,17 @@ use App\Services\Loan\DefaultAnalysisService;
 use App\Models\Member;
 use App\Models\Group;
 use App\Models\TempGroupMember;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
+use App\Models\TempApplicationApproval;
+use App\Models\PhaseApplication;
 
 class ApplicationView extends Component
 {
     protected LoanPhaseService $phaseService;
     protected TempApplicationService $appService;
     protected DefaultAnalysisService $defaultService;
+    protected LoanAnalysisService $analysisService;
 
     public $isDataLoaded = false;
 
@@ -36,6 +42,7 @@ class ApplicationView extends Component
     public $suggestedMatches = [];
     public $isSearching = false;
     public ?Group $linkedGroup;
+    public ?PhaseApplication $phaseApplication;
 
     public $selectedPhaseForQuickAssign = '';
     public $selectedPhaseId;
@@ -51,22 +58,36 @@ class ApplicationView extends Component
     // member
     public $selectedMember;
 
+    // gfs
+    public $groupCode;
+    public $gfsCode;
+
     // approval
     public $approvalAmount;
     public $approvalComments;
-    public $manualGroupCode;
     public $groupIdentifier;
+    public $eligibility = [
+        'min' => 50000,
+        'max' => 100000,
+        'balance' => 0,
+        'can_borrow' => true
+    ];
+    public $assessmentData;
 
-    public function boot(LoanPhaseService $phaseService, TempApplicationService $appService, DefaultAnalysisService $defaultService)
+    // ward
+    public $selectedWardId;
+
+    public function boot(LoanPhaseService $phaseService, LoanAnalysisService $analysisService, TempApplicationService $appService, DefaultAnalysisService $defaultService)
     {
         $this->phaseService = $phaseService;
         $this->appService = $appService;
         $this->defaultService = $defaultService;
+        $this->analysisService = $analysisService;
     }
 
     public function mount($constituency, $applicationId)
     {
-        $this->constituency = $constituency->load('county');
+        $this->constituency = $constituency->load(['county', 'wards']);
         $this->county = $this->constituency->county;
         $this->applicationId = $applicationId;
 
@@ -78,7 +99,9 @@ class ApplicationView extends Component
 
         $this->loadApplication();
         $this->isDataLoaded = true;
-        $this->approvalAmount = $this->application->amount_applied;
+        $this->approvalAmount =  $this->application->loan_amount;
+
+        $this->generateGfs();
     }
 
 
@@ -87,11 +110,15 @@ class ApplicationView extends Component
         Cache::forget("app_enrichment_{$this->applicationId}");
         unset($this->riskFlags);
         unset($this->riskFlagsCount);
+        unset($this->riskCategory);
+        unset($this->riskCategory);
         unset($this->activePhases);
+        unset($this->gfsCode);
+        reset($this->eligibility);
 
         $this->appService->invalidateApplicationCache($this->application);
         $this->loadApplication();
-
+        $this->generateGfs();
     }
 
     public function updating()
@@ -99,21 +126,53 @@ class ApplicationView extends Component
         $this->loadApplication();
     }
 
-    public function rendering()
-    {
-        $this->loadApplication();
-    }
-
-
-
-    public function updatedActiveTab($value)
-    {
-        // $this->loadApplication();
-    }
 
     public function updatedSelectedPhaseId($value)
     {
         // $this->loadApplication();
+    }
+
+    public function updatedGroupCode($value)
+    {
+        $cleanValue = trim($value);
+
+        if (is_numeric($cleanValue)) {
+            $targetLength = max(3, strlen($cleanValue));
+            $this->groupCode = str_pad($cleanValue, $targetLength, '0', STR_PAD_LEFT);
+        }
+
+        $this->validate([
+            'groupCode' => [
+                'required', 'numeric', 'min:1', 'regex:/^\d{3,}$/',
+                function ($attribute, $value, $fail) {
+                    // Check Master Groups in this Constituency
+                    $existingInMaster = Group::whereHas('ward', function ($query) {
+                        $query->where('constituency_code', $this->constituency->constituency_code);
+                    })
+                    ->where('code', $this->groupCode)
+                    ->exists();
+
+                    if ($existingInMaster) {
+                        $fail("The Group Code {$this->groupCode} is already registered to a group.");
+                        return;
+                    }
+
+                    // Check Other Pending Applications in this Constituency
+                    $existingInPhase = PhaseApplication::where('group_code', $value)
+                        ->where('temp_application_id', '!=', $this->application->id) // Exclude current app
+                        ->whereHas('reviewPhase', function ($query) {
+                            $query->where('constituency_code', $this->constituency->constituency_code);
+                        })
+                        ->exists();
+
+                    if ($existingInPhase) {
+                        $gd=$this->groupCode+1;
+                        $fail("The Group Code {$this->groupCode} is currently being used by another pending application. Try {$gd}");
+                    }
+                },
+            ],
+        ]);
+
     }
 
     public function assignToPhase()
@@ -143,8 +202,9 @@ class ApplicationView extends Component
             foreach ($e->errors() as $field => $messages) {
                 foreach ($messages as $message) {
                     $this->addError($field, $message);
+                    $this->dispatch('flash-error', message: $message);
                 }
-                $this->dispatch('flash-error', message: 'Please correct the errors in the form.');
+
             }
         } catch (\Exception $e) {
             $this->dispatch('flash-error', message: $e->getMessage());
@@ -152,7 +212,7 @@ class ApplicationView extends Component
 
     }
 
-    public function removeFromPhase()
+    public function confirmRemoveFromPhase()
     {
         try {
             //phaseApplication.reviewPhase
@@ -172,13 +232,48 @@ class ApplicationView extends Component
         }
     }
 
+    public function removeFromPhase()
+    {
+        $this->dispatch('confirm-action',
+            title: 'Remove from Phase?',
+            text: 'This will decouple the application from the current batch.',
+            icon: 'warning',
+            confirmText: 'Yes, Remove it!',
+            componentId: $this->getId(),
+            action: 'confirmRemoveFromPhase',
+            // params: $this->application->id // Any data the method needs
+        );
+    }
+
     public function removeLink()
     {
-        if (is_null($this->application->group_id)) return;
+        $this->dispatch('confirm-action',
+            title: 'Remove link?',
+            text: 'This will decouple the application from the current liked group.',
+            icon: 'warning',
+            confirmText: 'Yes, Remove it!',
+            componentId: $this->getId(),
+            action: 'confirmRemoveLink',
+            // params: $this->application->id // Any data the method needs
+        );
+    }
+
+    public function confirmRemoveLink()
+    {
+        $this->loadApplication();
+
+        if (is_null($this->application->phaseApplication->group_id)) return;
 
         try {
             $this->appService->unLinkFromMasterGroup($this->application);
             $this->linkedGroup = null;
+
+            $this->eligibility = [
+                'min' => 50000,
+                'max' => 100000,
+                'balance' => 0,
+                'can_borrow' => true
+            ];
             $this->dispatch('flash-success', message: 'Application Successfully unlinked from master group');
             $this->refreshData();
         } catch (ValidationException $e) {
@@ -209,18 +304,35 @@ class ApplicationView extends Component
             );
         });
 
-        //dd($this->application->groupMembers);
+        //  dd($this->application->phaseApplication);
         $this->groupMembers = $this->application->groupMembers;
 
+        //dd($this->application);
         $this->linkedGroup = null;
 
         // if a group is linked the load also its relations
-        if ($this->application->link_status === 'linked')
-            $this->linkedGroup = $this->defaultService->getGroupWithMetrics($this->application->linkedGroup);
+        if (!is_null($this->application->phaseApplication)){
+            if ($this->application->link_status === 'linked' && !is_null($this->application->phaseApplication->group_id)){
 
-        //if (isset(($this->application->groupMembers->first()->is_defaulter))) dd('set', $this->application->groupMembers->first()->is_defaulter);
-        if ($this->application->groupMembers->first() && !isset($this->application->groupMembers->first()->is_defaulter)) {
-            $this->loadDefaultMembers(); // Manually re-run the hydration logic
+                $this->linkedGroup = $this->defaultService->getGroupWithMetrics($this->application->phaseApplication->linkedGroup);
+
+                // dd($this->application->phaseApplication);
+                $this->eligibility = $this->analysisService->getEligibilityData($this->linkedGroup);
+                $this->groupCode = $this->linkedGroup->code;
+            }
+        }
+
+
+    }
+
+    public function generateGfs()
+    {
+        $gfs = $this->appService->generateGfsCode($this->application, $this->constituency);
+        $this->groupCode = $gfs['groupCode'];
+        $this->gfsCode = $gfs['gfscode'];
+
+        if ($this->application->link_status === 'linked' && !is_null($this->application->phaseApplication?->group_id)){
+            $this->groupCode = $this->linkedGroup->code;
         }
     }
 
@@ -231,6 +343,11 @@ class ApplicationView extends Component
     public function findMatches()
     {
         $this->loadApplication();
+
+        if ($this->application->phaseApplication === null){
+            $this->dispatch('flash-error', message: "Assign application to a phase first");
+            return;
+        }
         $this->isSearching = true;
 
         $this->suggestedMatches = $this->appService->findMatchingGroups($this->application);
@@ -244,8 +361,7 @@ class ApplicationView extends Component
     public function confirmLink($groupId)
     {
         try {
-            unset($this->riskFlags);
-            unset($this->riskFlagsCount);
+            $this->loadApplication();
 
             $this->appService->linkToMasterGroup($this->application, $groupId);
 
@@ -374,7 +490,190 @@ class ApplicationView extends Component
         }
     }
 
-    public function approve()
+    public function approve ()
+    {
+        $this->loadApplication();
+        $this->dispatch('open-modal', name: 'modal-approve');
+    }
+
+    public function confirmApproval()
+    {
+        // Preliminary check for balance
+        if (!$this->eligibility['can_borrow']) {
+            $this->addError('approvalAmount', "This group has an outstanding balance of Kes " . number_format($this->eligibility['balance']));
+            return;
+        }
+
+        $rules = [
+            'approvalAmount'   => "required|numeric|min:{$this->eligibility['min']}|max:{$this->eligibility['max']}",
+            'approvalComments' => 'nullable|string|max:500',
+            'selectedWardId'   => !$this->application->ward_id ? 'required' : 'nullable',
+        ];
+
+        if (!$this->application->phaseApplication->group_id) {
+            $rules['groupCode'] = [
+                'required',
+                'numeric',
+                'min:1',
+                'regex:/^\d{3,}$/',
+                function ($attribute, $value, $fail) {
+                    // A. Check Master Groups in this Constituency
+                    $existingInMaster = Group::whereHas('ward', function ($query) {
+                        $query->where('constituency_code', $this->constituency->constituency_code);
+                    })
+                    ->where('code', $value) // Use $value from the closure
+                    ->exists();
+
+                    if ($existingInMaster) {
+                        $fail("The Group Code {$value} is already registered to another group in this constituency.");
+                        return;
+                    }
+
+                    // B. Check Other Pending Applications in this Constituency
+
+                    $existingInPhase = PhaseApplication::where('group_code', $value)
+                        ->where('temp_application_id', '!=', $this->application->id) // Exclude current app
+                        ->whereHas('reviewPhase', function ($query) {
+                            $query->where('constituency_code', $this->constituency->constituency_code);
+                        })
+                        ->exists();
+
+                    if ($existingInPhase) {
+                        $gd=$this->groupCode+1;
+                        $fail("The Group Code {$value} is reserved by another pending application.Try {$gd}");
+                    }
+                },
+            ];
+        }
+
+        $this->validate($rules, [
+            'selectedWardId.required' => "You need to select a ward",
+            'approvalAmount.max' => "The maximum allowed loan is KES " . number_format($this->eligibility['max']),
+            'approvalAmount.min' => "Approved amount cannot be less than kes 50,000.00",
+        ]);
+
+        if (!$this->application->phaseApplication) {
+            $this->addError('approvalAmount', "This application must be assigned to a Disbursement Phase before approval.");
+            return;
+        }
+
+        if (!in_array($this->application->link_status, ['attempted_no_match', 'linked'])) {
+            $this->addError('approvalAmount', "You must attempt to link this application to a group (or confirm it is a new group) before approval.");
+            return;
+        }
+
+        // dd('approve');
+        // $this->dispatch('close-modal', name: 'modal-approve');
+        $groupName = strtoupper($this->application->group_name);
+        $formattedAmount = number_format($this->approvalAmount, 2);
+        $fullGfsCode = $this->gfsCode . $this->groupCode; // The generated code
+
+
+        $this->dispatch('confirm-approve-action',
+            title       : 'Confirm Approval',
+            html        :  "<div class='text-left px-3'>
+                                <p class='mb-2'>You are approving an application for:</p>
+                                <h6 class='text-primary mb-3'><strong>{$groupName}</strong></h6>
+                                <table class='table table-sm table-bordered'>
+                                    <tr class='bg-light'>
+                                        <td><strong>Approved Amount:</strong></td>
+                                        <td class='text-success'><strong>KES {$formattedAmount}</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Group Code:</strong></td>
+                                        <td>{$this->groupCode}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>GFS Code:</strong></td>
+                                        <td><small>{$fullGfsCode}</small></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Phase:</strong></td>
+                                        <td>{$this->application->phaseApplication->reviewPhase->phase}</td>
+                                    </tr>
+                                </table>
+                            </div>",
+            icon        : 'question',
+            confirmText : 'Yes, Approve Now',
+            componentId : $this->getId(),
+            action      : 'submitApproval',
+            params      : null
+        );
+    }
+
+    public function submitApproval()
+    {
+
+        try {
+            DB::transaction(function () {
+                $this->application->update([
+                    'status'           => 'under_hq_review',
+                    'ward_id'          => $this->selectedWardId ?? $this->application->ward_id,
+                    'risk_level'       => $this->assessmentData['overall_category'],
+                    'assessment_data'  => $this->assessmentData,
+                ]);
+
+
+                $this->application->phaseApplication->update([
+                    'temp_application_id' => $this->application->id,
+                    'status'              => 'pending_hq_approval',
+                    'user_id'             => auth()->id(),
+                    'level'               => 'constituency',
+                    'action'              => 'recommended_for_approval',
+                    'amount_approved'     => $this->approvalAmount,
+                    'comments'             => $this->approvalComments,
+                    'group_code'       => $this->groupCode ?? $this->application->phaseApplication->group_code,
+                    'gfs_code'         => $this->gfsCode.$this->groupCode ?? $this->application->phaseApplication->group_code,
+                ]);
+
+                activity()
+                    ->performedOn($this->application)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'amount'     => $this->approvalAmount,
+                        'risk_level' => $this->assessmentData['overall_category'],
+                        'ip_address' => request()->ip()
+                    ])
+                    ->log("Recommended application for HQ review.");
+
+            });
+
+            $nextApp = PhaseApplication::select(['id', 'loan_phase_id', 'temp_application_id', 'status', 'amount_applied'])
+                ->with(['tempApplication' => function ($query) {
+                    $query->select(['id', 'group_name', 'application_id']); // Include PK/FK for the link to work
+                }])
+                ->where('loan_phase_id', $this->application->phaseApplication->loan_phase_id)
+                ->where('status', 'pending')
+                ->where('id', '!=', $this->application->phaseApplication->id)
+                ->first();
+
+            // dd($nextApp);
+
+            $this->reset(['approvalAmount', 'approvalComments', 'groupCode', 'selectedWardId']);
+
+            $this->dispatch('flash-success', message: 'Applications approved successfully');
+
+            $this->dispatch('approval-completed',
+                message: 'Application approved successfully!',
+                nextId: $nextApp ? $nextApp->temp_application_id : null,
+                isPhaseComplete: is_null($nextApp),
+                // Pass the summary details for the next application
+                nextSummary: $nextApp ? [
+                    'group_name' => $nextApp->tempApplication->group_name,
+                    'app_id' =>   $nextApp->tempApplication->application_id,
+                    'amount' =>   number_format($nextApp->amount_applied, 2)
+                ] : null
+            );
+
+            $this->refreshData();
+
+        } catch (\Exception $e) {
+            Log::error("Constituency Approval Error: " . $e->getMessage());
+            $this->addError('approvalAmount', "Internal error. Please check logs.");
+        }
+    }
+
+    public function confirmApprove()
     {
         // Your approval logic here
         $this->application->update(['status' => 'approved']);
@@ -397,49 +696,33 @@ class ApplicationView extends Component
     }
 
     #[Computed]
+    public function riskAssessment(): array
+    {
+        $group = $this->linkedGroup ?? null;
+
+        $this->assessmentData = (array) $this->defaultService->calculateGroupRiskLevel(
+            $group,
+            $this->application->groupMembers
+        );
+        return $this->assessmentData;
+    }
+
+    #[Computed]
     public function riskFlags()
     {
-        // Only show if group is linked
-        if (!$this->application->group_id || $this->linkedGroup === null) {
-            return ['Group not linked - cannot assess risk.'];
-        }
-
-        $flags = [];
-        $group = $this->linkedGroup;
-        //dd($group);
-        if ($group->currentLoan->is_defaulted) {
-            $flags[] = "Group is a defaulter: {$group->defaulted_count} defaulted loans, KES " .
-                       number_format($group->total_arrears) . " in arrears.";
-        }
-
-        $serviceRisks = $this->defaultService->getRiskFlags($group);
-
-
-        // // 3. Cross-default members (members in other defaulted groups)
-        // // Cross-default members (optimized: only check application members)
-        // $appMemberIds = $this->application->groupMembers->pluck('id_number')->toArray();
-        // $crossDefaults = 0;// $this->defaultService->getCrossDefaultMembers($appMemberIds, $group->id);
-
-        // $crossCount = 0;//$crossDefaults->count();
-        // if ($crossCount > 0) {
-        //     $flags[] = "$crossCount member(s) have defaulted loans in other groups.";
-        // }
-
-        // return $flags;
-
-        // // Optional: Add more flags (e.g. overdue loans not defaulted yet)
-        // $overdueLoans = $group->currentLoan()->where('total_arrears', '>', 0)->where('is_defaulted', false)->count();
-        // if ($overdueLoans > 0) {
-        //     $flags[] = "$overdueLoans overdue loan(s) (not yet defaulted).";
-        // }
-
-        return array_merge($flags, $serviceRisks);
+        return $this->riskAssessment['reasons'] ?? [];
     }
 
     #[Computed]
     public function riskFlagsCount()
     {
         return count($this->riskFlags);
+    }
+
+    #[Computed]
+    public function riskCategory(): string
+    {
+        return $this->riskAssessment['overall_category'] ?? 'Low Risk';
     }
 
     public function getMemberConflictCountProperty()
@@ -463,7 +746,10 @@ class ApplicationView extends Component
         $this->dispatch('open-modal', name: 'memberModal');
     }
 
-
+    public function rendered ()
+    {
+        //dd('rendered');
+    }
 
     public function render()
     {

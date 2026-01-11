@@ -30,4 +30,9 @@ class GroupMember extends Model
     {
         return $this->belongsTo(GroupLoan::class, 'group_loans_id', 'id');
     }
+
+    public function getDefaultArrearsAttribute(): float
+    {
+        return (float) ($this->groupLoan->total_arrears ?? 0);
+    }
 }

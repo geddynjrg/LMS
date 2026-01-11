@@ -108,7 +108,10 @@ class LoansController extends Controller
     }
 
     public function app_phases( Request $request, County $county, Constituency $constituency) {
-
+        return View('loan.app.phases', [
+            'county' => $county,
+            'constituency' => $constituency
+        ]);
     }
 
     // Method to handle file download

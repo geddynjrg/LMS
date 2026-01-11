@@ -13,6 +13,7 @@ use App\Models\GroupLoan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Services\Loan\DefaultAnalysisService;
+use App\Models\PhaseApplication;
 
 class TempApplicationService
 {
@@ -47,10 +48,12 @@ class TempApplicationService
     {
         $applicationId = $application->application_id;
         $constituencyCode = $application->constituency_code;
+        $groupId = $application->group_id;
 
         Cache::forget("temp_app_{$applicationId}_{$constituencyCode}");
         Cache::forget("temp_app_detail_{$applicationId}_{$constituencyCode}");
         cache::forget("temp_app_default_members_{$applicationId}_{$constituencyCode}");
+        cache::forget("temp_app_linked_group_{$groupId}");
     }
 
     /**
@@ -89,21 +92,27 @@ class TempApplicationService
     */
     public function getStats(string $constituencyCode): array
     {
-        return Cache::remember(
-            "temp_app_stats_{$constituencyCode}",
-            now()->addMinutes(10),
+        return Cache::remember("temp_app_stats_{$constituencyCode}", now()->addMinutes(10),
             function () use ($constituencyCode) {
-                $base = TempApplication::where('constituency_code', $constituencyCode);
+                $stats = TempApplication::where('constituency_code', $constituencyCode)
+                    ->selectRaw("
+                        COUNT(*) as total,
+                        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+                        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                    ")
+                    ->first();
 
-                $total = $base->count();
-                $inPhase = $base->clone()->has('phaseApplication')->count();
+                // Count 'in_phase' by checking the existence of the relationship
+                $inPhaseCount = TempApplication::where('constituency_code', $constituencyCode)
+                    ->whereHas('phaseApplication')
+                    ->count();
 
                 return [
-                    'total' => $total,
-                    'in_phase' => $inPhase,
-                    'not_in_phase' => $total - $inPhase,
-                    'approved' => $base->clone()->where('status', 'approved')->count(),
-                    'rejected' => $base->clone()->where('status', 'rejected')->count(),
+                    'total' => $stats->total ?? 0,
+                    'approved' => $stats->approved ?? 0,
+                    'rejected' => $stats->rejected ?? 0,
+                    'in_phase' => $inPhaseCount,
+                    'not_in_phase' => ($stats->total ?? 0) - $inPhaseCount,
                 ];
             }
         );
@@ -115,6 +124,17 @@ class TempApplicationService
     public function getFilteredQuery(string $constituencyCode, array $filters): Builder
     {
         return TempApplication::query()
+            ->select([
+                'id',
+                'application_id',
+                'group_name',
+                'owner_identifier',
+                'loan_amount',
+                'group_registration_number',
+                'status',
+                'created_at',
+                'constituency_code'
+            ])
             ->where('constituency_code', $constituencyCode)
             ->when($filters['search'] ?? null, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
@@ -136,7 +156,10 @@ class TempApplicationService
             })
             ->when($filters['date_from'] ?? null, fn($q, $d) => $q->whereDate('created_at', '>=', $d))
             ->when($filters['date_to'] ?? null, fn($q, $d) => $q->whereDate('created_at', '<=', $d))
-            ->with(['phaseApplication.reviewPhase']); // eager load useful relations
+            ->with([
+                'phaseApplication:id,temp_application_id,loan_phase_id,status',
+                'phaseApplication.reviewPhase:id,phase,status' // Load only needed columns
+            ]);
     }
 
     /**
@@ -173,15 +196,15 @@ class TempApplicationService
         return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($applicationId, $constituencyCode) {
             $application = TempApplication::query()
                 ->where('application_id', $applicationId)
-                ->where('constituency_code', $constituencyCode) // security: same constituency only
+                ->where('constituency_code', $constituencyCode)
                 ->with([
-                    'groupMembers',                    // all members + their files
+                    'groupMembers',
                     'activities' => function($query) {
                         $query->with('causer')->latest();
                     },
-                    'expenses',                        // business expenses
-                    'phaseApplication.reviewPhase',   // assigned phases
-                    // 'phaseApplication.reviews.user',  // future: individual reviews (if you add later)
+                    'expenses',
+                    'phaseApplication',
+                    'phaseApplication.linkedGroup',
                 ])
                 ->firstOrFail();
 
@@ -213,7 +236,11 @@ class TempApplicationService
 
             // Attach comprehensive data to the object
             $appMember->is_defaulter = !is_null($history);
-            $appMember->default_history = $history ? $history->groupMembers : collect();
+
+            $appMember->default_history = $history ? $history->groupMembers->filter(function ($gm) {
+                // Ensure groupLoan exists and is_defaulted is true
+                return $gm->groupLoan && $gm->groupLoan->is_defaulted === 1;
+            }) : collect();
 
             return $appMember;
         });
@@ -317,6 +344,12 @@ class TempApplicationService
     */
     public function linkToMasterGroup(TempApplication $application, int $groupId): void
     {
+        if (is_null($application->phaseApplication === null)){
+            throw ValidationException::withMessages([
+                'group' => 'You Must Assigng the application to a phase first',
+            ]);
+        }
+
         $group = Group::findOrFail($groupId);
 
         //  Check if group is in same constituency
@@ -327,37 +360,54 @@ class TempApplicationService
         }
 
         // Check if already linked
-        if ($application->group_id) {
+        if ($application->phaseApplication->group_id) {
             throw ValidationException::withMessages([
                 'group' => 'Application is already linked to a group.',
             ]);
         }
 
+        // check if another application is already linked to group in the same phase
+        $existsInPhase = PhaseApplication::where('loan_phase_id', $application->phaseApplication->loan_phase_id)
+            ->where('group_id', $groupId)
+            ->exists();
+
+        if ($existsInPhase) {
+            throw ValidationException::withMessages([
+                'group' => 'APPLICATION NOT LINKED: This Group has already been assigned to a different application in this funding phase.',
+            ]);
+        }
+
+        // dd($group);
+
         DB::transaction(function () use ($application, $group) {
-            $application->update([
+            $application->phaseApplication->update([
                 'group_id' => $group->id,
-                'link_status' => 'linked',
+                'group_code' => $group->code,
             ]);
 
-            $this->invalidateApplicationCache($application);
+            $application->update([
+                'link_status' => 'linked',
+            ]);
         });
     }
 
     public function unLinkFromMasterGroup(TempApplication $application): void
     {
-        if (is_null($application->group_id)) {
+        if (is_null($application->phaseApplication->group_id)) {
             throw ValidationException::withMessages([
                 'application' => 'This application is not linked to any group.',
             ]);
         }
 
         DB::transaction(function () use ($application) {
-            $application->update([
+            $application->phaseApplication->update([
                 'group_id' => null,
-                'link_status' => 'not_attempted',
+                'group_code' => null,
             ]);
 
-            $this->invalidateApplicationCache($application);
+            $application->update([
+                'link_status' => 'not_attempted',
+            ]);
         });
 
     }
@@ -442,11 +492,6 @@ class TempApplicationService
                 'google_view_url'   => $this->getGoogleDocsViewerUrl($viewUrl, $file['data']['original_filename'] ?? ''),
             ];
         }
-
-        Log::info('Processed files for application', [
-            'application_id' => $application->application_id,
-            'count'          => count($processedFiles),
-        ]);
 
         return $processedFiles;
     }
@@ -669,7 +714,7 @@ class TempApplicationService
 
 
             // Threshold: Only return if score is above 50%
-            if ($finalScore >= 40) {
+            if ($finalScore >= 45) {
                 $group->match_score = $finalScore;
                 $group->phone_matched = $phoneMatch;
                 $group->id_matches = $idMatchCount;
@@ -710,8 +755,7 @@ class TempApplicationService
             ->where(function($q) use ($term) {
                 $q->where('name', 'like', "%{$term}%")
                 ->orWhere('code', 'like', "%{$term}%")
-                ->orWhere('reg_number', 'like', "%{$term}%")
-                ->orWhere('gfs_code', 'like', "%{$term}%");
+                ->orWhere('reg_number', 'like', "%{$term}%");
             })
             ->with(['ward', 'currentLoan.groupMembers.member', 'currentLoan.loanPhase'])
             ->get()
@@ -721,5 +765,45 @@ class TempApplicationService
                 $group->match_reasons = [['icon' => 'fa-search', 'text' => 'Manual Search Match', 'class' => 'text-primary']];
                 return $group;
             });
+    }
+
+    // generate gfscode
+    public function generateGfsCode($application, $constituency)
+    {
+        $maxGroupCode = Group::whereHas('ward', function($query) use ($constituency){
+                $query->where('constituency_code', $constituency->constituency_code);
+            })
+            ->max(DB::raw('CAST(code AS UNSIGNED)')) ?? 0;
+
+        $maxPhaseCode = PhaseApplication::whereHas('reviewPhase', function($query) use ($constituency){
+                $query->where('constituency_code', $constituency->constituency_code);
+            })
+            ->max(DB::raw('CAST(group_code AS UNSIGNED)')) ?? 0;
+
+        $maxCode = max($maxGroupCode, $maxPhaseCode);
+
+        // 2. Increment
+        $nextNumber = ($maxCode) ? $maxCode + 1 : 1;
+
+        // 3. Format with leading zeros (001, 002, etc.)
+        $groupCode = str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+
+        // 4. Mapping for the GFS String
+        $county_code = $constituency->county->county_code;
+        $constituency_code = $constituency->constituency_code;
+
+        $categories = ['Youth' => '1', 'Women' => '2', 'PWD' => '3'];
+        $sectors = ['Trade' => '1', 'Service' => '2', 'Manufacturing' => '3', 'Agriculture' => '4', 'Other' => '5'];
+
+        $catId = $categories[ucfirst((strtolower($application->nature_of_group)))] ?? '0';
+        $secId = $sectors[ucfirst(strtolower($application->business_type[0]))] ?? '0';
+
+        // 5. Build the prefix and attach the padded code
+        $gfscode = "4-{$county_code}-{$constituency_code}-411020{$catId}-{$secId}0{$catId}-";
+
+        return [
+            'groupCode' => $groupCode,
+            'gfscode' => $gfscode,
+        ];
     }
 }

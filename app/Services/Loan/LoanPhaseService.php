@@ -78,6 +78,8 @@ class LoanPhaseService
      */
     public function assignApplications(LoanPhase $phase, $applicationIds): void
     {
+        $errors = [];
+
         if (!is_array($applicationIds)) {
             $applicationIds = [$applicationIds];
         }
@@ -88,31 +90,56 @@ class LoanPhaseService
             ]);
         }
 
-        DB::transaction(function () use ($phase, $applicationIds) {
-            foreach ($applicationIds as $id) {
-                $app = TempApplication::findOrFail($id);
+        DB::transaction(function () use ($phase, $applicationIds, &$errors) {
+            $newApps = TempApplication::whereIn('id', $applicationIds)
+                ->select(['id', 'group_name', 'loan_amount', 'group_registration_number'])
+                ->get();
 
-                if (!$app) {
-                    continue; // or throw if you prefer strict mode
+            $existingRegNumbers = TempApplication::whereHas('phaseApplication', function ($query) use ($phase) {
+                    $query->where('loan_phase_id', $phase->id);
+                })
+                ->pluck('group_registration_number')
+                ->filter()
+                ->toArray();
+
+            $dataToInsert = [];
+            $now = now();
+
+            foreach ($newApps as $app) {
+                // Check for duplicate group registration in this phase
+                if (in_array($app->group_registration_number, $existingRegNumbers)) {
+                    $errors[] = "This application with Reg: no. {$app->group_registration_number} is already in {$phase->phase}";
+                    continue;
                 }
 
-                // Prevent duplicates
-                PhaseApplication::firstOrCreate(
-                    [
-                        'loan_phase_id'        => $phase->id,
-                        'temp_application_id'  => $id,
-                    ],
-                    [
-                        'amount_applied'      => $app->loan_amount,
-                        'committee_decision'  => 'pending',
-                    ]
-                );
+                $dataToInsert[] = [
+                    'loan_phase_id'       => $phase->id,
+                    'temp_application_id' => $app->id,
+                    'amount_applied'      => $app->loan_amount,
+                    'status'  => 'pending',
+                    'created_at'          => $now,
+                    'updated_at'          => $now,
+                ];
 
-                $this->invalidateApplicationCache($app);
+                // Add to tracker so we don't allow duplicates within the same selection batch
+                $existingRegNumbers[] = $app->group_registration_number;
             }
 
-            $phase->calculateStats();
+            if (!empty($dataToInsert)) {
+                PhaseApplication::insert($dataToInsert);
+
+                activity('phase-assignment')
+                    ->performedOn($phase)
+                    ->withProperties(['added' => count($dataToInsert), 'errors' => $errors])
+                    ->log("Assigned applications with " . count($errors) . " skips.");
+            }
         });
+
+        if (!empty($errors)) {
+            throw ValidationException::withMessages([
+                'applications' => $errors,
+            ]);
+        }
     }
 
     /**
@@ -141,13 +168,17 @@ class LoanPhaseService
         DB::transaction(function () use ($phaseApplication, $phase) {
             $phaseApplication->delete();
             $phase->calculateStats();
+
+            $app = TempApplication::findOrFail($phaseApplication->temp_application_id);
+
+            if ($app) {
+                $app->update([
+                    'link_status' => 'not_attempted',
+                ]);
+            }
         });
 
-        $app = TempApplication::findOrFail($phaseApplication->temp_application_id);
 
-        if ($app) {
-            $this->invalidateApplicationCache($app);
-        }
     }
 
     /**
@@ -193,7 +224,16 @@ class LoanPhaseService
     public function getAllPhasesForConstituency(string $constituencyCode)
     {
         return LoanPhase::where('constituency_code', $constituencyCode)
-            ->withCount('phaseApplications')
+            ->select('id', 'phase', 'status')
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
+
+    public function getDetailedPhases(string $constituencyCode)
+    {
+        return LoanPhase::where('constituency_code', $constituencyCode)
+            ->with(['phaseApplications'])
             ->orderBy('created_at', 'desc')
             ->get();
     }

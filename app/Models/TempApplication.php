@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Models\Activity;
@@ -75,7 +76,12 @@ class TempApplication extends Model
         'external_application_id',
         'raw_data',
         'group_id',
+        'group_code',
+        'gfs_code',
         'link_status',
+        'risk_level',
+        'assessment_data',
+        'amount_approved',
     ];
 
     protected $casts = [
@@ -92,6 +98,11 @@ class TempApplication extends Model
         'date_registered' => 'date',
         'last_sync_at' => 'datetime',
         'raw_data' => 'array',
+        'assessment_data' => 'array',
+    ];
+
+    protected $hidden = [
+        'raw_data',
     ];
 
     // protected $with  = [
@@ -109,17 +120,14 @@ class TempApplication extends Model
         return $this->hasMany(TempGroupMember::class, 'temp_application_id');
     }
 
+    public function applicationApprovals(): HasMany
+    {
+        return $this->hasMany(TempApplicationApproval::class, 'temp_application_id');
+    }
+
     public function expenses()
     {
         return $this->hasMany(TempExpense::class, 'temp_application_id');
-    }
-
-    /**
-     * Get the permanent Group record linked to this application.
-     */
-    public function linkedGroup(): BelongsTo
-    {
-        return $this->belongsTo(Group::class, 'group_id');
     }
 
     public function files()
@@ -226,6 +234,46 @@ class TempApplication extends Model
                !empty($this->list_of_members_certificate) ||
                !empty($this->group_meeting_minutes) ||
                !empty($this->group_credit_history);
+    }
+
+
+    /**
+     * Accessor for 'current_phase'
+     */
+    public function getCurrentPhaseAttribute()
+    {
+        // Check if the relationship exists and has a name
+        return $this->phaseApplication?->reviewPhase?->name ?? 'Unassigned';
+    }
+
+    /**
+     * Accessor for 'approval_progress' (Since you appended this too)
+     */
+    public function getApprovalProgressAttribute()
+    {
+        // Example logic: if approved return 100, if pending 50, etc.
+        if ($this->status === 'approved') return 100;
+        if ($this->phaseApplication) return 50;
+        return 10;
+    }
+
+    /**
+     * Getting detailed stats for a specific application
+     */
+    public function getStatsAttribute(): array
+    {
+        // Check if this application is in a phase
+        $phaseApp = $this->phaseApplication;
+
+        return [
+            'is_assigned' => !is_null($phaseApp),
+            'phase_name' => $phaseApp?->reviewPhase?->phase ?? 'Unassigned',
+            'phase_status' => $phaseApp?->reviewPhase?->status ?? 'N/A',
+            'decision' => $phaseApp?->status ?? 'Pending',
+            'is_locked' => $phaseApp?->reviewPhase?->status !== 'draft' && !is_null($phaseApp),
+            'summary' => $this->only(['application_id', 'group_name', 'status']),
+            'days_since_submission' => $this->created_at->diffInDays(now()),
+        ];
     }
 
 }

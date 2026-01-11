@@ -185,7 +185,7 @@
                             Str::slug($currentConstituency->slug),
                         ])}}" class="nav-link {{ Route::currentRouteName() == 'const.app.app_phases' ? 'active':''}}">
                             <i class="fas fa-layer-group nav-icon"></i>
-                            <p>Phases</p>
+                            <p>Tasks</p>
                         </a>
                     </li>
 
