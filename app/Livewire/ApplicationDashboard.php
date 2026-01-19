@@ -5,6 +5,7 @@ namespace App\Livewire;
 use Livewire\Component;
 use Livewire\WithPagination;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Url;
 use App\Models\TempApplication;
 use App\Models\LoanPhase;
 use Maatwebsite\Excel\Facades\Excel;
@@ -13,6 +14,7 @@ use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class ApplicationDashboard extends Component
 {
@@ -25,23 +27,37 @@ class ApplicationDashboard extends Component
 
     protected $paginationTheme = 'bootstrap';
 
-    // Filters
+    // test
+    public $selectedOption;
+
+    #[Url(except: '')]
     public $search = '';
+
+    #[Url(except: '')]
     public $statusFilter = '';
+
+    #[Url(except: '')]
     public $phaseFilter = '';
+
+    #[Url(except: '')]
     public $dateFrom = '';
+
+    #[Url(except: '')]
     public $dateTo = '';
+
     public $title = '';
+
+    #[Url(except: 15)]
     public $perPage = 15;
 
     // Bulk actions
+    #[Url(except: [], history: true)]
     public $selectedApplications = [];
+
     public $selectAll = false;
 
     // Quick phase assignment
-    public $showQuickAssignModal = false;
     public $selectedPhaseForQuickAssign = '';
-    public $showCreatePhaseModal = false;
 
     // Phase creation
     public $phaseName = '';
@@ -59,7 +75,7 @@ class ApplicationDashboard extends Component
 
     public function mount($constituency)
     {
-        $this->constituency = $constituency;
+        $this->constituency = $constituency->load('county');
         $this->reviewDate = now()->addDays(7)->format('Y-m-d');
     }
 
@@ -84,6 +100,17 @@ class ApplicationDashboard extends Component
     {
         $this->loadSelectedAppsList();
     }
+
+    public function updatedStatusFilter() { $this->resetPage(); }
+
+    public function updatedPhaseFilter() { $this->resetPage(); }
+
+    public function updatedSearch() { $this->resetPage(); }
+
+    public function updatedDateFrom() { $this->resetPage(); }
+
+    public function updatedDateTo() { $this->resetPage(); }
+
 
     public function loadSelectedAppsList()
     {
@@ -126,10 +153,18 @@ class ApplicationDashboard extends Component
         $this->reset(['search', 'statusFilter', 'phaseFilter', 'dateFrom', 'dateTo', 'selectedApplications', 'selectAll']);
         $this->selectedAppsList = [];
         $this->resetPage();
+        $this->dispatch('clear-selects');
     }
 
     public function refreshData()
     {
+        $appsTag = config('cache.tags.applications.constituency' . $this->constituency->constituency_code);
+
+        $this->phaseService->invalidatePhasesCache(
+            $this->constituency->constituency_code
+        );
+
+        Cache::tags([$appsTag])->flush();
         $code = $this->constituency->constituency_code;
         $this->appService->invalidateStatsCache($code);
         unset($this->stats);
@@ -151,6 +186,17 @@ class ApplicationDashboard extends Component
 
     protected function getFilteredApplicationsQuery()
     {
+        $appsTag = config('cache.tags.applications.constituency' . $this->constituency->constituency_code);
+
+        if (empty($this->getFilters())) {
+            $cacheKey = "applications_list_{$this->constituency->constituency_code}_page_{$this->getPage()}";
+            return Cache::tags([$appsTag])->remember($cacheKey, now()->addMinutes(15), function () {
+                return $this->appService->getFilteredQuery(
+                        $this->constituency->constituency_code
+                    )->orderBy('created_at', 'desc');
+            });
+        }
+
         return $this->appService->getFilteredQuery(
             $this->constituency->constituency_code,
             $this->getFilters()
@@ -190,12 +236,13 @@ class ApplicationDashboard extends Component
 
         try {
             $result = $this->phaseService->createPhase($validated, $this->constituency->constituency_code);
-            Log::info('create results'. $result);
-            $this->showCreatePhaseModal = false;
-            $this->reset(['phaseName', 'reviewDate', 'reviewVenue']);
-            $this->reviewDate = now()->addDays(7)->format('Y-m-d');
+
+            $this->dispatch('close-modal', name: 'create-phase-modal');
+            $this->reset(['phaseName', 'reviewVenue']);
+
 
             $this->dispatch('flash-success', message: 'Phase created successfully');
+            $this->dispatch('app-updated')->to(SideNavBadge::class);
             $this->refreshData();
         } catch (ValidationException $e) {
             foreach ($e->errors() as $field => $messages) {
@@ -231,15 +278,18 @@ class ApplicationDashboard extends Component
 
             $this->phaseService->bulkAssignApplications($phase, $unassignedIds);
 
-            $this->reset(['selectedApplications', 'selectAll', 'showQuickAssignModal', 'selectedPhaseForQuickAssign']);
+            $this->reset(['selectedApplications', 'selectAll', 'selectedPhaseForQuickAssign']);
 
             $this->dispatch('flash-success', message: 'Applications assigned to phase successfully');
+
+            $this->dispatch('close-modal', name: 'assign-to-phase-modal');
+
             // Invalidate after bulk change
             $this->appService->invalidateStatsCache($this->constituency->constituency_code);
             unset($this->stats);
             unset($this->activePhases);
 
-            $this->resetPage();
+            $this->refreshData();
         } catch (ValidationException $e) {
             foreach ($e->errors() as $field => $messages) {
                 foreach ($messages as $message) {
@@ -291,27 +341,17 @@ class ApplicationDashboard extends Component
 
     public function getStatusBadgeText($status)
     {
-        $texts = [
-            'submitted' => 'Submitted',
-            'under_review' => 'Under Review',
-            'approved' => 'Approved',
-            'rejected' => 'Rejected',
-            'disbursed' => 'Disbursed',
-            'closed' => 'Closed',
-        ];
-        return $texts[$status] ?? ucfirst($status);
+        return $this->appService->getStatusText($status);
     }
 
-    public function assignSingleToPhase($applicationId)
+    public function assignToPhaseModal($applicationId)
     {
         // add to selected applications
         $this->selectedApplications = [...$this->selectedApplications, $applicationId];
 
-        // Update the display list immediately (since updatedSelectedApplications() does this)
         $this->loadSelectedAppsList();
 
-        // Open modal
-        $this->showQuickAssignModal = true;
+        $this->dispatch('open-modal', name: 'assign-to-phase-modal');
     }
 
     public function isLoading()
@@ -321,12 +361,17 @@ class ApplicationDashboard extends Component
 
     public function exportApplications()
     {
-        $filters = $this->getFilters();
+        $query = $this->getFilteredApplicationsQuery();
 
         return Excel::download(
-            new ApplicationsExport($this->constituency->constituency_code, $filters),
+            new ApplicationsExport($query, $this->constituency),
             'loan-applications-' . now()->format('Y-m-d-His') . '.xlsx'
         );
+    }
+
+    public function createNewPhase()
+    {
+        $this->dispatch('open-modal', name: 'create-phase-modal');
     }
 
     public function render()

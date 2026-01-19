@@ -3,6 +3,7 @@
     'icon' => 'fas fa-check',
     'color' => 'success',
     'target' => null,
+    'defaultLabel' => 'Processing...'
 ])
 
 <button
@@ -10,7 +11,9 @@
         'type' => 'submit',
         'class' => "btn btn-{$color} shadow"
     ]) }}
+    wire:click="{{ $target }}"
     wire:loading.attr="disabled"
+    wire:navigate
     @if($target) wire:target="{{ $target }}" @endif
 >
     <span wire:loading.remove @if($target) wire:target="{{ $target }}" @endif>
@@ -26,6 +29,6 @@
     </span>
 
     <span wire:loading @if($target) wire:target="{{ $target }}" @endif>
-        Processing...
+        {{ $defaultLabel }}
     </span>
 </button>

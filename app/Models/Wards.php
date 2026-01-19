@@ -20,4 +20,9 @@ class Wards extends Model
     {
         return $this->hasMany(Group::class, 'ward_id', 'id');
     }
+
+    public function tempApplications() : HasMany
+    {
+        return $this->hasMany(TempApplication::class, 'ward_id', 'id');
+    }
 }

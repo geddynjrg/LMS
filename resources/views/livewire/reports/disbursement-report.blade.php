@@ -4,7 +4,7 @@
     </div>
     <div class="card">
         <div class="card-header">
-          <h3 class="card-title">Loan Submission Form</h3>
+          <h3 class="card-title">Loan Submission Form 3</h3>
           <div class="btn-group float-right m-2" role="group">
             <button type="button" class="btn btn-primary mr-2" wire:click="export" wire:loading.attr="disabled">
                 <span wire:loading >loading...</span>
@@ -55,14 +55,13 @@
                 <th colspan="5">Financial Year: {{$date}}</th>
               </tr>
               <tr>
-                <th colspan="5">Initial or other loans applied,
-                    @if($group->groupLoans->count()>0)
-                        @foreach($group->groupLoans as $groupLoan)
-                        Kshs {{number_format($groupLoan->amount_issued)}}. Dated……{{$groupLoan->disbursement_date}}..,
-                        @endforeach
-                    @else
-                    in Kshs .....0... Dated……NIL..
-                    @endif
+                <th colspan="5">
+                    Initial or other loans applied:
+                    @forelse($group->groupLoans as $loan)
+                        Kshs {{ number_format($loan->amount_issued) }} ({{ $loan->disbursement_date }}){{ $loop->last ? '' : ', ' }}
+                    @empty
+                        N/A
+                    @endforelse
                 </th>
               </tr>
               <tr>

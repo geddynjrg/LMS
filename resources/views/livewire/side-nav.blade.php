@@ -159,8 +159,8 @@
                 </li>
               </ul>
           </li>
-            <li class="nav-item {{ Route::is('const.app*')? 'menu-open':''}}">
-                <a href="#" class="nav-link text-bold {{ Route::is('const.app*')? 'active':''}}">
+            <li class="nav-item {{ $nav == 'app' ? 'menu-open':''}}">
+                <a href="#" class="nav-link text-bold {{ $nav == 'app' ? 'active':''}}">
                     <i class="nav-icon fas fa-laptop-house"></i>
                     <p>
                         APPLICATIONS
@@ -168,26 +168,35 @@
                     </p>
                 </a>
                 <ul class="nav nav-treeview">
-                    <li class="nav-item">
-                        <a href="{{route('const.app.app_dashboard', [
-                            Str::slug($county->slug),
-                            Str::slug($currentConstituency->slug),
-                        ])}}" class="nav-link {{ Route::currentRouteName() == 'const.app.app_dashboard' ? 'active':''}}">
-                            <i class="fas fa-tachometer-alt nav-icon"></i>
-                            <p>Dashboard</p>
-                        </a>
-                    </li>
+                    <x-nav-link 
+                        route="const.app.app_dashboard" 
+                        :params="[Str::slug($county->slug), Str::slug($currentConstituency->slug)]"
+                        icon="fas fa-tachometer-alt"
+                    >
+                        Applications
+                        
+                        <x-slot:badgeSlot>
+                            <livewire:side-nav-badge 
+                                :constituencyCode="$currentConstituency->constituency_code" 
+                                type="not_linked" 
+                            />
+                        </x-slot:badgeSlot>
+                    </x-nav-link>
 
-                    <!-- NEW: Phase Management -->
-                    <li class="nav-item">
-                        <a href="{{route('const.app.app_phases', [
-                            Str::slug($county->slug),
-                            Str::slug($currentConstituency->slug),
-                        ])}}" class="nav-link {{ Route::currentRouteName() == 'const.app.app_phases' ? 'active':''}}">
-                            <i class="fas fa-layer-group nav-icon"></i>
-                            <p>Tasks</p>
-                        </a>
-                    </li>
+                    <x-nav-link 
+                        route="const.app.app_phases" 
+                        :params="[Str::slug($county->slug), Str::slug($currentConstituency->slug)]"
+                        icon="fas fa-layer-group"
+                    >
+                        Tasks
+                        
+                        <x-slot:badgeSlot>
+                            <livewire:side-nav-badge 
+                                :constituencyCode="$currentConstituency->constituency_code" 
+                                type="constituency_tasks" 
+                            />
+                        </x-slot:badgeSlot>
+                    </x-nav-link>
 
                     <!-- Dynamic: Review Session (only shows when active) -->
                     @php
@@ -271,7 +280,7 @@
                 </li>
             </ul>
           </li>
-          <li class="nav-item {{ Route::is('const.monitoring*')? 'menu-open':''}}">
+          {{-- <li class="nav-item {{ Route::is('const.monitoring*')? 'menu-open':''}}">
             <a href="#" class="nav-link text-bold {{ Route::is('const.monitoring*')? 'active':''}}">
 
               <i class="nav-icon fab fa-watchman-monitoring"></i>
@@ -300,7 +309,7 @@
                     </a>
                 </li>
             </ul>
-          </li>
+          </li> --}}
         @endif
         @hasrole('admin|super-admin')
         <li class="nav-item {{ Route::is('users.*')? 'menu-open':''}}">
@@ -372,3 +381,4 @@
   </div>
   <!-- /.sidebar-custom -->
 </aside>
+

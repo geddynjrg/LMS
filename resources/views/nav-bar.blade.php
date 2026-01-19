@@ -18,19 +18,19 @@
         <i class="fas fa-search"></i>
         </a>
         <div class="navbar-search-block">
-        <form class="form-inline">
-            <div class="input-group input-group-sm">
-            <input class="form-control form-control-navbar" type="search" placeholder="Search" aria-label="Search">
-            <div class="input-group-append">
-                <button class="btn btn-navbar" type="submit">
-                <i class="fas fa-search"></i>
-                </button>
-                <button class="btn btn-navbar" type="button" data-widget="navbar-search">
-                <i class="fas fa-times"></i>
-                </button>
-            </div>
-            </div>
-        </form>
+            <form class="form-inline">
+                <div class="input-group input-group-sm">
+                    <input id="nav-search-input" class="form-control form-control-navbar" type="search" placeholder="Search (Press /)" aria-label="Search" oninput="handleGlobalSearch(this.value)">
+                    <div class="input-group-append">
+                        <button class="btn btn-navbar" type="submit">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="btn btn-navbar" type="button" data-widget="navbar-search">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </form>
         </div>
     </li>
 
@@ -140,5 +140,7 @@
 
     </li>
     </ul>
+
+    <div class="livewire-progress-bar" id="livewire-main-progress"></div>
 </nav>
 <!-- /.navbar -->

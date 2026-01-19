@@ -131,43 +131,22 @@ return [
         'ttl' => env('REPORTS_CACHE_TTL', 1800), // Default 30 minutes
         'prefix' => env('REPORTS_CACHE_PREFIX', 'dynamic_reports'),
     ],
-    // 'groups' => [
-    //     'ttl' => env('GROUPS_CACHE_TTL', 1800), // Default 30 minutes
-    //     'prefix' => 'constituency_groups',
-    // ],
-    // // 'summary' => [
-    // //     'ttl' => env('GROUPS_SUMMARY_CACHE_TTL', 1800), // Default 30 minutes
-    // //     'prefix' => 'groups_summary',
-    // // ],
-    // // 'members' => [
-    // //     'ttl' => 3600, // 1 hour
-    // //     'prefix' => 'constituency_all_members',
-    // // ],
-    // // 'multi_members' => [ // NEW: Separate config for multi-group members
-    // //     'ttl' => 1800, // 30 minutes - risk data changes more frequently
-    // //     'prefix' => 'constituency_multi_group_members',
-    // // ],
-    // // 'summary' => [
-    // //     'ttl' => 7200, // 2 hours - summary data is stable
-    // // ],
-    // // 'export' => [
-    // //     'ttl' => env('GROUPS_EXPORT_CACHE_TTL', 3600), // Default 1 hour
-    // //     'prefix' => 'groups_export',
-    // // ],
-    // 'members' => [
-    //     'ttl' => env('MEMBERS_CACHE_TTL', 3600), // Default 1 hour
-    //     'prefix' => env('MEMBERS_CACHE_PREFIX', 'constituency_all_members'),
-    // ],
-    // 'multi_members' => [
-    //     'ttl' => env('MULTI_MEMBERS_CACHE_TTL', 1800), // Default 30 minutes
-    //     'prefix' => env('MULTI_MEMBERS_CACHE_PREFIX', 'constituency_multi_group_members'),
-    // ],
-    // 'summary' => [
-    //     'ttl' => env('SUMMARY_CACHE_TTL', 7200), // Default 2 hours
-    //     'prefix' => env('SUMMARY_CACHE_PREFIX', 'constituency_summary'),
-    // ],
-    // 'export' => [
-    //     'ttl' => env('EXPORT_CACHE_TTL', 3600), // Default 1 hour
-    //     'prefix' => env('EXPORT_CACHE_PREFIX', 'constituency_export'),
-    // ]
+
+    'tags' => [
+        // Phase Management Tags
+        'phases' => [
+            'constituency_summary'  => 'phases_summary_',
+            'constituency_detailed' => 'phases_detailed_',
+            'individual_summary'    => 'phase_summary_',
+            'individual_detailed'   => 'phase_detailed_',
+        ],
+        'application' => [
+            'per_application' => 'application_data',
+            'constituency'    => 'application_constituency_',
+        ],
+        // User
+        'users' => [
+            'per_role' => 'user_role_scope_',
+        ],
+    ],
 ];

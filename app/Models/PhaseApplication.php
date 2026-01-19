@@ -31,6 +31,7 @@ class PhaseApplication extends Model
         'user_id',
         'level',
         'action',
+        'loan_level',
     ];
 
     protected $casts = [

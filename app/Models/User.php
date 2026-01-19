@@ -12,6 +12,7 @@ use Laravel\Sanctum\HasApiTokens;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -147,5 +148,20 @@ class User extends Authenticatable
     public function currentConstituency() : BelongsTo
     {
         return $this->belongsTo(Constituency::class, 'current_constituency_code', 'constituency_code');
+    }
+
+    public function lockedPhases(): HasMany
+    {
+        return $this->hasMany(LoanPhase::class, 'locked_by');
+    }
+
+    public function constituencyOfficers(): HasMany
+    {
+        return $this->hasMany(LoanPhase::class, 'constituency_officer_id');
+    }
+
+    public function hqOfficers(): HasMany
+    {
+        return $this->hasMany(LoanPhase::class, 'hq_officer_id');
     }
 }

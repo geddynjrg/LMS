@@ -13,6 +13,7 @@ use App\Services\Loan\LoanAnalysisService;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use App\Services\Loan\DefaultAnalysisService;
 use App\Models\Member;
 use App\Models\Group;
@@ -21,6 +22,11 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use App\Models\TempApplicationApproval;
 use App\Models\PhaseApplication;
+use Exception;
+use Mpdf\Tag\Th;
+use Throwable;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\ApplicationInstitutionalDataExport;
 
 class ApplicationView extends Component
 {
@@ -49,6 +55,7 @@ class ApplicationView extends Component
     public $isManualSearch = false;
     public $searchTerm = '';
 
+    #[Url(except: 'group-loan')]
     public $activeTab = 'group-loan';
 
     // Sidebar fields
@@ -72,6 +79,7 @@ class ApplicationView extends Component
         'balance' => 0,
         'can_borrow' => true
     ];
+
     public $assessmentData;
 
     // ward
@@ -119,6 +127,24 @@ class ApplicationView extends Component
         $this->appService->invalidateApplicationCache($this->application);
         $this->loadApplication();
         $this->generateGfs();
+    }
+
+    public function getStatusBadgeClass($status)
+    {
+        $badges = [
+            'submitted' => 'secondary',
+            'under_review' => 'primary',
+            'approved' => 'success',
+            'rejected' => 'danger',
+            'disbursed' => 'warning',
+            'closed' => 'dark',
+        ];
+        return $badges[$status] ?? 'secondary';
+    }
+
+    public function getStatusBadgeText($status)
+    {
+        return $this->appService->getStatusText($status);
     }
 
     public function updating()
@@ -275,6 +301,7 @@ class ApplicationView extends Component
                 'can_borrow' => true
             ];
             $this->dispatch('flash-success', message: 'Application Successfully unlinked from master group');
+            $this->dispatch('app-updated')->to(SideNavBadge::class);
             $this->refreshData();
         } catch (ValidationException $e) {
             $this->dispatch('flash-error', message: collect($e->errors())->flatten()->first());
@@ -297,29 +324,26 @@ class ApplicationView extends Component
     {
         $cacheKey = "app_enrichment_{$this->applicationId}";
 
-        $this->application = Cache::remember($cacheKey, now()->addSeconds(10), function () {
+        $this->application = Cache::remember($cacheKey, now()->addMinute(2), function () {
             return $this->appService->getEnrichedApplication(
                 $this->applicationId,
                 $this->constituency->constituency_code
             );
         });
 
-        //  dd($this->application->phaseApplication);
         $this->groupMembers = $this->application->groupMembers;
 
         //dd($this->application);
-        $this->linkedGroup = null;
+        $this->linkedGroup = $this->application->phaseApplication?->linkedGroup;
 
-        // if a group is linked the load also its relations
-        if (!is_null($this->application->phaseApplication)){
-            if ($this->application->link_status === 'linked' && !is_null($this->application->phaseApplication->group_id)){
+        $this->eligibility = $this->analysisService->getEligibilityData($this->linkedGroup, $this->application->loan_amount);
 
-                $this->linkedGroup = $this->defaultService->getGroupWithMetrics($this->application->phaseApplication->linkedGroup);
 
-                // dd($this->application->phaseApplication);
-                $this->eligibility = $this->analysisService->getEligibilityData($this->linkedGroup);
-                $this->groupCode = $this->linkedGroup->code;
-            }
+
+        if ($this->application->link_status === 'linked' && !is_null($this->application->phaseApplication?->group_id)){
+
+            // dd($this->application->phaseApplication);
+            $this->groupCode = $this->linkedGroup?->code;
         }
 
 
@@ -335,7 +359,6 @@ class ApplicationView extends Component
             $this->groupCode = $this->linkedGroup->code;
         }
     }
-
 
     /**
      *  Attempt Link
@@ -357,7 +380,6 @@ class ApplicationView extends Component
         $this->dispatch('open-modal', name: 'modal-group-linker');
     }
 
-
     public function confirmLink($groupId)
     {
         try {
@@ -369,7 +391,7 @@ class ApplicationView extends Component
 
             $this->dispatch('close-modal', name: 'modal-group-linker');
             $this->dispatch('flash-success', message: 'Group linked successfully!');
-
+            $this->dispatch('app-updated')->to(SideNavBadge::class);
             $this->reset('searchTerm');
         } catch (ValidationException $e) {
             $this->dispatch('flash-error', message: collect($e->errors())->flatten()->first());
@@ -601,9 +623,20 @@ class ApplicationView extends Component
         );
     }
 
+    private function getNext()
+    {
+        return PhaseApplication::select(['id', 'loan_phase_id', 'temp_application_id', 'status', 'amount_applied'])
+            ->with(['tempApplication' => function ($query) {
+                $query->select(['id', 'group_name', 'application_id']); // Include PK/FK for the link to work
+            }])
+            ->where('loan_phase_id', $this->application->phaseApplication->loan_phase_id)
+            ->where('status', 'pending')
+            ->where('id', '!=', $this->application->phaseApplication->id)
+            ->first();
+    }
+
     public function submitApproval()
     {
-
         try {
             DB::transaction(function () {
                 $this->application->update([
@@ -616,7 +649,7 @@ class ApplicationView extends Component
 
                 $this->application->phaseApplication->update([
                     'temp_application_id' => $this->application->id,
-                    'status'              => 'pending_hq_approval',
+                    'status'              => 'pending_submission_to_hq',
                     'user_id'             => auth()->id(),
                     'level'               => 'constituency',
                     'action'              => 'recommended_for_approval',
@@ -638,14 +671,6 @@ class ApplicationView extends Component
 
             });
 
-            $nextApp = PhaseApplication::select(['id', 'loan_phase_id', 'temp_application_id', 'status', 'amount_applied'])
-                ->with(['tempApplication' => function ($query) {
-                    $query->select(['id', 'group_name', 'application_id']); // Include PK/FK for the link to work
-                }])
-                ->where('loan_phase_id', $this->application->phaseApplication->loan_phase_id)
-                ->where('status', 'pending')
-                ->where('id', '!=', $this->application->phaseApplication->id)
-                ->first();
 
             // dd($nextApp);
 
@@ -653,40 +678,268 @@ class ApplicationView extends Component
 
             $this->dispatch('flash-success', message: 'Applications approved successfully');
 
-            $this->dispatch('approval-completed',
-                message: 'Application approved successfully!',
-                nextId: $nextApp ? $nextApp->temp_application_id : null,
-                isPhaseComplete: is_null($nextApp),
-                // Pass the summary details for the next application
-                nextSummary: $nextApp ? [
-                    'group_name' => $nextApp->tempApplication->group_name,
-                    'app_id' =>   $nextApp->tempApplication->application_id,
-                    'amount' =>   number_format($nextApp->amount_applied, 2)
-                ] : null
-            );
+            $this->navigateToNextAfterReview();
 
             $this->refreshData();
 
         } catch (\Exception $e) {
             Log::error("Constituency Approval Error: " . $e->getMessage());
-            $this->addError('approvalAmount', "Internal error. Please check logs.");
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => "Error Approving Application",
+                'text'  => 'Internal Server Error',
+            ]);
         }
     }
 
-    public function confirmApprove()
+    public function openRejectModal()
     {
-        // Your approval logic here
-        $this->application->update(['status' => 'approved']);
-        $this->dispatch('flash-success', message: 'Application approved successfully!');
-        $this->actionTaken = true;
+        $this->loadApplication();
+
+        $this->dispatch('confirm-reject', [
+            'title' => 'Decline Application',
+            'componentId' => $this->getId(),
+            'action' => 'rejectApplication', // The method to call in this component
+            'params' => [
+                'applicationId' => $this->applicationId
+            ]
+        ]);
     }
 
-    public function reject()
+    public function rejectApplication($params)
     {
-        // Your rejection logic here
-        $this->application->update(['status' => 'rejected', 'reviewer_remarks' => $this->remarks]);
-        $this->dispatch('flash-error', message: 'Application rejected.');
-        $this->actionTaken = true;
+        if (empty($params['reason']) || strlen($params['reason']) < 10) {
+            $this->dispatch('swal:error', ['message' => 'A valid rejection reason is required.']);
+            return;
+        }
+        $reason = $params['reason'];
+        $appId = $params['applicationId'];
+
+        // dd($appId);
+
+        DB::transaction(function () use ($reason) {
+
+            $phaseApplication = PhaseApplication::where('temp_application_id', $this->application->id)->first();
+
+            if ($phaseApplication) {
+                $phaseApplication->update([
+                    'status' => 'rejected',
+                    'user_id' => auth()->id(),
+                    'level' => 'constituency',
+                    'action' => 'declined_at_constituency',
+                    'rejection_reason' => $reason,
+                ]);
+
+                $this->application->update([
+                    'status' => 'rejected',
+                ]);
+
+                activity()
+                    ->performedOn($phaseApplication)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'reason'     => $reason,
+                        'ip_address' => request()->ip()
+                    ])
+                    ->log("Declined application at constituency level.");
+
+                $this->dispatch('flash-success', message: 'Application has been declined.');
+
+                $this->navigateToNextAfterReview();
+
+                $this->refreshData();
+
+            } else {
+                // return and rollback
+                $this->dispatch('swal:modal', [
+                    'type'  => 'error',
+                    'title' => 'Invalid Application',
+                    'text'  => 'ERROR: You have no access to this application.',
+                ]);
+                return false;
+            }
+        });
+    }
+
+    private function navigateToNextAfterReview()
+    {
+        $nextApp = $this->getNext();
+
+        $nextUrl = route('const.app.app_phase_details', [
+            'county' => $this->county->slug,
+            'constituency' => $this->constituency->slug,
+            'phase' => $this->application->phaseApplication->reviewPhase->slug,
+        ]);
+
+        if ($nextApp) {
+            $nextUrl = route('const.app.application-view', [
+                'county' => $this->county->slug,
+                'constituency' => $this->constituency->slug,
+                'applicationId' => $nextApp->tempApplication->application_id ?? null
+            ]);
+        }
+
+        $this->dispatch('approval-completed',
+            message: 'Application Declined successfully!',
+            nextId: $nextApp ? $nextApp->temp_application_id : null,
+            isPhaseComplete: is_null($nextApp),
+            nextUrl: $nextUrl,
+            // Pass the summary details for the next application
+            nextSummary: $nextApp ? [
+                'group_name' => $nextApp->tempApplication->group_name,
+                'app_id' =>   $nextApp->tempApplication->application_id,
+                'amount' =>   number_format($nextApp->amount_applied, 2)
+            ] : null
+        );
+    }
+
+    public function reviewRejection(){
+        $this->loadApplication();
+
+        $this->dispatch('review-rejection', [
+            'componentId' => $this->getId(),
+            'action' => 'confirmReviewRejection',
+            'reason' => $this->application->phaseApplication->rejection_reason,
+            'params' => [
+                'applicationId' => $this->application->id
+            ]
+        ]);
+    }
+
+    public function confirmReviewRejection($id)
+    {
+        if (empty($id) || $id != $this->application->id) {
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => "Invalid Reason {$id}",
+                'text'  => 'A valid rejection reason is required.',
+            ]);
+            return false;
+        }
+
+        // $this->loadApplication();
+
+        try {
+            DB::transaction(function () {
+                $this->application->phaseApplication->update([
+                    'status' => 'pending',
+                    'user_id' => auth()->id(),
+                    'level' => 'constituency',
+                    'action' => 'review',
+                    'rejection_reason' => null,
+                ]);
+
+                $this->application->update([
+                    'status' => 'submitted',
+                ]);
+
+                activity()
+                    ->performedOn($this->application->phaseApplication)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'ip_address' => request()->ip()
+                    ])
+                    ->log("Reviewed rejection reason at constituency level.");
+
+                $this->dispatch('swal:modal', [
+                    'type'               => 'success',
+                    'title'              => 'Success!',
+                    'text'               => 'Decision reviewed successfully.',
+                    'timer'              => 4000,
+                    'showConfirmButton'  => false,
+                ]);
+
+                $this->refreshData();
+            });
+        } catch (Exception $e) {
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => "Invalid Action",
+                'text'  => 'Internal Server Error.',
+            ]);
+            return false;
+        }
+
+
+    }
+
+
+    public function reviewApproval()
+    {
+        $this->loadApplication();
+
+        $this->dispatch('review-approval', [
+            'componentId' => $this->getId(),
+            'action' => 'confirmReviewApproval',
+            'params' => [
+                'applicationId' => $this->application->id
+            ]
+        ]);
+    }
+
+    public function confirmReviewApproval($id)
+    {
+        if (empty($id) || $id != $this->application->id) {
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => "Invalid Action",
+                'text'  => 'A valid application is required.',
+            ]);
+            return false;
+        }
+
+        // $this->loadApplication();
+
+        try {
+
+            DB::transaction(function () {
+                $this->application->update([
+                    'status'           => 'submitted',
+                    'ward_id'          => null,
+                    'risk_level'       => null,
+                    'assessment_data'  => null,
+                ]);
+
+
+                $this->application->phaseApplication->update([
+                    'status'              => 'pending',
+                    'user_id'             => auth()->id(),
+                    'level'               => 'constituency',
+                    'action'              => 'review',
+                    'amount_approved'     => 0,
+                    'comments'             => null,
+                    'group_code'       => null,
+                    'gfs_code'         => null,
+                ]);
+
+                activity()
+                    ->performedOn($this->application)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'ip_address' => request()->ip()
+                    ])
+                    ->log("Reviewed approval decision at constituency level.");
+
+                $this->dispatch('swal:modal', [
+                    'type'               => 'success',
+                    'title'              => 'Success!',
+                    'text'               => 'Decision reviewed successfully.',
+                    'timer'              => 4000,
+                    'showConfirmButton'  => false,
+                ]);
+
+                $this->refreshData();
+            });
+
+        } catch (Exception $e) {
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => "Invalid Action",
+                'text'  => 'Internal Server Error.',
+            ]);
+            return false;
+        }
+
     }
 
     public function linkGroup()
@@ -744,6 +997,20 @@ class ApplicationView extends Component
 
         // 2. Dispatch the event to open the modal
         $this->dispatch('open-modal', name: 'memberModal');
+    }
+
+    public function exportInstitutionalInfo(){
+        $this->loadApplication();
+
+        try {
+            return Excel::download(new ApplicationInstitutionalDataExport($this->application, $this->constituency), $this->application->group_name.'_institutional_information.xlsx');
+        } catch (\Throwable $th) {
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => "Invalid Action",
+                'text'  => $th->getMessage(),
+            ]);
+        }
     }
 
     public function rendered ()

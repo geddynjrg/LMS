@@ -451,10 +451,10 @@ class DefaultAnalysisService
                     $query->where('is_defaulted', true);
                 }])
                 ->with([
+                    'groupLoans',
                     'groupLoans.loanReceipts',
                     'currentLoan' => function($q) use ($groupId){
                     $q->withCount([
-                        'groupMembers',
                         'groupMembers as defaulter_members_count' => function($sq) use ($groupId){
                             $sq->whereHas('member.groupMembers.groupLoan', function($l) use ($groupId) {
                                 $l->where('is_defaulted', true)
@@ -463,6 +463,8 @@ class DefaultAnalysisService
                                 });
                             });
                         }
+                    ])->with([
+                        'groupMembers'
                     ]);
                 }])
                 ->first();

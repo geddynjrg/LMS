@@ -84,4 +84,9 @@ class Constituency extends Model
         )->where('group_loans.loan_status', 'financed')
          ->select('group_loans.*'); // Explicitly select from group_loans
     }
+
+    public function tempApplications() : HasMany
+    {
+        return $this->hasMany(TempApplication::class, 'constituency_code', 'constituency_code');
+    }
 }

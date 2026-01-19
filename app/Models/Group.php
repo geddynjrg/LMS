@@ -44,7 +44,7 @@ class Group extends Model
 
     public function getRouteKeyName()
     {
-        return 'slug'; // assumes you have a 'slug' column like 'taita-taveta'
+        return 'slug';
     }
 
     protected static function booted()
@@ -129,12 +129,16 @@ class Group extends Model
     public function currentLoan(): HasOne
     {
         return $this->hasOne(GroupLoan::class)
-        ->latestOfMany()
-        ->where(function ($query) {
-            $query->where('loan_status', 'financed')
-                  ->orWhere('amount_issued', '>', 0);
-        });
+            ->ofMany([
+                'id' => 'max'
+            ], function ($query) {
+                $query->where(function ($q) {
+                    $q->where('loan_status', 'financed')
+                    ->orWhere('amount_issued', '>', 0);
+                });
+            });
     }
+
 
 
 }

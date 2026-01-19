@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class LoanPhase extends Model
 {
@@ -16,15 +17,20 @@ class LoanPhase extends Model
     protected $fillable = [
         'constituency_code',
         'phase',
+        'slug',
+        'phase_ref',
         'amount_disbursed',
         'amount_repaid',
-        'phase_number',
-        'phase_name',
         'review_date',
         'review_venue',
         'status',
+        'training_date',
+        'training_venue',
         'constituency_officer_id',
         'hq_officer_id',
+        'hq_remarks',
+        'hq_approved_at',
+        'disbursed_at',
         'committee_remarks',
         'total_amount_applied',
         'total_amount_approved',
@@ -38,8 +44,65 @@ class LoanPhase extends Model
         'hq_reviewed_at' => 'datetime',
         'total_amount_applied' => 'decimal:2',
         'total_amount_approved' => 'decimal:2',
+        'is_locked' => 'boolean',
+        'training_date' => 'date',
+        'disbursed_at' => 'datetime',
+        'locked_at' => 'datetime',
     ];
 
+
+
+    public function getRouteKeyName()
+    {
+        return 'slug';
+    }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($phase) {
+            $phase->slug = Str::slug($phase->phase) . '-' . $phase->constituency_code . '-' . Str::random(6);
+
+            if (!$phase->phase_ref) {
+                $year = date('Y');
+
+                $count = self::where('constituency_code', $phase->constituency_code)
+                            ->whereYear('created_at', $year)
+                            ->count() + 1;
+
+                $phase->phase_ref = "PHS/{$phase->constituency_code}/{$year}/" . str_pad($count, 3, '0', STR_PAD_LEFT);
+            }
+        });
+    }
+
+    public function canBeEditedBy($user)
+    {
+        // 1. Permanent Lock: Once disbursed, it's a historical record.
+        if ($this->status === 'disbursed' || $this->is_locked) {
+            return false;
+        }
+
+        // 2. HQ Logic
+        if ($user->hasRole('hq_officer')) {
+            // HQ can only edit/review if the constituency has officially handed it over
+            return $this->status === 'submitted_to_hq';
+        }
+
+        // 3. Constituency Officer Logic
+        if ($user->hasRole('constituency_officer')) {
+            // Officer has control during Draft/Review
+            // AND after HQ gives the green light (Approved) for training/cheques
+            return in_array($this->status, ['draft', 'in_review', 'approved', 'rejected']);
+        }
+
+        return false;
+    }
+
+    public function phaseLocker()
+    {
+        return $this->belongsTo(User::class, 'locked_by');
+    }
 
     public function constituency(): BelongsTo
     {
@@ -79,9 +142,9 @@ class LoanPhase extends Model
         return $this->hasMany(CommitteeMember::class);
     }
 
-    public function phaseDocuments(): HasMany
+    public function phaseApplicationDocuments(): HasMany
     {
-        return $this->hasMany(PhaseDocument::class);
+        return $this->hasMany(PhaseApplicationDocument::class);
     }
 
     public function comments(): HasMany
@@ -97,12 +160,13 @@ class LoanPhase extends Model
     // Helper Methods
     public function getDocumentsByType($type)
     {
-        return $this->phaseDocuments()->where('document_type', $type)->get();
+        return $this->phaseApplicationDocuments()->where('document_type', $type)->get();
     }
 
-    public function getMinutesAttribute()
+    public function getHasMinutesAttribute(): bool
     {
-        return $this->getDocumentsByType('committee_minutes');
+        return $this->attributes['has_minutes']
+            ?? $this->phaseApplicationDocuments()->where('document_type', 'minutes')->exists();
     }
 
     public function getSupportingDocumentsAttribute()
@@ -147,7 +211,7 @@ class LoanPhase extends Model
             'total_amount_applied' => $this->total_amount_applied,
             'total_amount_approved' => $this->total_amount_approved,
             'committee_members' => $this->committeeMembers()->count(),
-            'documents_count' => $this->phaseDocuments()->count(),
+            'documents_count' => $this->phaseApplicationDocuments()->count(),
         ];
     }
 
@@ -159,7 +223,7 @@ class LoanPhase extends Model
 
     public function canSubmitToHq(): bool
     {
-        return $this->status === 'approved_by_committee'
+        return $this->status === 'draft'
             && $this->getMinutesAttribute()->isNotEmpty();
     }
 

@@ -1,14 +1,43 @@
 <section class="content">
     <div class="container-fluid">
-        <!-- Constituency Header -->
-        @if($constituency)
-        <div class="callout callout-info">
-            <h5><i class="fas fa-map-marker-alt mr-2"></i>
-                Showing applications for:
-                <strong>{{ $constituency->constituency_name }} Constituency</strong>
-            </h5>
-        </div>
-        @endif
+        {{-- <div class="row mb-3">
+            <div class="col-md-3 col-sm-6 col-12">
+                <div class="info-box shadow-sm">
+                    <span class="info-box-icon bg-info"><i class="fas fa-male"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Total Males</span>
+                        <span class="info-box-number">{{ number_format($stats['total_males'] ?? 0) }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 col-12">
+                <div class="info-box shadow-sm">
+                    <span class="info-box-icon bg-pink" style="background-color: #e83e8c !important; color: white;"><i class="fas fa-female"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Total Females</span>
+                        <span class="info-box-number">{{ number_format($stats['total_females'] ?? 0) }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 col-12">
+                <div class="info-box shadow-sm">
+                    <span class="info-box-icon bg-teal" style="background-color: #20c997 !important; color: white;"><i class="fas fa-wheelchair"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">PWD Beneficiaries</span>
+                        <span class="info-box-number">{{ number_format($stats['total_pwds'] ?? 0) }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6 col-12">
+                <div class="info-box shadow-sm">
+                    <span class="info-box-icon bg-olive" style="background-color: #3d9970 !important; color: white;"><i class="fas fa-hand-holding-usd"></i></span>
+                    <div class="info-box-content">
+                        <span class="info-box-text">Total Requested</span>
+                        <span class="info-box-number">KES {{ number_format($stats['total_amount'] ?? 0) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div> --}}
         <!-- Statistics Cards -->
         <div class="row mb-4">
             <div class="col-lg-2 col-6">
@@ -96,9 +125,15 @@
                     <div class="icon">
                         <i class="fas fa-calendar-check"></i>
                     </div>
-                    <a href="#" wire:click="$set('showCreatePhaseModal', true)" class="small-box-footer">
-                        Create Phase <i class="fas fa-plus"></i>
-                    </a>
+
+                    <x-modal-trigger
+                        class="small-box-footer border-0 w-100"
+                        target="createNewPhase"
+                        label="New Phase"
+                        icon="fas fa-plus"
+                        variant=""
+                        block="true"
+                    />
                 </div>
             </div>
         </div>
@@ -106,6 +141,7 @@
         <!-- Filters and Actions -->
         <div class="card">
             <div class="card-header">
+
                 <div class="d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Applications List</h3>
 
@@ -151,6 +187,7 @@
             </div>
 
             <div class="card-body">
+                {{ $selectedOption }}
                 <!-- Active Filters -->
                 @if($search || $statusFilter || $phaseFilter || $dateFrom || $dateTo)
                 <div class="alert alert-info alert-dismissible fade show mb-3">
@@ -180,29 +217,35 @@
                 <!-- Filter Controls -->
                 <div class="row mb-3">
                     <div class="col-md-2">
-                        <label for="statusfilter">Status</label>
-                        <select wire:model.live="statusFilter" class="form-control form-control-sm">
-                            <option value="">All Statuses</option>
-                            <option value="submitted">Submitted</option>
-                            <option value="under_review">Under Review</option>
-                            <option value="approved">Approved</option>
-                            <option value="rejected">Rejected</option>
-                            <option value="disbursed">Disbursed</option>
-                            <option value="closed">Closed</option>
-                        </select>
+                        @php
+                            $status = [
+                                'submitted' => 'Submitted',
+                                'pending' => 'Pending',
+                                'pending_submission_to_hq' => 'Pending Submission to HQ',
+                                'approved' => 'Approved',
+                                'rejected' => 'Rejected',
+                                'disbursed' => 'Disbursed',
+                                'in_training' => 'In Training',
+                            ]
+                        @endphp
+                        <x-select2
+                            model="statusFilter"
+                            label="Application Status"
+                            :options="$status"
+                            placeholder="All Statuses"
+                        />
                     </div>
-
                     <div class="col-md-3">
-                        <label for="phasefilter">Phase</label>
-                        <select wire:model.live="phaseFilter" class="form-control form-control-sm">
-                            <option value="">All Phases</option>
-                            <option value="not_in_phase">Not in Phase</option>
-                            @foreach($allPhases as $phase)
-                                <option value="{{ $phase->phase }}">
-                                    {{ $phase->phase }} - {{ $phase->status }}
-                                </option>
-                            @endforeach
-                        </select>
+                        <x-select2
+                            model="phaseFilter"
+                            label="Phase"
+                            :options="$allPhases"
+                            placeholder="All Phases"
+                            optionLabel="phase"
+                            optionValue="slug"
+                            default="not_in_phase"
+                            defaultLabel="Not in Phase"
+                        />
                     </div>
 
                     <div class="col-md-2">
@@ -255,15 +298,16 @@
                     </div>
                 </div>
 
-                <div wire:loading.delay.shortest wire:target="nextPage, previousPage, gotoPage, updatedSearch, updatedStatusFilter, updatedPhaseFilter, updatedDateFrom, updatedDateTo, perPage, refreshData"
-                    >
-                    <div class="text-center py-5">
-                        {{-- <div class="spinner-border text-primary" role="status"></div> --}}
-                        <p class="mt-2 text-muted">Loading applications...</p>
+                <div class="position-relative">
+                    <div wire:loading.delay.shortest
+                        wire:target="nextPage, previousPage, gotoPage, refreshData, perPage, statusFilter, phasefilter, dateFrom, dateTo, search"
+                        class="w-100 h-100 position-absolute justify-content-center align-items-center"
+                        style="background: rgba(255,255,255,0.7); z-index: 1000; top: 0; left: 0; min-height: 200px;">
+                        <div class="text-center">
+                            <i class="fas fa-circle-notch fa-spin fa-3x text-navy"></i>
+                            <p class="text-navy font-weight-bold mt-2">Loading Data...</p>
+                        </div>
                     </div>
-                </div>
-
-                <div wire:loading.remove wire:target="nextPage,previousPage,gotoPage,updated*,refreshData">
                     <!-- Applications Table -->
                     <div class="table-responsive p-0" style="max-height: 450px;">
                         <table class="table table-hover table-bordered table-head-fixed text-wrap table-sm">
@@ -300,9 +344,15 @@
                                         </strong>
                                     </td>
                                     <td>
-                                        <span class="badge badge-{{ $this->getStatusBadgeClass($app->status) }}">
-                                            {{ $this->getStatusBadgeText($app->status) }}
-                                        </span>
+                                        @if(!is_null($app->phaseApplication))
+                                            <span class="badge badge-{{ $this->getStatusBadgeClass($app->phaseApplication->status) }}">
+                                                {{ $this->getStatusBadgeText($app->phaseApplication->status) }}
+                                            </span>
+                                        @else
+                                            <span class="badge badge-{{ $this->getStatusBadgeClass($app->status) }}">
+                                                {{ $this->getStatusBadgeText($app->status) }}
+                                            </span>
+                                        @endif
                                     </td>
                                     <td>
                                         @if(!is_null($app->phaseApplication))
@@ -328,21 +378,25 @@
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <a href="{{ route('const.app.application-view', [
-                                                'county' => $constituency->county->slug,
-                                                'constituency' => $constituency->slug,
-                                                'applicationId' => $app->application_id
-                                            ]) }}"
-                                            class="btn btn-outline-info" title="View Details">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
+                                            <x-table-action-btn
+                                                type="view"
+                                                route="const.app.application-view"
+                                                :params="[
+                                                    'county' => $constituency->county->slug,
+                                                    'constituency' => $constituency->slug,
+                                                    'applicationId' => $app->application_id
+                                                ]"
+                                            />
 
                                             @if(is_null($app->phaseApplication))
-                                                <button class="btn btn-outline-warning"
-                                                        wire:click="assignSingleToPhase({{ $app->id }})"
-                                                        title="Assign to Phase">
-                                                    <i class="fas fa-layer-group"></i>
-                                                </button>
+                                                <x-modal-trigger
+                                                    target="assignToPhaseModal({{ $app->id }})"
+                                                    label=""
+                                                    title="Assign to Phase"
+                                                    icon="fas fa-layer-group"
+                                                    variant="warning"
+                                                    defaultLabel=""
+                                                />
                                             @endif
                                         </div>
                                     </td>
@@ -368,34 +422,20 @@
             </div>
 
             <div class="card-footer clearfix">
-                <div class="d-flex justify-content-between align-items-center mt-3">
-                    <div class="text-muted small">
-                        Showing {{ $applications->firstItem() ?? 0 }} to {{ $applications->lastItem() ?? 0 }}
-                        of {{ $applications->total() }} entries
-                        @if($this->selectedAppsCount > 0)
-                            • <span class="text-primary">{{ $this->selectedAppsCount }} selected</span>
-                        @endif
-                    </div>
-                    <ul class="pagination pagination-sm m-0 float-right">
-                        {{ $applications->links() }}
-                    </ul>
+                <div class="pagination-sm">
+                    {{ $applications->links() }}
                 </div>
 
             </div>
         </div>
 
         <!-- Create Phase Modal -->
-        @if($showCreatePhaseModal)
-        <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5);"
-            wire:click.self="$set('showCreatePhaseModal', false)">
+        <div wire:ignore.self class="modal fade shadow-lg" id="create-phase-modal" tabindex="-1" role="dialog">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title">Create New Phase</h5>
-                        <button type="button" class="close"
-                                wire:click="$set('showCreatePhaseModal', false)">
-                            <span>&times;</span>
-                        </button>
+                        <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
                     </div>
                     <form wire:submit.prevent="createPhase">
                         <div class="modal-body">
@@ -419,10 +459,7 @@
                             </div>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary"
-                                    wire:click="$set('showCreatePhaseModal', false)">
-                                Cancel
-                            </button>
+                            <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save"></i> Create Phase
                             </button>
@@ -431,35 +468,25 @@
                 </div>
             </div>
         </div>
-        @endif
 
         <!-- Quick Assign Modal -->
-        @if($showQuickAssignModal)
-        <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5);"
-            wire:click.self="$set('showQuickAssignModal', false)">
+        <div wire:ignore.self class="modal fade shadow-lg" id="assign-to-phase-modal" tabindex="-1" role="dialog">
             <div class="modal-dialog">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Assign to Phase</h5>
-                        <button type="button" class="close"
-                                wire:click="$set('showQuickAssignModal', false)">
-                            <span>&times;</span>
-                        </button>
+                        <button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group">
-                            <label>Select Phase</label>
-                            <select wire:model.live="selectedPhaseForQuickAssign" class="form-control">
-                                <option value="">-- Select a Phase --</option>
-                                @foreach($activePhases as $phase)
-                                    @if($phase->canAddApplications())
-                                    <option value="{{ $phase->id }}">
-                                        {{ $phase->phase }} -
-                                        ({{ $phase->review_date?->format('M d') ?? 'No Date' }} • {{ $phase->status }})
-                                    </option>
-                                    @endif
-                                @endforeach
-                            </select>
+                            <x-select2
+                                model="selectedPhaseForQuickAssign"
+                                label="-- Select a Phase --"
+                                :options="$activePhases"
+                                placeholder="Phase"
+                                optionLabel="phase"
+                                optionValue="id"
+                            />
+
                             <small class="text-muted">
                                 Only phases in "draft" or "in_review" status can accept new applications
                             </small>
@@ -496,91 +523,48 @@
                         @endif
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary"
-                                wire:click="$set('showQuickAssignModal', false)">
-                            Cancel
-                        </button>
-                        <button type="button" class="btn btn-primary"
-                                wire:click="quickAssignToPhase"
-                                wire:loading.attr="disabled"
-                                wire:target="quickAssignToPhase"
-                                {{ !$selectedPhaseForQuickAssign ? 'disabled' : '' }}>
-                            <span wire:loading.remove wire:target="quickAssignToPhase">
-                                <i class="fas fa-layer-group"></i> Assign Applications
-                            </span>
-                            <span wire:loading wire:target="quickAssignToPhase">
-                                <i class="fas fa-spinner fa-spin"></i> Assigning...
-                            </span>
-                        </button>
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                        <x-btn-submit
+                            target="quickAssignToPhase"
+                            label="Assign Applications"
+                            icon="fas fa-layer-group"
+                            :disabled="!$selectedPhaseForQuickAssign"
+                            defaultLabel="Assigning..."
+                            color="primary"
+                        />
                     </div>
                 </div>
             </div>
         </div>
-        @endif
-
-        <!-- Flash Messages -->
-        @if(session()->has('success'))
-        <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
-            <i class="fas fa-check-circle"></i> {{ session('success') }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-        @endif
-
-        @if(session()->has('error'))
-        <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
-            <i class="fas fa-exclamation-circle"></i> {{ session('error') }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-        @endif
     </div>
 </section>
 @push('styles')
-<style>
-    .fade-in-on-load {
-        opacity: 0;
-        transition: opacity 0.4s ease-in-out;
-    }
+    <style>
 
-    .fade-in-on-load.loaded {
-        opacity: 1;
-    }
+        /* Table Row height and vertical alignment */
+        .table td {
+            vertical-align: middle !important;
+            padding: 12px 8px !important;
+        }
+    </style>
 
-    /* Loading placeholder styling */
-    #table-loading-placeholder {
-        min-height: 200px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: #f8f9fa;
-        border-radius: 0.25rem;
-    }
-</style>
+
 @endpush
 @push('scripts')
-
 <script>
+
     document.addEventListener('livewire:init', function () {
-        // Listen for success message
-        Livewire.on('flash-success', ({ message }) => {
-            toastr.success(message);
+        Livewire.on('flash-success', ({ message }) => { toastr.success(message); });
+        Livewire.on('flash-error', ({ message }) => { toastr.error(message); });
+
+        Livewire.on('clear-selects', () => {
+            $('select.select2').val(null).trigger('change');
         });
 
-        // Listen for error message
-        Livewire.on('flash-error', ({message}) => {
-            toastr.error(message);
-        });
+
     });
 
-    document.addEventListener('livewire:init', () => {
-       Livewire.on('error', (event) => {
-           // This forces the UI to unlock if the server crashes
-           console.error('Livewire Error:', event);
-       });
-    });
+    window.addEventListener('open-modal', event => { $('#' + event.detail.name).modal('show'); });
+    window.addEventListener('close-modal', event => { $('#' + event.detail.name).modal('hide'); });
 </script>
 @endpush

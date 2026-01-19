@@ -55,8 +55,6 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/{user}', [UsersController::class, 'viewUser'])->name('viewuser');
     });
 
-
-
     Route::middleware(['currentConstituency'])
         ->prefix('{county}/{constituency}')            // dynamic county + constituency
         ->where([
@@ -97,7 +95,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/dataview', [MeReportingController::class, 'data'])->name('data_view');
             });
 
-            Route::prefix('app')->name('app.')->group(function () {
+            Route::prefix('applications')->name('app.')->group(function () {
                 // Dashboard - Shows all applications
                 Route::get('/', [LoansController::class, 'app_dashboard'])->name('app_dashboard');
 
@@ -108,22 +106,12 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/review/{phase}', [LoansController::class, 'app_review'])->name('app_review');
 
                 // Phase Details View
-                Route::get('/phase/{phase}', [LoansController::class, 'app_phase_details'])->name('app_phase_details');
+                Route::get('/phases/{phase}', [LoansController::class, 'app_phase_details'])->name('app_phase_details');
 
                 // Existing routes for application viewing
                 Route::get('/loans', [LoansController::class, 'app_loans'])->name('app_loans');
-                Route::get('/application/{applicationId}', [LoansController::class, 'app_loan'])->name('application-view');
-                Route::get('/application/{applicationId}/file/download', [LoansController::class, 'app_loan_files_download'])->name('application.file.download');
-                Route::get('/application/{applicationId}/file/view', [LoansController::class, 'app_loan_files_view'])->name('application.file.view');
-
-                // Route for base64 encoded file paths
-                Route::get('/application/{applicationId}/download/encoded', [LoansController::class, 'app_loan_files_download_encoded'])
-                    ->name('application.file.download.encoded');
-
-                // Route for direct file access (if needed)
-                Route::get('/application/{applicationId}/download/{filename}', [LoansController::class, 'app_loan_files_download_direct'])
-                    ->where('filename', '.*')
-                    ->name('application.file.download.direct');
+                Route::get('/{applicationId}', [LoansController::class, 'app_loan'])->name('application-view');
+                Route::get('/{applicationId}/file/{action}', [LoansController::class, 'app_loan_files_download'])->name('application.file.download');
             });
 
 
@@ -131,26 +119,21 @@ Route::middleware(['auth'])->group(function () {
         }
     );
 
-    //Route::middleware(['currentConstituency'])->group(function ()
-    //{
 
+    Route::get('/phase-document/{id}/{action}', function ($id, $action) {
+        $doc = \App\Models\PhaseApplicationDocument::findOrFail($id);
+        $path = storage_path('app/public/' . $doc->path);
 
+        if (!file_exists($path)) {
+            abort(404, "File not found on server disk.");
+        }
 
+        if ($action === 'view') {
+            return response()->file($path, [
+                'Content-Disposition' => 'inline; filename="'.$doc->original_filename.'"'
+            ]);
+        }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    //});
+        return response()->download($path, $doc->original_filename);
+    })->name('phase.doc.serve');
 });

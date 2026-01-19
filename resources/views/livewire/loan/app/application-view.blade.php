@@ -1,307 +1,84 @@
 <section class="content">
     <div class="container-fluid">
         <!-- Header with Status & Actions -->
-        <div class="row mb-4">
-            <div class="col-md-8">
-                <div class="callout callout-{{ $application->status === 'approved' ? 'success' : ($application->status === 'rejected' ? 'danger' : 'info') }}">
-                    <h5 class="text-uwezo">Application: <strong>{{ $application->application_id }}</strong></h5>
-                    <p>
-                        Status: <span class="badge badge-lg badge-{{ $application->status === 'approved' ? 'success' : ($application->status === 'rejected' ? 'danger' : 'warning') }}">
-                            {{ strtoupper($application->status) }}
-                        </span>
-                        &nbsp;|&nbsp;
-                        Sync: <span class="badge badge-lg badge-{{ $application->sync_status === 'completed' ? 'success' : ($application->sync_status === 'failed' ? 'danger' : 'warning') }}">
-                            {{ strtoupper($application->sync_status) }}
-                        </span>
-                        &nbsp;|&nbsp;
-                        Loan Phase: <span class="badge badge-lg badge-{{ is_null($application->phaseApplication)? 'danger' : 'warning' }}">
-                            {{ is_null($application->phaseApplication) ? 'Not Assinged' : $application->phaseApplication->reviewPhase->phase}}
-                        </span>
-                    </p>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body text-right">
-                        <x-loading-button
-                            target="refreshData"
-                            class="btn-primary"
-                            icon="fas fa-sync-alt"
-                            label="Refresh"
-                        />
-                        <button class="btn btn-uwezo btn-sm">
-                            <i class="fas fa-download"></i> Institutional Information
-                        </button>
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card card-outline card-uwezo shadow-sm">
+                    <div class="card-header border-0 pb-0">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
+
+                            <div class="d-flex align-items-center mb-2">
+                                <div class="mr-3 bg-light p-3 rounded shadow-sm border">
+                                    <i class="fas fa-file-invoice-dollar fa-2x text-uwezo"></i>
+                                </div>
+                                <div>
+                                    <h3 class="mb-0 font-weight-bold">{{ $application->application_id }}</h3>
+                                    <div class="d-flex align-items-center mt-1">
+                                        <span class="badge badge-{{ $application->status === 'approved' ? 'success' : ($application->status === 'rejected' ? 'danger' : 'info') }} px-2 py-1 shadow-xs">
+                                            <i class="fas fa-circle x-small mr-1"></i>
+                                            @if(!is_null($application->phaseApplication))
+                                                {{ $this->getStatusBadgeText($application->phaseApplication->status) }}
+                                            @else
+                                                {{ $this->getStatusBadgeText($application->status) }}
+                                            @endif
+                                        </span>
+
+                                        <span class="text-muted mx-2">|</span>
+
+                                        <small class="text-muted font-weight-bold">
+                                            <i class="fas fa-layer-group mr-1"></i>
+                                            {{ is_null($application->phaseApplication) ? 'Not Assigned' : $application->phaseApplication->reviewPhase->phase }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="btn-group btn-group-sm d-flex flex-sm-row mb-2 mb-2">
+                                <x-loading-button
+                                    target="refreshData"
+                                    class="btn-outline-primary btn-sm rounded-pill mr-2"
+                                    icon="fas fa-sync-alt"
+                                    label="Refresh Data"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body py-2 bg-light-gray border-top mt-3">
+                        <div class="row text-center text-md-left">
+                            <div class="col-md-3 border-right">
+                                <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem;">Submitted By:</small>
+                                <span class="text-dark font-weight-bold text-truncate d-inline-block" style="max-width: 150px;">
+                                    <i class="fas fa-user mr-1"></i>
+                                    @if ($application->identifier_type == 'EMAIL')
+                                        {{ $application->owner_identifier }}
+                                    @else
+                                        {{ $application->phone_number }}
+                                    @endif
+                                </span>
+                            </div>
+                            <div class="col-md-3 border-right">
+                                <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem;">Group Name</small>
+                                <span class="text-dark font-weight-bold text-truncate d-inline-block" style="max-width: 150px;">
+                                    {{ $application->group_name ?? 'N/A' }}
+                                </span>
+                            </div>
+                            <div class="col-md-3 border-right">
+                                <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem;">Amount Requested</small>
+                                <span class="text-dark font-weight-bold">KES {{ number_format($this->application->loan_amount, 2) }}</span>
+                            </div>
+                            <div class="col-md-3">
+                                <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem;">Reporting Period</small>
+                                <span class="badge badge-secondary">{{ $currentFY->full }} ({{ $currentFY->quarter_suffix }} Qtr)</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="row">
-            <div class="col-md-3">
-                <div class="sticky-top" style="top: 20px; z-index: 1020;">
-
-                    <!-- Phase Assignment Section -->
-                    <div class="card card-outline card-info {{ !is_null($application->phaseApplication) ? 'collapsed-card' : '' }}">
-                        <div class="card-header">
-                            <h3 class="card-title font-weight-bold">
-                                <i class="fas fa-layer-group mr-1"></i> Phase Assignment
-                            </h3>
-                             <div class="card-tools">
-                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                    <i class="fas {{ !is_null($application->phaseApplication) ? 'fa-plus' : 'fa-minus' }}"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            @if(is_null($application->phaseApplication))
-                                <p class="text-muted small mb-3">
-                                    This application is not assigned to any phase yet.
-                                </p>
-
-                                <!-- Dropdown or button to select phase -->
-                                <select class="form-control form-control-sm mb-2" wire:model.live="selectedPhaseId">
-                                    <option value="">Select Phase...</option>
-                                    @foreach($activePhases as $phase)
-                                        @if($phase->canAddApplications())
-                                        <option value="{{ $phase->id }}">
-                                            {{ $phase->phase }} -
-                                            {{ $phase->status }}
-                                        </option>
-                                        @endif
-                                    @endforeach
-                                </select>
-
-                                <x-loading-button
-                                    target="assignToPhase"
-                                    class="btn-primary"
-                                    icon="fas fa-plus-circle"
-                                    label="Assign to Phase"
-                                    block="true"
-                                    :disabled="!$selectedPhaseId"
-                                />
-                            @else
-                                <p class="text-success mb-2">
-                                    <i class="fas fa-check-circle"></i> Assigned to:
-                                    <span class="badge badge-info mr-1">{{ $application->phaseApplication->reviewPhase->phase }}</span>
-                                </p>
-                                @if($application->phaseApplication->status === 'pending')
-                                <x-loading-button
-                                    target="removeFromPhase"
-                                    class="btn-outline-danger"
-                                    icon="fas fa-unlink"
-                                    label="Remove from Phase"
-                                    block="true"
-                                    {{-- onclick="confirm('Are you sure you want to remove this application from phase?') || event.stopImmediatePropagation()" --}}
-                                />
-                                @endif
-                            @endif
-                        </div>
-                    </div>
-
-                    {{-- Group Linking --}}
-                    @if(!is_null($application->phaseApplication))
-                    <div class="card card-{{ $application->phaseApplication->group_id ? 'success' : 'warning' }} card-outline {{ $application->phaseApplication->group_id ? 'collapsed-card' : '' }}">
-                        <div class="card-header">
-                            <h3 class="card-title font-weight-bold">
-                                <i class="fas fa-fingerprint mr-1"></i> Identity Status
-                            </h3>
-                            <div class="card-tools">
-                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                    <i class="fas {{ $application->phaseApplication->group_id ? 'fa-plus' : 'fa-minus' }}"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="card-body p-3">
-                            @if (!is_null($application->phaseApplication->group_id))
-                                <div class="text-center mb-2">
-                                    <span class="badge badge-success px-3 py-2">{{ $application->loan_type }} (Linked)</span>
-                                </div>
-                                <p class="small text-muted mb-1 text-center">
-                                    Linked to: <strong>{{ $application->phaseApplication->linkedGroup->name }}</strong> • <strong>{{ $application->phaseApplication->linkedGroup->code }}</strong>
-                                </p>
-                                @if($application->phaseApplication->status === 'pending')
-                                <x-modal-trigger
-                                    target="removeLink"
-                                    label="Unlink Application"
-                                    variant="outline-danger"
-                                    icon="fas fa-unlink"
-                                    block="true"
-                                    {{-- onclick="confirm('Are you sure you want to remove this group link?') || event.stopImmediatePropagation()" --}}
-                                />
-                                @endif
-                            @elseif($application->link_status === 'attempted_no_match')
-                                <div class="text-center mb-2">
-                                    <span class="badge badge-warning px-3 py-2">{{ $application->loan_type }} (Attempted. No Link Found)</span>
-                                </div>
-                                <p class="small text-success mb-3 text-bold">
-                                    <i class="fas fa-exclamation-triangle"></i> An attempt was posted but no link to a Master Group record.
-                                </p>
-                                @if($application->phaseApplication->status === 'pending')
-                                <x-modal-trigger
-                                    target="findMatches"
-                                    label="Attempt To Link Again?"
-                                    icon="fas fa-link"
-                                    variant="primary"
-                                    block="true"
-                                />
-                                @endif
-                            @else
-                                <div class="text-center mb-2">
-                                    <span class="badge badge-warning px-3 py-2">{{ $application->loan_type }} (Not Linked)</span>
-                                </div>
-                                <p class="small text-success mb-3 text-bold">
-                                    <i class="fas fa-exclamation-triangle"></i> Not yet linked to a Master Group record.
-                                </p>
-                                @if($application->phaseApplication->status === 'pending')
-                                <x-modal-trigger
-                                    target="findMatches"
-                                    label="Link Application"
-                                    icon="fas fa-link"
-                                    variant="primary"
-                                    block="true"
-                                />
-                                @endif
-                            @endif
-                        </div>
-                    </div>
-
-
-                    @if(in_array($this->application->link_status, ['attempted_no_match', 'linked']))
-                    {{-- Vetting Descisions --}}
-                    <div class="card card-primary card-outline">
-                        <div class="card-header">
-                            <h3 class="card-title font-weight-bold">
-                                <i class="fas fa-gavel mr-1"></i> Vetting Decision
-                            </h3>
-                        </div>
-                        <div class="card-body">
-                            @if($application->phaseApplication->status === 'pending')
-                            <div class="btn-group-vertical w-100">
-                                <x-modal-trigger class="mb-2"
-                                    target="approve"
-                                    label="APPROVE"
-                                    icon="fas fa-check-circle"
-                                    :disabled="$application->link_status === 'not_attempted'"
-                                    variant="success"
-                                    block="true"
-                                />
-
-                                <button wire:click="confirmReject"
-                                        class="btn btn-danger"
-                                        wire:loading.attr="disabled">
-                                    <span wire:loading.remove><i class="fas fa-times-circle"></i> REJECT</span>
-                                    <span wire:loading><i class="fas fa-spinner fa-spin"></i> Processing...</span>
-                                </button>
-                            </div>
-                            @endif
-                        </div>
-                    </div>
-
-                    <div class="card card-primary card-outline">
-    <div class="card-header">
-        <h3 class="card-title font-weight-bold">
-            <i class="fas fa-gavel mr-1"></i> Vetting Decision
-        </h3>
-    </div>
-    <div class="card-body">
-        @if($application->phaseApplication->status === 'pending')
-            {{-- YOUR EXISTING ACTION BUTTONS --}}
-            <div class="btn-group-vertical w-100">
-                <x-modal-trigger class="mb-2" target="approve" label="APPROVE" icon="fas fa-check-circle" :disabled="$application->link_status === 'not_attempted'" variant="success" block="true" />
-                <button wire:click="confirmReject" class="btn btn-danger" wire:loading.attr="disabled">
-                    <span wire:loading.remove><i class="fas fa-times-circle"></i> REJECT</span>
-                    <span wire:loading><i class="fas fa-spinner fa-spin"></i> Processing...</span>
-                </button>
-            </div>
-        @else
-            {{-- SHOW THIS AFTER APPROVAL/REJECTION --}}
-            <div class="text-center mb-3">
-                @if($application->phaseApplication->status === 'pending_submission_to_hq')
-                    <div class="p-3 border border-success rounded bg-light">
-                        <i class="fas fa-check-circle text-success fa-3x mb-2"></i>
-                        <h6 class="text-success font-weight-bold">APPLICATION APPROVED</h6>
-                    </div>
-                @else
-                    <div class="p-3 border border-danger rounded bg-light">
-                        <i class="fas fa-times-circle text-danger fa-3x mb-2"></i>
-                        <h5 class="text-danger font-weight-bold">APPLICATION REJECTED</h5>
-                    </div>
-                @endif
-            </div>
-
-            <table class="table table-sm table-borderless small border-top pt-2">
-                <tr>
-                    <td class="text-muted">Vetted By:</td>
-                    <td class="text-right font-weight-bold">{{ auth()->user()->name }}</td>
-                </tr>
-                <tr>
-                    <td class="text-muted">Decision Date:</td>
-                    <td class="text-right font-weight-bold">{{ $application->phaseApplication->updated_at->format('d M Y, H:i') }}</td>
-                </tr>
-                @if($application->phaseApplication->comments)
-                <tr>
-                    <td colspan="2" class="text-muted pb-0">Remarks:</td>
-                </tr>
-                <tr>
-                    <td colspan="2" class="bg-light p-2 rounded small">
-                        "{{ $application->phaseApplication->comments }}"
-                    </td>
-                </tr>
-                @endif
-            </table>
-
-            <hr>
-            {{-- Navigation Helper for the Officer --}}
-            <button class="btn btn-default btn-block btn-sm shadow-sm" onclick="window.location.href='#'">
-                <i class="fas fa-arrow-left mr-1"></i> Back to Phase List
-            </button>
-        @endif
-    </div>
-</div>
-                    @endif
-                    @endif
-
-                    {{-- Risk assesment --}}
-                    <div wire:key="risk-assessment-section-{{ $application->phaseApplication->group_id ?? 'unlinked' }}">
-                        {{-- Check if there are any reasons/flags --}}
-                        @if($this->riskFlagsCount > 0)
-                            <div class="card {{ $this->riskCategory == 'High Risk' ? 'card-danger' : 'card-warning' }} card-outline mt-3">
-                                <div class="card-header">
-                                    <h3 class="card-title font-weight-bold">
-                                        <i class="fas fa-biohazard mr-1"></i>
-                                        Risk Alerts ({{ $this->riskFlagsCount }})
-                                    </h3>
-                                    <div class="card-tools">
-                                        <span class="badge {{ $this->riskCategory == 'High Risk' ? 'badge-danger' : 'badge-warning' }}">
-                                            {{ $this->riskCategory }} (Score: {{ $this->riskAssessment['total_score'] }})
-                                        </span>
-                                    </div>
-                                </div>
-                                <div class="card-body p-3">
-                                    <ul class="list-unstyled small mb-0">
-                                        @foreach($this->riskFlags as $index => $flag)
-                                            <li class="mb-2 {{ $this->riskCategory == 'High Risk' ? 'text-danger' : 'text-warning' }}"
-                                                wire:key="flag-{{ $index }}">
-                                                <i class="fas fa-exclamation-triangle mr-2"></i> {{ $flag }}
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                </div>
-                            </div>
-                        @else
-                            <div class="card card-success card-outline mt-3">
-                                <div class="card-body p-3">
-                                    <p class="text-success mb-0 font-weight-bold">
-                                        <i class="fas fa-check-circle mr-2"></i> No risk flags detected.
-                                    </p>
-                                </div>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-9" wire:ignore.self>
+            <div class="col-md-9 order-last order-md-first" wire:ignore.self>
                 <div class="card card-primary card-outline card-tabs">
                     <div class="card-header p-1 pt-1 border-bottom-0">
                         <!-- Tabs Navigation -->
@@ -354,9 +131,9 @@
                     </div>
                     <div class="card-body position-relative">
                         <!-- Tab Content -->
-                        <div wire:loading.flex wire:target="activeTab"
+                        <div wire:loading.delay.shortest wire:target="activeTab"
                             class="w-100 h-100 position-absolute justify-content-center align-items-center"
-                            style="background: rgba(255,255,255,0.7); z-index: 1000; top: 0; left: 0; min-height: 100px;">
+                            style="background: rgba(255,255,255,0.7); z-index: 1000; top: 0; left: 0; min-height: 350px;">
                             <div class="text-center">
                                 <i class="fas fa-circle-notch fa-spin fa-3x text-navy"></i>
                                 <p class="text-navy font-weight-bold mt-2"> Loading Application Data...</p>
@@ -367,8 +144,10 @@
                             @if($activeTab === 'group-loan')
                                 <div class="tab-pane fade show active">
                                     <div class="row">
+                                        {{-- LEFT COLUMN: Profiles and Contacts --}}
                                         <div class="col-md-7">
-                                            <div class="card card-outline card-primary shadow-sm">
+                                            {{-- Group Profile Card --}}
+                                            <div class="card card-outline card-primary">
                                                 <div class="card-header">
                                                     <h3 class="card-title font-weight-bold">
                                                         <i class="fas fa-id-card mr-2 text-primary"></i>Group Profile
@@ -388,35 +167,22 @@
                                                             <ul class="list-group list-group-unbordered">
                                                                 <li class="list-group-item">
                                                                     <b>Group Name:</b><br>
-                                                                    <span class="text-primary font-weight-bold text-uppercase">
-                                                                        {{ $application->group_name }}
-                                                                    </span>
+                                                                    <span class="text-primary font-weight-bold text-uppercase">{{ $application->group_name }}</span>
                                                                 </li>
                                                                 <li class="list-group-item">
                                                                     <b>Registration No.:</b><br>
-                                                                    <span class="text-muted text-dark font-weight-bold">
-                                                                        {{ $application->group_registration_number }}
-                                                                    </span>
+                                                                    <span class="text-dark font-weight-bold">{{ $application->group_registration_number }}</span>
                                                                 </li>
                                                                 <li class="list-group-item border-bottom-0">
                                                                     <b>Nature of Group:</b><br>
-                                                                    <span class="badge badge-primary py-1 px-3 text-sm">
-                                                                        {{ ucfirst($application->nature_of_group) }}
-                                                                    </span>
+                                                                    <span class="badge badge-primary py-1 px-3 text-sm">{{ ucfirst($application->nature_of_group) }}</span>
                                                                 </li>
                                                                 @if($application->linked_status === 'linked')
-                                                                <li class="list-group-item border-bottom-0">
-                                                                    <b>Group code:</b><br>
-                                                                    <span class="badge badge-primary py-1 px-3 text-sm">
-                                                                        {{ $groupCode }}
-                                                                    </span>
-                                                                </li>
-                                                                <li class="list-group-item border-bottom-0">
-                                                                    <b>GFS code:</b><br>
-                                                                    <span class="badge badge-primary py-1 px-3 text-sm">
-                                                                        {{ $gfsCode }}
-                                                                    </span>
-                                                                </li>
+                                                                    <li class="list-group-item border-bottom-0">
+                                                                        <b>Group / GFS Codes:</b><br>
+                                                                        <span class="badge badge-info mr-1">{{ $groupCode }}</span>
+                                                                        <span class="badge badge-info">{{ $gfsCode }}</span>
+                                                                    </li>
                                                                 @endif
                                                             </ul>
                                                         </div>
@@ -426,25 +192,23 @@
                                                             <ul class="list-group list-group-unbordered">
                                                                 <li class="list-group-item">
                                                                     <b>Physical Location:</b><br>
-                                                                    <span class="text-left text-dark font-weight-bold">
-                                                                        <span>Ward: <span class="text-muted">{{ $application->ward_name }}</span></span>
-                                                                    </span>
+                                                                    <span class="text-dark">Ward: <span class="text-muted font-weight-bold">{{ $application->ward_name }}</span></span>
                                                                 </li>
                                                                 <li class="list-group-item">
-                                                                    <b>Landmark</b>
-                                                                    <span class="float-right text-muted italic font-weight-bold">
-                                                                        <i class="fas fa-map-marker-alt text-danger mr-1 "></i> Near {{ $application->nearest_landmark }}
+                                                                    <b>Landmark:</b>
+                                                                    <span class="float-right text-muted small">
+                                                                        <i class="fas fa-map-marker-alt text-danger mr-1"></i> Near {{ $application->nearest_landmark }}
                                                                     </span>
                                                                 </li>
                                                                 <li class="list-group-item border-bottom-0">
-                                                                    <b>Key Activities</b>
-                                                                    <div class="mt-2 d-flex flex-wrap" style="gap: 4px;">
-                                                                        @if(is_array($application->key_activities))
+                                                                    <b>Key Activities:</b>
+                                                                    <div class="mt-2 d-flex flex-wrap" style="gap: 5px;">
+                                                                        @if(!empty($application->key_activities) && is_array($application->key_activities))
                                                                             @foreach($application->key_activities as $activity)
-                                                                                <ul class="text-sm shadow-sm border-bottom-2">
-                                                                                    <li class="p-2 text-muted font-weight-bold">{{ $activity }}</li>
-                                                                                </ul>
+                                                                                <span class="badge badge-light border text-muted p-2 shadow-sm">{{ $activity }}</span>
                                                                             @endforeach
+                                                                        @else
+                                                                            <span class="text-muted small italic">None listed</span>
                                                                         @endif
                                                                     </div>
                                                                 </li>
@@ -453,10 +217,12 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="card card-info card-outline shadow-sm">
+
+                                            {{-- Business & Financial Assessment Card --}}
+                                            <div class="card card-info card-outline">
                                                 <div class="card-header">
                                                     <h3 class="card-title font-weight-bold">
-                                                        <i class="fas fa-briefcase mr-2 text-info"></i>Business & Financial Assessment
+                                                        <i class="fas fa-briefcase mr-2 text-info"></i>Financial Assessment
                                                     </h3>
                                                 </div>
                                                 <div class="card-body">
@@ -465,32 +231,19 @@
                                                             <p class="text-uppercase small font-weight-bold mb-3">Operating Profile</p>
                                                             <ul class="list-group list-group-unbordered">
                                                                 <li class="list-group-item">
-                                                                    <b class="text-muted">Nature of Business:</b>
-                                                                    <span class="float-right text-dark font-weight-bold">{{ $application->nature_of_business }}</span>
+                                                                    <span class="text-muted">Nature:</span>
+                                                                    <span class="float-right font-weight-bold">{{ $application->nature_of_business }}</span>
                                                                 </li>
                                                                 <li class="list-group-item">
-                                                                    <b class="text-muted">Years in Operation:</b>
-                                                                    <span class="float-right text-dark font-weight-bold">{{ $application->years_in_operation }} Years</span>
-                                                                </li>
-                                                                <li class="list-group-item">
-                                                                    <b class="text-muted">Primary Income:</b>
-                                                                    <span class="float-right text-success font-weight-bold">
-                                                                        KES {{ number_format($application->average_income, 2) }}
-                                                                    </span>
+                                                                    <span class="text-muted">Experience:</span>
+                                                                    <span class="float-right font-weight-bold">{{ $application->years_in_operation }} Years</span>
                                                                 </li>
                                                                 <li class="list-group-item border-bottom-0">
-                                                                    <b class="text-muted">Business Sector</b>
-                                                                    <div class="mt-2">
-                                                                        @if(is_array($application->business_type))
-                                                                            @foreach($application->business_type as $type)
-                                                                                <span class="badge badge-secondary py-1 px-2 text-sm mr-1">{{ $type }}</span>
-                                                                            @endforeach
-                                                                        @endif
-                                                                    </div>
+                                                                    <span class="text-muted">Monthly Income:</span>
+                                                                    <span class="float-right text-success font-weight-bold">KES {{ number_format($application->average_income, 2) }}</span>
                                                                 </li>
                                                             </ul>
                                                         </div>
-
                                                         <div class="col-md-6">
                                                             @php
                                                                 $totalExpenses = collect($processedExpenses)->sum('amount');
@@ -501,7 +254,7 @@
                                                             <p class="text-uppercase small font-weight-bold mb-3">Monthly Expense Breakdown</p>
 
                                                             @if(count($processedExpenses) > 0)
-                                                                <table class="table table-sm table-borderless mb-2">
+                                                                <table class="table table-sm mb-2">
                                                                     <tbody>
                                                                         @foreach($processedExpenses as $expense)
                                                                             <tr>
@@ -548,53 +301,11 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div class="card card-outline card-primary shadow-sm mt-3">
-                                                <div class="card-header">
-                                                    <h3 class="card-title font-weight-bold">
-                                                        <i class="fas fa-user-shield mr-2 text-primary"></i>Primary Group Contacts
-                                                    </h3>
-                                                </div>
-                                                <div class="card-body">
-                                                    <div class="list-group list-group-unbordered">
-                                                        @foreach([
-                                                            'chairperson' => ['label' => 'Chairperson', 'icon' => 'user-tie', 'color' => 'primary'],
-                                                            'secretary'   => ['label' => 'Secretary',   'icon' => 'pen-nib',  'color' => 'info'],
-                                                            'treasurer'   => ['label' => 'Treasurer',   'icon' => 'wallet',   'color' => 'success']
-                                                        ] as $key => $meta)
-                                                            <div class="list-group-item px-0 py-3 border-top-0">
-                                                                <div class="row align-items-center">
-                                                                    <div class="col-md-3">
-                                                                        <span class="text-uppercase small font-weight-bold text-{{ $meta['color'] }}">
-                                                                            <i class="fas fa-{{ $meta['icon'] }} mr-1"></i> {{ $meta['label'] }}
-                                                                        </span>
-                                                                    </div>
-
-                                                                    <div class="col-md-9">
-                                                                        @if(isset($groupOfficials[$key]))
-                                                                            <div class="d-flex justify-content-between align-items-center">
-                                                                                <div>
-                                                                                    <span class="h6 font-weight-bold mb-0 text-dark">{{ $groupOfficials[$key]->name }}</span>
-
-                                                                                </div>
-                                                                                <div class="text-muted mt-1 font-weight-bold">
-                                                                                    <span class="mr-3"><i class="fas fa-phone-alt"></i> {{ $groupOfficials[$key]->phone_number ?? 'N/A' }}</span> <br>
-                                                                                    <span><i class="fas fa-id-card text-sm"></i> {{ $groupOfficials[$key]->id_number ?? 'N/A' }}</span>
-                                                                                </div>
-                                                                            </div>
-                                                                        @else
-                                                                            <span class="text-muted small italic">Official information not captured for this role.</span>
-                                                                        @endif
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
-                                            </div>
                                         </div>
 
+                                        {{-- RIGHT COLUMN: Loan Details and Settlement --}}
                                         <div class="col-md-5">
-                                            <div class="card card-outline card-success shadow-sm">
+                                            <div class="card card-outline card-success">
                                                 <div class="card-header">
                                                     <h3 class="card-title font-weight-bold"><i class="fas fa-money-check-alt mr-1"></i> Loan Details</h3>
                                                 </div>
@@ -608,60 +319,36 @@
                                                             <p class="font-weight-bold">{{ $application->proposed_repayment_period }} Months</p>
                                                         </div>
                                                         <div class="col-6">
-                                                            <p class="small text-muted mb-0">Interest Rate</p>
-                                                            <p class="font-weight-bold">0% (Interest Free)</p>
+                                                            <p class="small text-muted mb-0">Interest</p>
+                                                            <p class="font-weight-bold text-success">0%</p>
                                                         </div>
                                                     </div>
-                                                    <p class="text-muted mb-1 small uppercase border-top mt-3 pt-2">Approved Amount</p>
-                                                    <h2 class="text-black-50 font-weight-bold mb-3">KES {{ number_format($application->phaseApplication?->amount_approved, 2) }}</h2>
+
+                                                    @if($application->phaseApplication?->amount_approved)
+                                                        <p class="text-muted mb-1 small uppercase border-top mt-3 pt-2">Approved Amount</p>
+                                                        <h2 class="text-primary font-weight-bold">KES {{ number_format($application->phaseApplication->amount_approved, 2) }}</h2>
+                                                    @endif
                                                 </div>
                                             </div>
-                                            <div class="card card-outline card-success shadow-sm">
+
+                                            <div class="card card-outline card-success">
                                                 <div class="card-header">
                                                     <h3 class="card-title font-weight-bold text-success">
-                                                        <i class="fas fa-university mr-2"></i>Bank Settlement Details
+                                                        <i class="fas fa-university mr-2"></i>Bank Settlement
                                                     </h3>
                                                 </div>
-                                                <div class="card-body pt-0">
-                                                    {{-- <div class="row align-items-center"> --}}
-                                                        <div class="">
-                                                            <ul class="list-group list-group-unbordered">
-                                                                <li class="list-group-item">
-                                                                    <b>Bank Name:</b>
-                                                                    <span class="float-right text-dark font-weight-bold">
-                                                                        {{ $application->bank_name }}
-                                                                    </span>
-                                                                </li>
-                                                                <li class="list-group-item">
-                                                                    <b>Account Number:</b>
-                                                                    <span class="float-right text-primary font-weight-bold" style="letter-spacing: 1px;">
-                                                                        {{ $application->bank_account_number }}
-                                                                    </span>
-                                                                </li>
-                                                                <li class="list-group-item border-bottom-0">
-                                                                    <b>Branch Location:</b>
-                                                                    <span class="float-right text-muted">
-                                                                        {{ $application->bank_branch }}
-                                                                    </span>
-                                                                </li>
-                                                            </ul>
-                                                        </div>
-
-                                                        {{-- <div class="col-md-5 text-center py-3">
-                                                            <div class="d-none d-md-block">
-                                                                <i class="fas fa-piggy-bank fa-3x text-success mb-2 opacity-25" style="opacity: 0.3;"></i>
-                                                                <p class="small text-muted mb-0">Verified Disbursement Account</p>
-                                                                <span class="badge badge-success px-3 py-1 mt-2">Active Channel</span>
-                                                            </div>
-                                                        </div> --}}
-                                                    {{-- </div> --}}
-                                                </div>
-
-                                                <div class="card-footer bg-light py-2">
-                                                    <small class="text-muted">
-                                                        <i class="fas fa-shield-alt mr-1 text-success"></i>
-                                                        {{-- Ensure account name matches the registered Group Name before approval. --}}
-                                                    </small>
+                                                <div class="card-body">
+                                                    <ul class="list-group list-group-unbordered">
+                                                        <li class="list-group-item">
+                                                            <b>Bank:</b> <span class="float-right">{{ $application->bank_name }}</span>
+                                                        </li>
+                                                        <li class="list-group-item">
+                                                            <b>A/C No:</b> <span class="float-right text-primary font-weight-bold">{{ $application->bank_account_number }}</span>
+                                                        </li>
+                                                        <li class="list-group-item border-bottom-0">
+                                                            <b>Branch:</b> <span class="float-right text-muted">{{ $application->bank_branch }}</span>
+                                                        </li>
+                                                    </ul>
                                                 </div>
                                             </div>
                                         </div>
@@ -691,6 +378,7 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
+
                                                         @foreach($application->groupMembers as $member)
                                                         <tr>
                                                             <td>
@@ -732,14 +420,31 @@
                                                                 </span>
                                                             </td>
                                                             <td>
+                                                                @php
+                                                                    $previewable = [
+                                                                        'application/pdf',
+                                                                        'image/jpeg',
+                                                                        'image/png',
+                                                                        'image/gif',
+                                                                        'image/webp'
+                                                                    ];
+
+                                                                    // Determine the action based on the mime_type
+                                                                    $action = in_array($member->photo_member_id['mime_type'], $previewable) ? 'view' : 'download';
+                                                                @endphp
                                                                 @if($member->photo_member_id && is_array($member->photo_member_id))
                                                                     <a href="{{ route('const.app.application.file.download', [
-                                                                        'county' => $county->slug ?? $constituency->county->slug,
-                                                                        'constituency' => $constituency->slug,
-                                                                        'applicationId' => $application->application_id,
-                                                                    ]) . '?path=' . base64_encode($member->photo_member_id['path']) }}"
-                                                                    class="btn btn-sm btn-outline-primary">
-                                                                        <i class="fas fa-download"></i> ID
+                                                                            'county' => $county->slug ?? $constituency->county->slug,
+                                                                            'constituency' => $constituency->slug,
+                                                                            'applicationId' => $application->application_id,
+                                                                            'action' => $action
+                                                                        ]) . '?path=' . base64_encode($member->photo_member_id['path']) }}"
+                                                                        @if($action === 'view') target="_blank" @endif
+                                                                        class="btn btn-sm {{ $action === 'view' ? 'btn-outline-info' : 'btn-outline-primary' }}">
+
+                                                                        <i class="fas {{ $action === 'view' ? 'fa-eye' : 'fa-download' }}"></i>
+
+                                                                        {{ $action === 'view' ? 'View ID' : 'Download ID' }}
                                                                     </a>
                                                                 @else
                                                                     <span class="text-muted">No ID</span>
@@ -751,8 +456,9 @@
                                                                     icon="fas fa-eye"
                                                                     variant="outline-info"
                                                                     size="sm"
-                                                                    label=""
+                                                                    label="More Info"
                                                                     :block="false"
+                                                                    defaultLabel=""
                                                                 />
                                                             </td>
                                                         </tr>
@@ -856,13 +562,6 @@
                                             <p class="small text-success mb-3 text-bold">
                                                 <i class="fas fa-exclamation-triangle"></i> An attempt was posted but no link to a Master Group record.
                                             </p>
-                                            <x-modal-trigger
-                                                target="findMatches"
-                                                label="Attempt To Link Again?"
-                                                icon="fas fa-link"
-                                                variant="primary"
-                                                block="true"
-                                            />
                                         </div>
                                     @else
                                         <div class="text-center p-5">
@@ -870,13 +569,7 @@
                                                 <i class="fas fa-exclamation-triangle"></i> Not yet linked to a Master Group record.
                                             </p>
 
-                                            <x-modal-trigger
-                                                target="findMatches"
-                                                label="Link Application"
-                                                icon="fas fa-link"
-                                                variant="primary"
-                                                block="true"
-                                            />
+
                                         </div>
                                     @endif
                                 </div>
@@ -933,122 +626,7 @@
                                 <div class="tab-pane active">
                                     <div class="timeline timeline-inverse mt-3">
 
-                                        {{-- 1. Loop through Status/Phase History --}}
-                                        @forelse($application->audit_logs ?? [] as $log)
-                                            {{-- Note: Replace 'audit_logs' with your actual relationship name, e.g., 'activities' or 'logs' --}}
-                                            <div class="time-label">
-                                                <span class="bg-gray small">{{ $log->created_at->format('d M, Y') }}</span>
-                                            </div>
-
-                                            <div>
-                                                {{-- Determine Icon based on action --}}
-                                                @php
-                                                    $icon = 'fas fa-info-circle bg-primary';
-                                                    if(str_contains($log->action, 'Approved')) $icon = 'fas fa-check bg-success';
-                                                    if(str_contains($log->action, 'Rejected')) $icon = 'fas fa-times bg-danger';
-                                                    if(str_contains($log->action, 'Phase')) $icon = 'fas fa-step-forward bg-info';
-                                                @endphp
-
-                                                <i class="{{ $icon }}"></i>
-                                                <div class="timeline-item shadow-sm border">
-                                                    <span class="time"><i class="fas fa-clock"></i> {{ $log->created_at->format('H:i A') }}</span>
-
-                                                    <h3 class="timeline-header no-border">
-                                                        <span class="text-primary font-weight-bold">{{ $log->user->name ?? 'System' }}</span>
-                                                        {{ $log->action }}
-                                                    </h3>
-
-                                                    @if($log->remarks)
-                                                        <div class="timeline-body bg-light m-2 rounded small text-muted">
-                                                            <i class="fas fa-comment-dots mr-1"></i> "{{ $log->remarks }}"
-                                                        </div>
-                                                    @endif
-                                                </div>
-                                            </div>
-                                        @empty
-                                            {{-- 2. Fallback: Show Basic Application Milestones if no logs exist --}}
-                                            <div class="time-label">
-                                                <span class="bg-success">{{ $application->created_at->format('d M, Y') }}</span>
-                                            </div>
-                                            <div>
-                                                <i class="fas fa-file-import bg-blue"></i>
-                                                <div class="timeline-item shadow-sm border">
-                                                    <span class="time"><i class="fas fa-clock"></i> {{ $application->created_at->format('H:i A') }}</span>
-                                                    <h3 class="timeline-header no-border">Application Submitted via Portal</h3>
-                                                </div>
-                                            </div>
-
-                                            @if($application->phaseApplication)
-                                                <div>
-                                                    <i class="fas fa-route bg-info"></i>
-                                                    <div class="timeline-item shadow-sm border">
-                                                        <span class="time"><i class="fas fa-clock"></i> {{ $application->phaseApplication->created_at->format('H:i A') }}</span>
-                                                        <h3 class="timeline-header no-border">
-                                                            Assigned to Phase: <span class="badge badge-info">{{ $application->phaseApplication->reviewPhase->name }}</span>
-                                                        </h3>
-                                                    </div>
-                                                </div>
-                                            @endif
-                                        @endforelse
-                                        @forelse($application->activities()->latest()->get() as $activity)
-                {{-- Date Label --}}
-                <div class="time-label">
-                    <span class="bg-gray-light border px-2 small">
-                        {{ $activity->created_at->format('d M, Y') }}
-                    </span>
-                </div>
-
-                <div>
-                    {{-- Logic for Icons/Colors --}}
-                    @php
-                        $icon = 'fas fa-edit bg-primary';
-                        if($activity->description === 'created') $icon = 'fas fa-plus bg-success';
-                        if($activity->description === 'deleted') $icon = 'fas fa-trash bg-danger';
-                        if(isset($activity->properties['attributes']['status'])) $icon = 'fas fa-sync bg-info';
-                    @endphp
-
-                    <i class="{{ $icon }}"></i>
-
-                    <div class="timeline-item shadow-sm">
-                        <span class="time"><i class="fas fa-clock"></i> {{ $activity->created_at->format('H:i') }}</span>
-
-                        <h3 class="timeline-header no-border">
-                            <span class="text-primary font-weight-bold">
-                                {{ $activity->causer->name ?? 'System' }}
-                            </span>
-                            {{ ucfirst($activity->description) }} application
-                        </h3>
-
-                        @if($activity->properties->has('attributes'))
-                            <div class="timeline-body p-2">
-                                <table class="table table-sm table-bordered mb-0" style="font-size: 0.8rem;">
-                                    <tr class="bg-light">
-                                        <th>Field</th>
-                                        <th>Previous</th>
-                                        <th>New Value</th>
-                                    </tr>
-                                    @foreach($activity->properties['attributes'] as $key => $value)
-                                        <tr>
-                                            <td class="font-weight-bold">{{ ucfirst(str_replace('_', ' ', $key)) }}</td>
-                                            <td class="text-muted">{{ $activity->properties['old'][$key] ?? 'N/A' }}</td>
-                                            <td class="text-success">{{ $value }}</td>
-                                        </tr>
-                                    @endforeach
-                                </table>
-                            </div>
-                        @endif
-                    </div>
-                </div>
-            @empty
-                <div class="text-center p-5">
-                    <p class="text-muted">No audit logs found for this application.</p>
-                </div>
-            @endforelse
-
-                                        {{-- Final Icon --}}
-                                        <div>
-                                            <i class="fas fa-dot-circle bg-gray"></i>
-                                        </div>
+                                       to implement
                                     </div>
                                 </div>
                             @endif
@@ -1066,11 +644,274 @@
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Toast Container -->
-        <div class="position-fixed bottom-0 right-0 p-3" style="z-index: 1500; max-width: 350px;">
-            <div id="toasts-container" class="toasts-top-right"></div>
+            <div class="col-md-3 order-first order-md-last d-flex flex-column">
+                <div class="sticky-top" style="top: 50px; z-index: 1020;">
+                    <!-- Phase Assignment Section -->
+                    <div class="card card-outline card-info {{ !is_null($application->phaseApplication) ? 'collapsed-card' : '' }}">
+                        <div class="card-header">
+                            <h3 class="card-title font-weight-bold">
+                                <i class="fas fa-layer-group mr-1"></i> Phase Assignment
+                            </h3>
+                             <div class="card-tools">
+                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                    <i class="fas {{ !is_null($application->phaseApplication) ? 'fa-plus' : 'fa-minus' }}"></i>
+                                </button>
+
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            @if(is_null($application->phaseApplication))
+                                <p class="text-muted small mb-3">
+                                    This application is not assigned to any phase yet.
+                                </p>
+
+                                <!-- Dropdown or button to select phase -->
+                                <x-select2
+                                    model="selectedPhaseId"
+                                    label="Phase"
+                                    :options="$activePhases"
+                                    placeholder="Select a Phase"
+                                    optionLabel="phase"
+                                    optionValue="id"
+                                />
+
+                                <x-loading-button
+                                    target="assignToPhase"
+                                    class="btn-primary"
+                                    icon="fas fa-plus-circle"
+                                    label="Assign to Phase"
+                                    block="true"
+                                    :disabled="!$selectedPhaseId"
+                                />
+                            @else
+                                <p class="text-success mb-2">
+                                    <i class="fas fa-check-circle"></i> Assigned to:
+                                    <span class="badge badge-info mr-1">{{ $application->phaseApplication->reviewPhase->phase }}</span>
+                                </p>
+                                @if($application->phaseApplication->status === 'pending')
+                                <x-loading-button
+                                    target="removeFromPhase"
+                                    class="btn-outline-danger"
+                                    icon="fas fa-unlink"
+                                    label="Remove from Phase"
+                                    block="true"
+                                    {{-- onclick="confirm('Are you sure you want to remove this application from phase?') || event.stopImmediatePropagation()" --}}
+                                />
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+
+                    {{-- Group Linking --}}
+                    @if(!is_null($application->phaseApplication))
+                    <div class="card card-{{ $application->phaseApplication->group_id ? 'success' : 'warning' }} card-outline {{ $application->phaseApplication->group_id ? 'collapsed-card' : '' }}">
+                        <div class="card-header">
+                            <h3 class="card-title font-weight-bold">
+                                <i class="fas fa-fingerprint mr-1"></i> Identity Status
+                            </h3>
+                            <div class="card-tools">
+                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
+                                    <i class="fas {{ $application->phaseApplication->group_id ? 'fa-plus' : 'fa-minus' }}"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body p-3">
+                            @if (!is_null($application->phaseApplication->group_id))
+                                <div class="text-center mb-2">
+                                    <span class="badge badge-success px-3 py-2">{{ $application->loan_type }} (Linked)</span>
+                                </div>
+                                <p class="small text-muted mb-1 text-center">
+                                    Linked to: <strong>{{ $application->phaseApplication->linkedGroup->name }}</strong> • <strong>{{ $application->phaseApplication->linkedGroup->code }}</strong>
+                                </p>
+                                @if($application->phaseApplication->status === 'pending')
+                                <x-modal-trigger
+                                    target="removeLink"
+                                    label="Unlink Application"
+                                    variant="outline-danger"
+                                    icon="fas fa-unlink"
+                                    block="true"
+                                    {{-- onclick="confirm('Are you sure you want to remove this group link?') || event.stopImmediatePropagation()" --}}
+                                />
+                                @endif
+                            @elseif($application->link_status === 'attempted_no_match')
+                                <div class="text-center mb-2">
+                                    <span class="badge badge-warning px-3 py-2 mb-1">{{ $application->loan_type }}</span>
+                                    <div class="small text-danger font-weight-bold">
+                                        <i class="fas fa-search-location"></i> Attempted: No Link Found
+                                    </div>
+                                </div>
+                                @if($application->phaseApplication->status === 'pending')
+                                <x-modal-trigger
+                                    target="findMatches"
+                                    label="Attempt To Link Again?"
+                                    icon="fas fa-link"
+                                    variant="primary"
+                                    block="true"
+                                />
+                                @endif
+                            @else
+                                <div class="text-center mb-2">
+                                    <span class="badge badge-warning px-3 py-2">{{ $application->loan_type }} (Not Linked)</span>
+                                </div>
+                                <p class="small text-success mb-3 text-bold">
+                                    <i class="fas fa-exclamation-triangle"></i> Not yet linked to a Master Group record.
+                                </p>
+                                @if($application->phaseApplication->status === 'pending')
+                                <x-modal-trigger
+                                    target="findMatches"
+                                    label="Link Application"
+                                    icon="fas fa-link"
+                                    variant="primary"
+                                    block="true"
+                                />
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+
+
+                    @if(in_array($this->application->link_status, ['attempted_no_match', 'linked']))
+                    {{-- Vetting Descisions --}}
+                    <div class="card card-primary card-outline">
+                        <div class="card-header">
+                            <h3 class="card-title font-weight-bold">
+                                <i class="fas fa-gavel mr-1"></i> Vetting Decision
+                            </h3>
+                        </div>
+                        <div class="card-body">
+                            @if($application->phaseApplication->status === 'pending')
+                                {{-- YOUR EXISTING ACTION BUTTONS --}}
+                                <div class="btn-group-vertical w-100">
+                                    <x-modal-trigger class="mb-2" target="approve" label="APPROVE" icon="fas fa-check-circle" :disabled="$application->link_status === 'not_attempted'" variant="success" block="true" />
+                                    <x-modal-trigger
+                                        class="mb-2"
+                                        target="openRejectModal"
+                                        label="REJECT"
+                                        icon="fas fa-times-circle"
+                                        variant="danger"
+                                        block="true"
+                                    />
+                                </div>
+                            @else
+                                <div class="text-center mb-3">
+                                    @if($application->phaseApplication->status === 'pending_submission_to_hq')
+                                        <div class="p-3 border border-success rounded bg-light">
+                                            <i class="fas fa-check-circle text-success fa-3x mb-2"></i>
+                                            <h6 class="text-success font-weight-bold">APPLICATION APPROVED</h6>
+                                        </div>
+                                    @else
+                                        <div class="p-3 border border-danger rounded bg-light">
+                                            <i class="fas fa-times-circle text-danger fa-3x mb-2"></i>
+                                            <h5 class="text-danger font-weight-bold">APPLICATION REJECTED</h5>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <table class="table table-sm table-borderless small border-top pt-2">
+                                    <tr>
+                                        <td class="text-muted">Vetted By:</td>
+                                        <td class="text-right font-weight-bold">{{ auth()->user()->name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted">Decision Date:</td>
+                                        <td class="text-right font-weight-bold">{{ $application->phaseApplication->updated_at->format('d M Y, H:i') }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" class="text-muted pb-0">Remarks:</td>
+                                    </tr>
+                                    <tr>
+                                        <td colspan="2" class="bg-light p-2 rounded text-dark font-weight-bold">
+                                            "{{ $application->phaseApplication->comments?? $application->phaseApplication->rejection_reason}}"
+                                        </td>
+                                    </tr>
+                                </table>
+
+                                <hr>
+                                @if (!in_array($application->phaseApplication->status, ['pending', 'rejected']))
+                                    <x-loading-button
+                                        target="exportInstitutionalInfo"
+                                        class="btn-uwezo btn-sm"
+                                        icon="fas fa-file-excel"
+                                        size="sm"
+                                        block="true"
+                                        label="Institutional Information"
+                                        loadingLabel="Generating..."
+                                    />
+                                @endif
+
+
+                                {{-- review decision --}}
+                                @if($application->phaseApplication->status === 'pending_submission_to_hq')
+                                    <x-modal-trigger
+                                        target="reviewApproval"
+                                        label="Review Approval"
+                                        icon="fas fa-edit"
+                                        variant="outline-primary"
+                                        block="true"
+                                    />
+                                @endif
+
+                                @if($application->phaseApplication->action === 'declined_at_constituency')
+                                    <x-modal-trigger
+                                        target="reviewRejection"
+                                        label="Review Rejection"
+                                        icon="fas fa-edit"
+                                        variant="outline-primary"
+                                        block="true"
+                                    />
+                                @endif
+
+                                <a class="btn btn-default btn-block btn-sm shadow-sm" href="{{ route('const.app.app_dashboard', [$county->slug, $constituency->slug]) }}" wire:navigate>
+                                    <i class="fas fa-arrow-left mr-1"></i> Back to Phase List
+                                </a>
+
+
+                            @endif
+                        </div>
+                    </div>
+                    @endif
+                    @endif
+
+                    {{-- Risk assesment --}}
+                    <div wire:key="risk-assessment-section-{{ $application->phaseApplication->group_id ?? 'unlinked' }}">
+                        {{-- Check if there are any reasons/flags --}}
+                        @if($this->riskFlagsCount > 0)
+                            <div class="card {{ $this->riskCategory == 'High Risk' ? 'card-danger' : 'card-warning' }} card-outline mt-3">
+                                <div class="card-header">
+                                    <h3 class="card-title font-weight-bold">
+                                        <i class="fas fa-biohazard mr-1"></i>
+                                        Risk Alerts ({{ $this->riskFlagsCount }})
+                                    </h3>
+                                    <div class="card-tools">
+                                        <span class="badge {{ $this->riskCategory == 'High Risk' ? 'badge-danger' : 'badge-warning' }}">
+                                            {{ $this->riskCategory }} (Score: {{ $this->riskAssessment['total_score'] }})
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="card-body p-3">
+                                    <ul class="list-unstyled small mb-0">
+                                        @foreach($this->riskFlags as $index => $flag)
+                                            <li class="mb-2 {{ $this->riskCategory == 'High Risk' ? 'text-danger' : 'text-warning' }}"
+                                                wire:key="flag-{{ $index }}">
+                                                <i class="fas fa-exclamation-triangle mr-2"></i> {{ $flag }}
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        @else
+                            <div class="card card-success card-outline mt-3">
+                                <div class="card-body p-3">
+                                    <p class="text-success mb-0 font-weight-bold">
+                                        <i class="fas fa-check-circle mr-2"></i> No risk flags detected.
+                                    </p>
+                                </div>
+                            </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1115,7 +956,7 @@
                                     </span>
                                 </div>
                             </div>
-                            <small class="text-muted">Searching within {{ $application->ward->constituency->constituency_name ?? 'Current Constituency' }}</small>
+                            <small class="text-muted">Searching within {{ $constituency->constituency_name ?? 'Current Constituency' }}</small>
                         </div>
                     @endif
 
@@ -1337,8 +1178,17 @@
                             <p class="text-muted text-uppercase small font-weight-bold mb-2">Attached Documents</p>
                             <div class="d-flex flex-wrap">
                                 @if($selectedMember->photo_member_id)
-                                    <a href="#" class="btn btn-app bg-light m-1 border">
-                                        <i class="fas fa-id-card text-primary"></i> ID Copy
+                                    <a href="{{ route('const.app.application.file.download', [
+                                            'county' => $county->slug ?? $constituency->county->slug,
+                                            'constituency' => $constituency->slug,
+                                            'applicationId' => $application->application_id,
+                                            'action' => 'download'
+                                        ]) . '?path=' . base64_encode($selectedMember->photo_member_id['path']) }}"
+                                        class="btn btn-app bg-light m-1 border btn-outline-info">
+
+                                        <i class="fas fa-id-card"></i>
+
+                                        ID Copy
                                     </a>
                                 @endif
 
@@ -1361,8 +1211,8 @@
     </div>
 
     {{-- modal approve --}}
-    <div wire:ignore.self class="modal fade" id="modal-approve" tabindex="-1" role="dialog">
-        <div class="modal-dialog modal-md">
+    <div wire:ignore.self class="modal fade" id="modal-approve" role="dialog">
+        <div class="modal-content modal-dialog modal-dialog-scrollable">
             <form wire:submit.prevent="confirmApproval">
                 <div class="modal-content">
                     <div class="modal-header bg-success">
@@ -1489,79 +1339,7 @@
     font-size: 1rem;
     padding: 0.5rem 1rem;
 }
-.timeline {
-    position: relative;
-    margin: 0 0 30px 0;
-    padding: 0;
-    list-style: none;
-}
-.timeline:before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    background: #ddd;
-    left: 31px;
-    margin: 0;
-    border-radius: 2px;
-}
-.timeline > div {
-    position: relative;
-    margin-right: 10px;
-    margin-bottom: 15px;
-}
-.timeline .time-label span {
-    font-weight: 600;
-    padding: 5px 10px;
-    display: inline-block;
-    background-color: #e9ecef;
-    border-radius: 4px;
-}
-.timeline > div > .fa,
-.timeline > div > .fas,
-.timeline > div > .far,
-.timeline > div > .fab,
-.timeline > div > .glyphicon,
-.timeline > div > .ion {
-    width: 30px;
-    height: 30px;
-    font-size: 15px;
-    line-height: 30px;
-    position: absolute;
-    color: #666;
-    background: #d2d6de;
-    border-radius: 50%;
-    text-align: center;
-    left: 18px;
-    top: 0;
-}
-.timeline > .time-label {
-    position: relative;
-    margin: 0 0 30px 0;
-}
-.timeline .timeline-item {
-    margin-right: 15px;
-    margin-left: 60px;
-    margin-top: 0;
-    background: #fff;
-    color: #444;
-    padding: 0;
-    position: relative;
-    border-radius: 4px;
-}
-.timeline .timeline-header {
-    margin: 0;
-    color: #555;
-    border-bottom: 1px solid #f4f4f4;
-    padding: 10px;
-    font-size: 16px;
-    line-height: 1.1;
-}
-.timeline .timeline-body,
-.timeline .timeline-footer {
-    padding: 10px;
-}
+
 .avatar-circle {
     width: 40px;
     height: 40px;
@@ -1574,6 +1352,7 @@
     color: #6c757d;
     font-size: 1.2rem;
 }
+
 </style>
 @endpush
 @push('scripts')
@@ -1594,27 +1373,28 @@
                 console.error('Livewire Error:', event);
             });
 
-            Livewire.on('confirm-action', (eventData) => {
-                const data = Array.isArray(eventData) ? eventData[0] : eventData;
-                Swal.fire({
-                    title: data.title || "Are you sure?",
-                    text: data.text || "This action cannot be undone!",
-                    icon: data.icon || "warning",
-                    showCancelButton: true,
-                    confirmButtonColor: "#3085d6",
-                    cancelButtonColor: "#d33",
-                    confirmButtonText: data.confirmText || "Yes, proceed!",
-                    reverseButtons: true // Places "Cancel" on the left
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        // If confirmed, tell Livewire to call the actual function
-                        // 'componentId' and 'action' must be passed from the backend
-                        Livewire.find(data.componentId).call(data.action, data.params);
-                    }
-                });
-            });
+            // Livewire.on('confirm-action', (eventData) => {
+            //     const data = Array.isArray(eventData) ? eventData[0] : eventData;
+            //     Swal.fire({
+            //         title: data.title || "Are you sure?",
+            //         text: data.text || "This action cannot be undone!",
+            //         icon: data.icon || "warning",
+            //         showCancelButton: true,
+            //         confirmButtonColor: "#3085d6",
+            //         cancelButtonColor: "#d33",
+            //         confirmButtonText: data.confirmText || "Yes, proceed!",
+            //         reverseButtons: true // Places "Cancel" on the left
+            //     }).then((result) => {
+            //         if (result.isConfirmed) {
+            //             // If confirmed, tell Livewire to call the actual function
+            //             // 'componentId' and 'action' must be passed from the backend
+            //             Livewire.find(data.componentId).call(data.action, data.params);
+            //         }
+            //     });
+            // });
 
             Livewire.on('confirm-approve-action', (eventData) => {
+                console.log('called')
                 const data = Array.isArray(eventData) ? eventData[0] : eventData;
                 Swal.fire({
                     title: data.title || "Are you sure?",
@@ -1627,6 +1407,7 @@
                     reverseButtons: true // Places "Cancel" on the left
                 }).then((result) => {
                     if (result.isConfirmed) {
+                        $('#modal-approve').modal('hide');
                         // If confirmed, tell Livewire to call the actual function
                         // 'componentId' and 'action' must be passed from the backend
                         Livewire.find(data.componentId).call(data.action, data.params);
@@ -1637,49 +1418,218 @@
             Livewire.on('approval-completed', (eventData) => {
                 const data = Array.isArray(eventData) ? eventData[0] : eventData;
 
-                // Hide the previous confirmation/modal
-                $('#modal-approve').modal('hide');
-
                 if (data.isPhaseComplete) {
+                    // SCENARIO 1: PHASE COMPLETED
                     Swal.fire({
-                        title: 'Phase Fully Vetted!',
-                        text: 'Great job! You have reached the end of this phase list.',
-                        icon: 'success',
-                        confirmButtonText: '<i class="fas fa-file-export mr-1"></i> Proceed to Submission',
-                        showCancelButton: true
-                    }).then((result) => {
-                        if (result.isConfirmed) window.location.href = '/phases/submission';
-                    });
-                } else {
-                    // SCENARIO: Provide summary of the NEXT application
-                    Swal.fire({
-                        title: 'Approved!',
+                        title: '<span class="text-success">Phase Fully Vetted!</span>',
                         html: `
-                            <div class="alert alert-success py-2">Success! Current application finalized.</div>
-                            <div class="card card-outline card-primary mt-3">
-                                <div class="card-header"><h3 class="card-title">Up Next:</h3></div>
-                                <div class="card-body text-left">
-                                    <strong>Group:</strong> ${data.nextSummary.group_name}<br>
-                                    <strong>Application ID:</strong> ${data.nextSummary.app_id}<br>
-                                    <strong>Amount Applied:</strong> KES ${data.nextSummary.amount}
+                            <div class="py-3">
+                                <i class="fas fa-check-circle fa-4x text-success mb-3 animate__animated animate__bounceIn"></i>
+                                <p class="text-muted">Excellent! You have successfully processed all applications in this phase.</p>
+                            </div>
+                        `,
+                        showCancelButton: true,
+                        confirmButtonColor: '#28a745',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: '<i class="fas fa-file-export mr-1"></i> Proceed to Submission',
+                        cancelButtonText: 'Stay on Page',
+                        background: '#f8fafc',
+                        customClass: {
+                            title: 'font-weight-bold',
+                            confirmButton: 'btn btn-success shadow-sm',
+                            cancelButton: 'btn btn-light border'
+                        }
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            Livewire.navigate(data.nextUrl);
+                        }
+                    });
+
+                } else {
+                    // SCENARIO 2: NEXT APPLICATION PREVIEW
+                    Swal.fire({
+                        title: 'Action Successful!',
+                        html: `
+                            <div class="text-left mt-3">
+                                <div class="d-flex align-items-center mb-3 p-2 bg-light rounded border">
+                                    <div class="bg-success rounded-circle p-2 mr-3 text-white">
+                                        <i class="fas fa-check"></i>
+                                    </div>
+                                    <span class="text-dark font-weight-bold">Current application finalized.</span>
+                                </div>
+
+                                <h6 class="text-uppercase text-muted small font-weight-bold mb-2">Up Next:</h6>
+                                <div class="list-group shadow-sm">
+                                    <div class="list-group-item d-flex justify-content-between align-items-center border-left-primary">
+                                        <span><i class="fas fa-users text-primary mr-2"></i> Group</span>
+                                        <span class="font-weight-bold">${data.nextSummary.group_name}</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-hashtag text-primary mr-2"></i> App ID</span>
+                                        <span class="badge badge-light border text-monospace px-2">${data.nextSummary.app_id}</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center bg-light">
+                                        <span><i class="fas fa-coins text-primary mr-2"></i> Amount Applied</span>
+                                        <span class="text-success font-weight-bold">KES ${data.nextSummary.amount}</span>
+                                    </div>
                                 </div>
                             </div>
                         `,
                         icon: 'success',
                         showDenyButton: true,
-                        confirmButtonColor: '#28a745',
+                        confirmButtonColor: '#007bff',
                         denyButtonColor: '#6c757d',
-                        confirmButtonText: 'Vet Next <i class="fas fa-chevron-right ml-1"></i>',
-                        denyButtonText: 'Close',
+                        confirmButtonText: 'Vet Next <i class="fas fa-arrow-right ml-1"></i>',
+                        denyButtonText: 'Back to List',
+                        customClass: {
+                            popup: 'rounded-lg shadow-lg',
+                            confirmButton: 'btn btn-primary px-4',
+                            denyButton: 'btn btn-outline-secondary px-4'
+                        }
                     }).then((result) => {
                         if (result.isConfirmed) {
-                            window.location.href = '/applications/' + data.nextId + '/vetting';
+                            Livewire.navigate(data.nextUrl);
+                        } else {
+                            $('#modal-approve').modal('show');
                         }
                     });
                 }
             });
 
+            Livewire.on('confirm-reject', (eventData) => {
+                const data = Array.isArray(eventData) ? eventData[0] : eventData;
+
+                Swal.fire({
+                    title: data.title || "Reject Application",
+                    text: data.text || "Please provide a detailed reason for declining:",
+                    icon: "warning",
+                    input: 'textarea',
+                    inputPlaceholder: 'e.g., Missing supporting documents, invalid ID number...',
+                    inputAttributes: {
+                        'minlength': '10',
+                        'autocapitalize': 'off',
+                        'autocorrect': 'off'
+                    },
+                    showCancelButton: true,
+                    confirmButtonColor: "#d33",
+                    cancelButtonColor: "#3085d6",
+                    confirmButtonText: "Confirm Rejection",
+                    reverseButtons: true,
+
+                    didOpen: () => {
+                        const input = Swal.getInput();
+                        input.oninput = () => {
+                            Swal.resetValidationMessage();
+                        };
+                    },
+
+                    // Advanced Validation
+                    inputValidator: (value) => {
+                        const trimmedValue = value.trim();
+
+                        if (!trimmedValue) {
+                            return 'The rejection reason cannot be empty.';
+                        }
+
+                        if (trimmedValue.length < 20) {
+                            return `Reason too short. Enter at least 20 characters (Current: ${trimmedValue.length}).`;
+                        }
+
+                        if (/^(.)\1+$/.test(trimmedValue)) {
+                            return 'Please provide a real explanation, not just repetitive characters.';
+                        }
+
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        Swal.showLoading();
+
+                        const params = data.params || {};
+                        params.reason = result.value;
+
+                        Livewire.find(data.componentId).call(data.action, params);
+                    }
+                });
+            });
+
+            Livewire.on('review-rejection', (eventData) => {
+                const data = Array.isArray(eventData) ? eventData[0] : eventData;
+
+                window.ReviewAlert.fire({
+                    title: 'Review Decision: Rejection',
+                    html: `
+                        <div class="text-left">
+                            <p class="mb-2">Are you sure you want to <b>review your decision on</b> this application?</p>
+                            <div class="p-3 bg-light border rounded mb-3">
+                                <small class="text-muted d-block uppercase font-weight-bold mb-1">Reason for Rejection:</small>
+                                <i class="text-danger italic">"${data.reason}"</i>
+                            </div>
+                        </div>
+                    `,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Confirm Review',
+                    confirmButtonClass: 'btn btn-danger shadow-sm px-4 mx-2',
+                    cancelButtonText: 'Cancel Review',
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        Swal.showLoading();
+
+                        const params = data.params || {};
+
+                        Livewire.find(data.componentId)
+                            .call(data.action, params.applicationId)
+                            .then((result) => {
+                                //
+                            });
+                    }
+                });
+            });
+
+            Livewire.on('review-approval', (eventData) => {
+                const data = Array.isArray(eventData) ? eventData[0] : eventData;
+
+                window.ReviewAlert.fire({
+                    title: 'Review Decision: Approval',
+                    html: `
+                        <div class="text-left">
+                            <p class="mb-2">Are you sure you want to <b>review your decision on</b> this application?</p>
+                        </div>
+                    `,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Confirm Review',
+                    confirmButtonClass: 'btn btn-danger shadow-sm px-4 mx-2',
+                    cancelButtonText: 'Cancel Review',
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        Swal.showLoading();
+
+                        const params = data.params || {};
+
+                        Livewire.find(data.componentId)
+                            .call(data.action, params.applicationId)
+                            .then((result) => {
+                                //
+                            });
+                    }
+                });
+            });
+
         });
+
+        if (typeof window.ReviewAlert === 'undefined') {
+            window.ReviewAlert = Swal.mixin({
+                customClass: {
+                    confirmButton: "btn btn-success shadow-sm px-4 mx-2",
+                    cancelButton: "btn btn-light border px-4 mx-2",
+                    denyButton: "btn btn-danger shadow-sm px-4 mx-2",
+                    popup: "rounded-lg"
+                },
+                buttonsStyling: false,
+                reverseButtons: true
+            });
+        }
 
         window.addEventListener('open-modal', event => {
             $('#' + event.detail.name).modal('show');
@@ -1688,7 +1638,6 @@
         window.addEventListener('close-modal', event => {
             $('#' + event.detail.name).modal('hide');
         });
-
 
     </script>
 @endpush

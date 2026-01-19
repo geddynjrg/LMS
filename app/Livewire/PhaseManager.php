@@ -11,17 +11,30 @@ use App\Models\PhaseDocument;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Url;
+use Livewire\Attributes\On;
+use App\Models\LoanPhase;
+use App\Livewire\AddAppsToPhaseModal;
 
 
 class PhaseManager extends Component
 {
     use WithPagination, WithFileUploads;
 
+    protected $paginationTheme = 'bootstrap';
+
     protected LoanPhaseService $phaseService;
     protected TempApplicationService $appService;
+
+    #[Url(except: '')]
+    public $search;
+
+    public $perPage = 15;
 
     public $constituency;
     public $selectedPhase = null;
@@ -48,8 +61,6 @@ class PhaseManager extends Component
     public $selectedApplications = [];
     public $selectAll = false;
 
-    protected $listeners = ['phaseUpdated' => '$refresh'];
-
     public function boot(LoanPhaseService $phaseService, TempApplicationService $appService)
     {
         $this->phaseService = $phaseService;
@@ -63,146 +74,219 @@ class PhaseManager extends Component
     }
 
     #[Computed]
-    public function activePhases()
+    public function summary()
     {
-        return $this->phaseService->getActivePhasesForConstituency(
-            $this->constituency->constituency_code
-        );
+        return $this->phaseService->getPhasesSummary($this->constituency->constituency_code);
     }
 
     #[Computed]
-    public function allPhases()
+    public function pendingCount()
     {
+        return $this->summary['pending_submission'] ?? 0;
+    }
+
+    #[Computed]
+    public function processingCount()
+    {
+        return $this->summary['processing_hq'] ?? 0;
+    }
+
+    #[Computed]
+    public function approvedCount()
+    {
+        return $this->summary['approved_ready'] ?? 0;
+    }
+
+    #[Computed]
+    public function declinedCount()
+    {
+        return $this->summary['declined'] ?? 0;
+    }
+
+    #[Computed]
+    public function disbursedCount()
+    {
+        return $this->summary['disbursed'] ?? 0;
+    }
+
+    public function phases()
+    {
+        $statusMap = [
+            'tab-pending'    => 'draft',
+            'tab-processing' => 'submitted_to_hq',
+            'tab-approved'   => 'approved',
+            'tab-declined'   => 'declined',
+            'tab-disbursed'  => 'disbursed',
+        ];
+        $status = $statusMap[$this->activeTab] ?? 'draft';
+
         return $this->phaseService->getDetailedPhases(
-            $this->constituency->constituency_code
+            $this->constituency->constituency_code,
+            $this->search,
+            (int)$this->perPage,
+            $status,
+            $this->getPage()
         );
     }
 
-    public function updatedSelectAll($value)
+    public function updatedSearch($value)
     {
-        if ($value) {
-            $this->selectedApplications = $this->getPendingApplications()->pluck('id')->toArray();
-        } else {
-            $this->selectedApplications = [];
-        }
+        $this->search = trim($value);
+
+        $this->resetPage();
+    }
+
+    public function createNewPhase()
+    {
+        $this->dispatch('open-modal', name: 'create-phase-modal');
     }
 
     public function createPhase()
     {
-        $this->validate([
+        $validated = $this->validate([
             'phaseName' => 'required|string|max:255',
             'reviewDate' => 'required|date|after:today',
             'reviewVenue' => 'nullable|string|max:255',
         ]);
 
-        $response = Http::post(route('phase.create'), [
-            'constituency_code' => $this->constituency->constituency_code,
-            'phase_name' => $this->phaseName,
-            'review_date' => $this->reviewDate,
-            'review_venue' => $this->reviewVenue,
-        ]);
+        try {
+            $result = $this->phaseService->createPhase($validated, $this->constituency->constituency_code);
 
-        if ($response->successful()) {
-            $this->showCreateModal = false;
-            $this->reset(['phaseName', 'reviewDate', 'reviewVenue']);
-            session()->flash('success', 'Phase created successfully');
-            $this->dispatch('phaseUpdated');
-        } else {
-            session()->flash('error', 'Failed to create phase');
+            $this->dispatch('close-modal', name: 'create-phase-modal');
+            $this->reset(['phaseName', 'reviewVenue']);
+
+
+            $this->dispatch('flash-success', message: 'Phase created successfully');
+            $this->dispatch('app-updated')->to(SideNavBadge::class);
+            $this->refreshData();
+        } catch (ValidationException $e) {
+            foreach ($e->errors() as $field => $messages) {
+                foreach ($messages as $message) {
+                    $this->addError($field, $message);
+                }
+                $this->dispatch('flash-error', message: 'Please correct the errors in the form.');
+            }
+        } catch (\Exception $e) {
+            $this->dispatch('flash-error', message: $e->getMessage());
         }
     }
 
-    public function getPendingApplications()
+    public function deletePhase($id)
     {
-        return TempApplication::where('constituency_code', $this->constituency->constituency_code)
-            ->where('status', 'submitted')
-            ->whereDoesntHave('phaseApplication')
-            ->orderBy('created_at', 'desc')
-            ->get();
-    }
+        $phase = $this->phaseService->getPhaseStats($id);
 
-    public function uploadDocument()
-    {
-        $this->validate([
-            'documentFile' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-            'documentType' => 'required|in:committee_minutes,additional_notes,credit_reports,supporting_docs',
-            'documentDescription' => 'nullable|string|max:500',
-        ]);
-
-        $response = Http::attach(
-            'document_file',
-            $this->documentFile->get(),
-            $this->documentFile->getClientOriginalName()
-        )->post(route('phase.upload-document', $this->selectedPhase), [
-            'document_type' => $this->documentType,
-            'description' => $this->documentDescription,
-        ]);
-
-        if ($response->successful()) {
-            $this->showUploadDocModal = false;
-            $this->reset(['documentFile', 'documentType', 'documentDescription']);
-            session()->flash('success', 'Document uploaded successfully');
-            $this->dispatch('phaseUpdated');
-        } else {
-            session()->flash('error', 'Failed to upload document');
+        if (!$phase){
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => "Error Deleting Phase",
+                'text'  => 'Phase Invalid',
+            ]);
+            return false;
         }
+
+        if ($phase->total_apps > 0){
+             $this->dispatch('swal:modal', [
+                'type'  => 'info',
+                'title' => "Deleting Phase",
+                'text'  => "You have {$phase->total_apps} application(s) in this phase, you need to remove them first",
+            ]);
+            return false;
+        } else {
+            $this->dispatch('confirm-action',
+                title: "Delete {$phase->phase}",
+                text: 'This will decouple all application from this current phase.',
+                icon: 'warning',
+                confirmText: 'Yes, Remove it!',
+                componentId: $this->getId(),
+                action: 'confirmDeletePhase',
+                params: $phase->id
+            );
+        }
+
     }
 
-    #[Computed]
-public function pendingPhases()
-{
-    return LoanPhase::where('status', 'draft')
-        ->when($this->search, fn($q) => $q->where('phase_name', 'like', "%{$this->search}%"))
-        ->withCount('phaseApplications')
-        ->latest('created_at')
-        ->paginate(10, pageName: 'pending');
-}
+    public function confirmDeletePhase($id)
+    {
+        $phase = $this->phaseService->getPhase($id);
 
-#[Computed]
-public function processingPhases()
-{
-    return LoanPhase::where('status', 'submitted')
-        ->when($this->search, fn($q) => $q->where('phase_name', 'like', "%{$this->search}%"))
-        ->withCount('phaseApplications')
-        ->latest('submitted_at')
-        ->paginate(10, pageName: 'processing');
-}
+        if (!$phase){
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => "Error Deleting Phase",
+                'text'  => 'Phase Invalid',
+            ]);
+            return false;
+        }
 
-// ... similar for approved, declined, disbursed ...
+        DB::transaction(function () use ($phase) {
+            $phase->delete();
 
-#[Computed]
-public function pendingCount()
-{
-    return LoanPhase::where('status', 'draft')->count();
-}
+             $this->dispatch('swal:modal', [
+                'type'               => 'success',
+                'title'              => 'Success!',
+                'text'               => 'Phase Deleted successfully.',
+                'timer'              => 3000,
+                'showConfirmButton'  => false,
+            ]);
 
-#[Computed]
-public function processingCount()
-{
-    return LoanPhase::where('status', 'submitted')->count();
-}
-// Inside your Livewire Component
-public function getCountsProperty()
-{
-    return [
-        'pending'    => LoanPhase::where('status', 'draft')->count(),
-        'processing' => LoanPhase::where('status', 'submitted')->count(),
-        'approved'   => LoanPhase::where('status', 'hq_approved')->count(),
-        'declined'   => LoanPhase::where('status', 'hq_declined')->count(),
-        'disbursed'  => LoanPhase::where('status', 'completed')->count(),
-    ];
-}
+            $this->dispatch('app-updated')->to(SideNavBadge::class);
+            $this->refreshData();
+        });
+    }
+
+    public function openAddAppsModal($id)
+    {
+        $this->dispatch('open-add-apps-modal',
+            phaseId: $id,
+            constituency_code: $this->constituency->constituency_code
+        )->to(AddAppsToPhaseModal::class);
+
+        $this->selectedPhase = $id;
+        $this->showAddAppsModal = true;
+    }
+
+
+    public function vettingPercentage($total_apps, $pending): int
+    {
+        return $this->phaseService->getVettingPercentage($total_apps, $pending);
+    }
+
+    #[On('refreshPhaseData')]
+    public function refreshData()
+    {
+        $this->phaseService->invalidatePhasesCache(
+            $this->constituency->constituency_code
+        );
+
+        unset($this->summary);
+        unset($this->pendingCount);
+        unset($this->approvedCount);
+        unset($this->processingCount);
+        unset($this->declinedCount);
+        unset($this->disbursedCount);
+        unset($this->phases);
+
+        $this->resetPage();
+    }
+
+    public function resetFilters()
+    {
+        $this->reset(['search']);
+        $this->resetPage();
+    }
 
     public function render()
     {
-        $phases = LoanReviewPhase::withCount('phaseApplications')
-            ->where('constituency_code', $this->constituency->constituency_code)
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
-
         return view('livewire.loan.app.phase-manager', [
-            'phases' => $this->allPhases(),
-            'pendingApplications' => $this->getPendingApplications(),
+            'phases' => $this->phases(),
+            'summary' => $this->summary,
+            'processingPhases' => $this->processingCount,
+            'pendingApplications' => $this->pendingCount,
+            'approved' => $this->approvedCount,
+            'disbursed' => $this->disbursedCount,
+            'declined' => $this->declinedCount
         ]);
     }
+
+
 }

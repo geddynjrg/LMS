@@ -11,6 +11,7 @@ class PhaseApplicationDocument extends Model
     protected $fillable = [
         'phase_application_id',
         'document_source',
+        'title',
         'document_type',
         'original_filename',
         'filename',
@@ -50,5 +51,10 @@ class PhaseApplicationDocument extends Model
         } else {
             return round($this->size / 1048576, 2) . ' MB';
         }
+    }
+
+    public function isMinutes(): bool
+    {
+        return $this->document_type === 'minutes';
     }
 }

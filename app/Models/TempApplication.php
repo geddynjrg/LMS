@@ -140,6 +140,16 @@ class TempApplication extends Model
         return $this->hasOne(PhaseApplication::class, 'temp_application_id');
     }
 
+    public function ward() : BelongsTo
+    {
+        return $this->belongsTo(Wards::class, 'ward_id');
+    }
+
+    public function constituency() : BelongsTo
+    {
+        return $this->belongsTo(Constituency::class, 'constituency_code', 'constituency_code');
+    }
+
     public function getAllFilesAttribute()
     {
         $files = [];
@@ -200,8 +210,9 @@ class TempApplication extends Model
                 if (strpos($url, '/storage/') === 0) {
                     $url = url($url);
                 } else {
-                    // Otherwise, use Storage facade
-                    $url = Storage::disk('public')->url($fileData['path']);
+                    /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+                    $disk = Storage::disk('public');
+                    $url = $disk->url($fileData['path']);
                 }
             }
             return $url;
@@ -209,7 +220,9 @@ class TempApplication extends Model
 
         // Generate URL from path
         if (isset($fileData['path'])) {
-            return Storage::disk('public')->url($fileData['path']);
+            /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+                $disk = Storage::disk('public');
+            return $disk->url($fileData['path']);
         }
 
         return null;

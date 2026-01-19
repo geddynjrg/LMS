@@ -51,13 +51,13 @@ class LoanAnalysisService
     /**
      * Calculate limits and balances for a group.
      */
-    public function getEligibilityData(?Group $group): array
+    public function getEligibilityData(?Group $group, int $requeted = 0): array
     {
         // Default for New Groups
-        if (!$group->id) {
+        if (!$group?->id) {
             return [
                 'min' => 50000,
-                'max' => 100000,
+                'max' => $requeted > 0 ? min($requeted, 100000) : 100000,
                 'balance' => 0,
                 'can_borrow' => true
             ];
@@ -71,7 +71,9 @@ class LoanAnalysisService
 
         $maxCeiling = $lastLoan ? ($lastLoan->amount_issued * 2) : 100000;
 
-        $maximum = min($maxCeiling, 500000);
+        //
+
+        $maximum = $requeted > 0 ? min($requeted, $maxCeiling) : min($maxCeiling, 500000);
         return [
             'min' => 50000,
             'max' => $maximum,

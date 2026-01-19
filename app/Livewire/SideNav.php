@@ -25,7 +25,6 @@ class SideNav extends Component
         $this->county = $this->user->county;
         if (!empty($this->user->constituencies)) $this->constituencies = $this->user->constituencies;
         $this->currentConstituency = $this->user->currentConstituency;
-        //if ($this->constituencies->isEmpty())  dd($this->constituencies);
 
         $this->navigation();
     }

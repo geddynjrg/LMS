@@ -94,25 +94,41 @@ class TempApplicationService
     {
         return Cache::remember("temp_app_stats_{$constituencyCode}", now()->addMinutes(10),
             function () use ($constituencyCode) {
-                $stats = TempApplication::where('constituency_code', $constituencyCode)
+                $appStats = DB::table('temp_applications')
+                    ->leftJoin('phase_applications', 'temp_applications.id', '=', 'phase_applications.temp_application_id')
+                    ->where('temp_applications.constituency_code', $constituencyCode)
                     ->selectRaw("
-                        COUNT(*) as total,
-                        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
-                        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected
+                        COUNT(temp_applications.id) as total,
+                        SUM(temp_applications.loan_amount) as total_amount,
+                        COUNT(phase_applications.id) as in_phase,
+                        SUM(CASE WHEN phase_applications.status = 'pending' THEN 1 ELSE 0 END) as pending,
+                        SUM(CASE WHEN phase_applications.status = 'approved' THEN 1 ELSE 0 END) as approved,
+                        SUM(CASE WHEN phase_applications.status = 'rejected' THEN 1 ELSE 0 END) as rejected
                     ")
                     ->first();
 
-                // Count 'in_phase' by checking the existence of the relationship
-                $inPhaseCount = TempApplication::where('constituency_code', $constituencyCode)
-                    ->whereHas('phaseApplication')
-                    ->count();
+                $memberStats = DB::table('temp_group_members')
+                    ->join('temp_applications', 'temp_group_members.temp_application_id', '=', 'temp_applications.id')
+                    ->where('temp_applications.constituency_code', $constituencyCode)
+                    ->selectRaw("
+                        SUM(gender = 'male') as total_males,
+                        SUM(gender = 'female') as total_females,
+                        SUM(person_with_disability = 1) as total_pwds
+                    ")
+                    ->first();
 
                 return [
-                    'total' => $stats->total ?? 0,
-                    'approved' => $stats->approved ?? 0,
-                    'rejected' => $stats->rejected ?? 0,
-                    'in_phase' => $inPhaseCount,
-                    'not_in_phase' => ($stats->total ?? 0) - $inPhaseCount,
+                    'total'        => (int)$appStats->total,
+                    'total_amount' => (float)$appStats->total_amount,
+                    'in_phase'     => (int)$appStats->in_phase,
+                    'not_in_phase' => (int)($appStats->total - $appStats->in_phase),
+                    'approved'     => (int)$appStats->approved,
+                    'rejected'     => (int)$appStats->rejected,
+
+                    // Member Stats
+                    'total_males'   => (int)$memberStats->total_males,
+                    'total_females' => (int)$memberStats->total_females,
+                    'total_pwds'    => (int)$memberStats->total_pwds,
                 ];
             }
         );
@@ -121,7 +137,7 @@ class TempApplicationService
     /**
      * Build the filtered query (reusable, eager-loaded)
     */
-    public function getFilteredQuery(string $constituencyCode, array $filters): Builder
+    public function getFilteredQuery(string $constituencyCode, array $filters = []): Builder
     {
         return TempApplication::query()
             ->select([
@@ -144,13 +160,23 @@ class TempApplicationService
                         ->orWhere('group_registration_number', 'like', "%{$search}%");
                 });
             })
-            ->when($filters['status'] ?? null, fn($q, $s) => $q->where('status', $s))
+            ->when($filters['status'] ?? null, function ($q, $status) {
+                $q->where(function ($query) use ($status) {
+                    $query->whereHas('phaseApplication', function ($pa) use ($status) {
+                        $pa->where('status', $status);
+                    })
+                    ->orWhere(function ($sub) use ($status) {
+                        $sub->whereDoesntHave('phaseApplication')
+                            ->where('status', $status);
+                    });
+                });
+            })
             ->when($filters['phase'] ?? null, function ($q, $phase) {
                 if ($phase === 'not_in_phase') {
                     $q->whereDoesntHave('phaseApplication');
                 } elseif ($phase) {
                     $q->whereHas('phaseApplication', fn($pa) =>
-                        $pa->whereHas('reviewPhase', fn($rp) => $rp->where('phase', $phase))
+                        $pa->whereHas('reviewPhase', fn($rp) => $rp->where('slug', $phase))
                     );
                 }
             })
@@ -158,8 +184,34 @@ class TempApplicationService
             ->when($filters['date_to'] ?? null, fn($q, $d) => $q->whereDate('created_at', '<=', $d))
             ->with([
                 'phaseApplication:id,temp_application_id,loan_phase_id,status',
-                'phaseApplication.reviewPhase:id,phase,status' // Load only needed columns
+                'phaseApplication.reviewPhase:id,phase,status,slug' // Load only needed columns
             ]);
+    }
+
+    public function getPendingApplicationsProperty(string $constituencyCode, ?string $search) : Builder
+    {
+        return TempApplication::query()
+            ->select([
+                'id',
+                'application_id',
+                'group_name',
+                'owner_identifier',
+                'loan_amount',
+                'group_registration_number',
+                'status',
+                'created_at',
+                'constituency_code'
+            ])
+            ->whereDoesntHave('phaseApplication')
+            ->where('constituency_code', $constituencyCode)
+            ->when($search, function ($q, $search) {
+                $q->where(function ($query) use ($search) {
+                    $query->where('application_id', 'like', "%{$search}%")
+                        ->orWhere('group_name', 'like', "%{$search}%")
+                        ->orWhere('owner_identifier', 'like', "%{$search}%")
+                        ->orWhere('group_registration_number', 'like', "%{$search}%");
+                });
+            });
     }
 
     /**
@@ -204,7 +256,16 @@ class TempApplicationService
                     },
                     'expenses',
                     'phaseApplication',
-                    'phaseApplication.linkedGroup',
+                    'phaseApplication.linkedGroup' => function($query) {
+                        $query->withSum('groupLoans as total_issued', 'amount_issued')
+                            ->withSum('groupLoans as total_repaid', 'amount_repaid')
+                            ->withSum('groupLoans as total_arrears', 'total_arrears')
+                            ->withCount(['groupLoans as defaulted_count' => function ($q) {
+                                $q->where('is_defaulted', true);
+                            }])
+                            ->with('groupLoans', 'groupLoans.loanReceipts', 'currentLoan');
+                    },
+                    'ward',
                 ])
                 ->firstOrFail();
 
@@ -350,7 +411,8 @@ class TempApplicationService
             ]);
         }
 
-        $group = Group::findOrFail($groupId);
+        $group = Group::with(['currentLoan', 'ward'])
+              ->findOrFail($groupId);
 
         //  Check if group is in same constituency
         if ($group->ward->constituency_code !== $application->constituency_code) {
@@ -383,6 +445,7 @@ class TempApplicationService
             $application->phaseApplication->update([
                 'group_id' => $group->id,
                 'group_code' => $group->code,
+                'loan_level' => $group->currentLoan->loan_level+1,
             ]);
 
             $application->update([
@@ -403,6 +466,7 @@ class TempApplicationService
             $application->phaseApplication->update([
                 'group_id' => null,
                 'group_code' => null,
+                'loan_level' => 1,
             ]);
 
             $application->update([
@@ -467,16 +531,18 @@ class TempApplicationService
 
             if (!$encodedPath) continue;
 
-            $viewUrl = route('const.app.application.file.view', [
+            $viewUrl = route('const.app.application.file.download', [
                 'county' => $countySlug,
                 'constituency' => $constituencySlug,
                 'applicationId' => $application->application_id,
+                'action' => 'view',
             ]) . '?path=' . $encodedPath;
 
             $downloadUrl = route('const.app.application.file.download', [
                 'county' => $countySlug,
                 'constituency' => $constituencySlug,
                 'applicationId' => $application->application_id,
+                'action' => 'download',
             ]) . '?path=' . $encodedPath;
 
             $fileType = $this->getFileTypeIcon($file['data']['original_filename'] ?? '');
@@ -607,17 +673,18 @@ class TempApplicationService
     {
         $const_code = $application->constituency_code;
 
-        $groups = Group::whereHas('ward.constituency', function ($query) use ($const_code) {
+        $groups = Group::select(['id', 'ward_id', 'reg_number', 'name', 'code'])->whereHas('ward.constituency', function ($query) use ($const_code) {
                 $query->where('constituency_code', $const_code);
             })
             ->with([
                 'ward:id,ward_name',
-                'currentLoan',
-                'currentLoan.groupMembers',
-                'currentLoan.groupMembers.member',
-                'currentLoan.loanPhase'
+                'currentLoan:id,group_loans.group_id,group_loans.loan_phase_id,group_loans.gfs_code',
+                'currentLoan.groupMembers:id,group_loans_id,member_Id',
+                'currentLoan.groupMembers.member:id,member_Id,number',
+                'currentLoan.loanPhase:id,phase',
             ])
             ->get();
+
 
         $tempMemberData = $application->groupMembers()
             ->get(['id_number', 'phone_number']);
@@ -669,10 +736,10 @@ class TempApplicationService
 
             // 4. IDENTITY BOOSTS
             // If 3+ people have the same ID number, it's definitely the same group
-            if ($idMatchCount >= 3) {
-                $totalScore += 50;
+            if ($idMatchCount >= 4) {
+                $totalScore = 100; // Hard override - 3 ID matches is the same group
             } elseif ($idMatchCount > 0) {
-                $totalScore += 25;
+                $totalScore += ($idMatchCount * 15); // Dynamic boost per member
             }
 
             // If phone numbers match but IDs didn't (maybe they entered IDs wrong)
@@ -805,5 +872,22 @@ class TempApplicationService
             'groupCode' => $groupCode,
             'gfscode' => $gfscode,
         ];
+    }
+
+    // Get status text
+    public function getStatusText($status)
+    {
+        $texts = [
+            'submitted' => 'Submitted',
+            'under_review' => 'Under Review',
+            'approved' => 'Approved',
+            'rejected' => 'Rejected',
+            'disbursed' => 'Disbursed',
+            'closed' => 'Closed',
+            'in_training' => 'In Training',
+            'pending_submission_to_hq' => 'Pending Submission to HQ',
+            'pending_hq_approval' => 'Pending HQ Approval',
+        ];
+        return $texts[$status] ?? ucfirst($status);
     }
 }
