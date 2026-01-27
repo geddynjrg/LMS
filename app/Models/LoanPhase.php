@@ -78,21 +78,15 @@ class LoanPhase extends Model
 
     public function canBeEditedBy($user)
     {
-        // 1. Permanent Lock: Once disbursed, it's a historical record.
         if ($this->status === 'disbursed' || $this->is_locked) {
             return false;
         }
 
-        // 2. HQ Logic
         if ($user->hasRole('hq_officer')) {
-            // HQ can only edit/review if the constituency has officially handed it over
             return $this->status === 'submitted_to_hq';
         }
 
-        // 3. Constituency Officer Logic
         if ($user->hasRole('constituency_officer')) {
-            // Officer has control during Draft/Review
-            // AND after HQ gives the green light (Approved) for training/cheques
             return in_array($this->status, ['draft', 'in_review', 'approved', 'rejected']);
         }
 

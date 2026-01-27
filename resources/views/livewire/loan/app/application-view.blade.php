@@ -428,9 +428,8 @@
                                                                         'image/gif',
                                                                         'image/webp'
                                                                     ];
-
-                                                                    // Determine the action based on the mime_type
-                                                                    $action = in_array($member->photo_member_id['mime_type'], $previewable) ? 'view' : 'download';
+                                                                    $mimeType = $member->photo_member_id['mime_type'] ?? null;
+                                                                    $action = in_array($mimeType, $previewable) ? 'view' : 'download';
                                                                 @endphp
                                                                 @if($member->photo_member_id && is_array($member->photo_member_id))
                                                                     <a href="{{ route('const.app.application.file.download', [
@@ -795,12 +794,12 @@
                                 </div>
                             @else
                                 <div class="text-center mb-3">
-                                    @if($application->phaseApplication->status === 'pending_submission_to_hq')
+                                    @if(in_array($application->phaseApplication->status,['pending_submission_to_hq', 'pending_hq_approval', 'approved', 'in_traning', 'disbursed']))
                                         <div class="p-3 border border-success rounded bg-light">
                                             <i class="fas fa-check-circle text-success fa-3x mb-2"></i>
                                             <h6 class="text-success font-weight-bold">APPLICATION APPROVED</h6>
                                         </div>
-                                    @else
+                                    @elseif($application->phaseApplication->status === 'rejected')
                                         <div class="p-3 border border-danger rounded bg-light">
                                             <i class="fas fa-times-circle text-danger fa-3x mb-2"></i>
                                             <h5 class="text-danger font-weight-bold">APPLICATION REJECTED</h5>
@@ -863,7 +862,7 @@
                                 @endif
 
                                 <a class="btn btn-default btn-block btn-sm shadow-sm" href="{{ route('const.app.app_dashboard', [$county->slug, $constituency->slug]) }}" wire:navigate>
-                                    <i class="fas fa-arrow-left mr-1"></i> Back to Phase List
+                                    <i class="fas fa-arrow-left mr-1"></i> Go to Applications
                                 </a>
 
 

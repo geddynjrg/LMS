@@ -48,4 +48,9 @@ class ReportsController extends Controller
         //     'county' => $county,
         // ]);
     }
+
+    public function nationalIndex()
+    {
+        // ... code
+    }
 }

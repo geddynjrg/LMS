@@ -654,6 +654,63 @@
             </div>
         </div>
     </div>
+    <div class="modal fade" id="hqSubmissionModal" tabindex="-1" role="dialog" wire:ignore.self>
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-file-export mr-2"></i> Final Submission to HQ</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body px-4">
+                    <div class="alert alert-warning border-left-warning shadow-sm mb-4">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle fa-2x mr-3 text-warning"></i>
+                            <div>
+                                <strong>STERN WARNING:</strong><br>
+                                <small>Once submitted, this phase is <strong>LOCKED</strong>. No further corrections are possible.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="mb-2 text-muted">Review the phase details below:</p>
+                    <h6 class="text-primary mb-3"><strong>{{ $this->phase->phase }}</strong></h6>
+
+                    <table class="table table-sm table-hover border mb-3">
+                        <tr>
+                            <td><strong>Total Applications:</strong></td>
+                            <td class="text-right"><strong>{{ number_format($this->detailedPhase->total_applications) }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Total Approved:</strong></td>
+                            <td class="text-right text-success"><strong>KES {{ number_format($this->detailedPhase->total_approved, 2) }}</strong></td>
+                        </tr>
+                        <tr class="bg-light">
+                            <td><strong>Submission Date:</strong></td>
+                            <td class="text-right">{{ now()->format('d-M-Y H:i') }}</td>
+                        </tr>
+                    </table>
+
+                    <div class="form-group">
+                        <label class="text-xs font-weight-bold text-uppercase">Final Remarks (Optional)</label>
+                        <textarea class="form-control" wire:model.live="r@emarks" rows="3" placeholder="Enter any final notes for HQ..."></textarea>
+                        @error('remarks') <small class="text-danger d-block mt-1 font-weight-bold">{{ $message }}</small> @enderror
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <x-btn-submit
+                        target="executeHqSubmission"
+                        label="Confirm & Submit to HQ"
+                        icon="fas fa-send"
+                        defaultLabel="Submitting..."
+                        color="primary"
+                    />
+                </div>
+            </div>
+        </div>
+    </div>
 </section>
 @push('styles')
     <style>
@@ -733,92 +790,6 @@
                     }
                 });
             });
-
-            // Livewire.on('confirm-action', (eventData) => {
-            //     const data = Array.isArray(eventData) ? eventData[0] : eventData;
-            //     Swal.fire({
-            //         title: data.title || "Are you sure?",
-            //         text: data.text || "This action cannot be undone!",
-            //         icon: data.icon || "warning",
-            //         showCancelButton: true,
-            //         confirmButtonColor: "#3085d6",
-            //         cancelButtonColor: "#d33",
-            //         confirmButtonText: data.confirmText || "Yes, proceed!",
-            //         reverseButtons: true // Places "Cancel" on the left
-            //     }).then((result) => {
-            //         if (result.isConfirmed) {
-            //             // If confirmed, tell Livewire to call the actual function
-            //             // 'componentId' and 'action' must be passed from the backend
-            //             Livewire.find(data.componentId).call(data.action, data.params);
-            //         }
-            //     });
-            // });
-
-            // Livewire.on('confirm-approve-action', (eventData) => {
-            //     const data = Array.isArray(eventData) ? eventData[0] : eventData;
-            //     Swal.fire({
-            //         title: data.title || "Are you sure?",
-            //         html: data.html || "This action cannot be undone!",
-            //         icon: data.icon || "warning",
-            //         showCancelButton: true,
-            //         confirmButtonColor: "#3085d6",
-            //         cancelButtonColor: "#d33",
-            //         confirmButtonText: data.confirmText || "Yes, proceed!",
-            //         reverseButtons: true // Places "Cancel" on the left
-            //     }).then((result) => {
-            //         if (result.isConfirmed) {
-            //             // If confirmed, tell Livewire to call the actual function
-            //             // 'componentId' and 'action' must be passed from the backend
-            //             Livewire.find(data.componentId).call(data.action, data.params);
-            //         }
-            //     });
-            // });
-
-            // Livewire.on('approval-completed', (eventData) => {
-            //     const data = Array.isArray(eventData) ? eventData[0] : eventData;
-
-            //     // Hide the previous confirmation/modal
-            //     $('#modal-approve').modal('hide');
-
-            //     if (data.isPhaseComplete) {
-            //         Swal.fire({
-            //             title: 'Phase Fully Vetted!',
-            //             text: 'Great job! You have reached the end of this phase list.',
-            //             icon: 'success',
-            //             confirmButtonText: '<i class="fas fa-file-export mr-1"></i> Proceed to Submission',
-            //             showCancelButton: true
-            //         }).then((result) => {
-            //             if (result.isConfirmed) window.location.href = '/phases/submission';
-            //         });
-            //     } else {
-            //         // SCENARIO: Provide summary of the NEXT application
-            //         Swal.fire({
-            //             title: 'Approved!',
-            //             html: `
-            //                 <div class="alert alert-success py-2">Success! Current application finalized.</div>
-            //                 <div class="card card-outline card-primary mt-3">
-            //                     <div class="card-header"><h3 class="card-title">Up Next:</h3></div>
-            //                     <div class="card-body text-left">
-            //                         <strong>Group:</strong> ${data.nextSummary.group_name}<br>
-            //                         <strong>Application ID:</strong> ${data.nextSummary.app_id}<br>
-            //                         <strong>Amount Applied:</strong> KES ${data.nextSummary.amount}
-            //                     </div>
-            //                 </div>
-            //             `,
-            //             icon: 'success',
-            //             showDenyButton: true,
-            //             confirmButtonColor: '#28a745',
-            //             denyButtonColor: '#6c757d',
-            //             confirmButtonText: 'Vet Next <i class="fas fa-chevron-right ml-1"></i>',
-            //             denyButtonText: 'Close',
-            //         }).then((result) => {
-            //             if (result.isConfirmed) {
-            //                 window.location.href = '/applications/' + data.nextId + '/vetting';
-            //             }
-            //         });
-            //     }
-            // });
-
         });
 
         window.addEventListener('open-modal', event => {

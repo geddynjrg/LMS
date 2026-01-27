@@ -14,6 +14,7 @@
      <div class="card-body">
       <div class="row">
         @if($constituencies->isEmpty())
+            {{ auth()->user()->email }}
             <p class="text-bold col text-center text-danger">You have not been assigned to any constituency. Please contact your admininstrator!!</p>
         @else
           @foreach($constituencies as $const)

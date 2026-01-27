@@ -28,9 +28,20 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
     protected function gate(): void
     {
         Gate::define('viewHorizon', function ($user = null) {
-            return in_array(optional($user)->email, [
-                //
-            ]);
+            if (!$user) {
+                return false;
+            }
+
+            $allowedEmails = ['mundia@gmail.com'];
+
+            if (app()->environment('local')) {
+                return in_array($user->email, $allowedEmails);
+            }
+
+            // 2. In Production, check for a real database permission
+            // This assumes you are using the Spatie Permission package (seen in your migrations)
+            // return $user->can('view-horizon-dashboard') || $user->hasRole('super-admin');
+            return $user->hasRole('super-admin');
         });
     }
 }

@@ -181,7 +181,7 @@
 </section>
 
 
-<div class="col-md-3">
+            <div class="col-md-3">
                 <div class="sticky-top" style="top: 50px; z-index: 1020;">
                     <!-- Phase Assignment Section -->
                     <div class="card card-outline card-info {{ !is_null($application->phaseApplication) ? 'collapsed-card' : '' }}">

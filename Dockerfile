@@ -45,7 +45,14 @@ RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/memory-limit.ini
 RUN COMPOSER_PROCESS_TIMEOUT=300 composer install --no-interaction --optimize-autoloader --no-dev
 
 # 8. Set permissions so Laravel can write to logs and cache
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+RUN mkdir -p /var/www/html/storage/framework/sessions \
+    /var/www/html/storage/framework/views \
+    /var/www/html/storage/framework/cache \
+    /var/www/html/storage/logs
+
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+
 
 EXPOSE 80
 

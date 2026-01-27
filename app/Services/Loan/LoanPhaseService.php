@@ -2,6 +2,7 @@
 
 namespace App\Services\Loan;
 
+use App\Models\ActivityLog;
 use App\Models\LoanPhase;
 use App\Models\PhaseApplication;
 use App\Models\TempApplication;
@@ -605,6 +606,51 @@ class LoanPhaseService
                 $query->where('document_type', 'minutes');
             }])
             ->findOrFail($id);
+    }
+
+    public function submitToHq($phase, $remarks, $code)
+    {
+        $randomHex = strtoupper(bin2hex(random_bytes(2)));
+        $phase = LoanPhase::with([
+            'phaseApplications' => fn($q) => $q->where('status', 'pending_submission_to_hq')
+        ])->findOrFail($phase);
+        $phaseName = Str::slug($phase->phase);
+
+        $ref = "UWEZO/HQ/{$code}/{$phaseName}/" . now()->format('Ymd') . "/" . $randomHex;
+
+        DB::transaction(function () use ($phase, $remarks, $ref) {
+            $phase->update([
+                'status'         => 'submitted_to_hq',
+                'submitted_to_hq_at'   => now(),
+                'constituency_officer_id'   => auth()->id(),
+                'phase_ref' => $ref,
+                'committee_remarks'  => $remarks ?? null,
+                'locked_by' => auth()->id(),
+                'is_locked'      => true,
+                'locked_at' => now(),
+            ]);
+
+            $phase->phaseApplications()->update([
+                'level' => 'hq',
+                'action' => 'processing_at_hq',
+                'status' => 'pending_hq_approval',
+            ]);
+
+            activity()
+                ->performedOn($phase)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'reference' => $ref,
+                    'remarks' => $remarks ?? null,
+                    'status' => 'submitted_to_hq',
+                    'stats' => [
+                        'total_approved' => $phase->phaseApplications->sum('amount_approved'),
+                        'count' => $phase->phaseApplications->count()
+                    ]
+                ])
+                ->log("Phase finalized and submitted to HQ with Ref: {$ref}");
+        });
+
     }
 
     public function invalidatePhaseCache(): void

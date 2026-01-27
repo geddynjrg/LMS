@@ -16,6 +16,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
 
 class DynamicReportChunkedExport extends DefaultValueBinder implements FromQuery, WithHeadings, WithMapping, WithChunkReading, WithCustomValueBinder, WithEvents, WithStyles
 {
@@ -408,18 +409,15 @@ class DynamicReportChunkedExport extends DefaultValueBinder implements FromQuery
             }
 
             if ($usedLogoPath) {
-                $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+                $drawing = new Drawing();
                 $drawing->setName('Logo');
                 $drawing->setDescription('Logo');
                 $drawing->setPath($usedLogoPath);
-                $drawing->setHeight(50); // Adjust height as needed
+                $drawing->setHeight(75); // Adjust height as needed
                 $drawing->setCoordinates('A1');
                 $drawing->setOffsetX(10);
                 $drawing->setOffsetY(10);
                 $drawing->setWorksheet($event->sheet->getDelegate());
-
-                // Adjust header row height to accommodate logo
-                $event->sheet->getRowDimension(1)->setRowHeight(60);
             }
 
         } catch (\Exception $e) {

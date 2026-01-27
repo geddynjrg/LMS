@@ -15,8 +15,8 @@ services:
     ports:
       - "8082:80"  # Access app at http://localhost:8082
     depends_on:
-    #   db:
-    #     condition: service_healthy
+      db:
+        condition: service_healthy
       redis:
         condition: service_started
     env_file:
@@ -29,18 +29,12 @@ services:
       - APP_URL=${APP_URL:-http://localhost:8000}
 
       # Database (use Docker service name)
-    #   - DB_CONNECTION=${DB_CONNECTION:-mysql}
-    #   - DB_HOST=${DB_HOST:-db}
-    #   - DB_PORT=${DB_PORT:-3306}  # Internal container port
-    #   - DB_DATABASE=${DB_DATABASE:-uwezo_fund03}
-    #   - DB_USERNAME=${DB_USERNAME:-root}
-    #   - DB_PASSWORD=${DB_PASSWORD:-secret}
-
-      - DB_HOST=host.docker.internal
-      - DB_PORT=3307
-      - DB_DATABASE=uwezo_fund03
-      - DB_USERNAME=root
-      - DB_PASSWORD=
+      - DB_CONNECTION=${DB_CONNECTION:-mysql}
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}  # Internal container port
+      - DB_DATABASE=${DB_DATABASE:-uwezo_fund03}
+      - DB_USERNAME=${DB_USERNAME:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-secret}
 
       # Redis & Queue
       - REDIS_HOST=${REDIS_HOST:-redis}
@@ -72,41 +66,71 @@ services:
       retries: 3
       start_period: 40s
 
-  # MariaDB 11.4
-#   db:
-#     image: mariadb:11.4
-#     container_name: uwezo-lms-db
-#     restart: unless-stopped
-#     environment:
-#       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
-#       MYSQL_DATABASE: ${DB_DATABASE:-uwezo_fund03}
-#       MYSQL_USER: ${DB_USERNAME:-root}
-#       MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
-#     volumes:
-#       - dbdata:/var/lib/mysql
-#     ports:
-#       - "${DB_PORT:-3307}:3306"  # Your local 3307 → container 3306
-#     healthcheck:
-#       test: ["CMD", "mariadb-admin", "--protocol=tcp", "ping"]
-#       interval: 10s
-#       timeout: 5s
-#       retries: 5
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uwezo-lms-worker
+    restart: unless-stopped
+    command: php artisan horizon
+    volumes:
+      - .:/var/www/html
+    environment:
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=redis
+    depends_on:
+      - db
+      - redis
+      - app
 
-#   # phpMyAdmin
-#   phpmyadmin:
-#     image: phpmyadmin:5
-#     container_name: uwezo-lms-phpmyadmin
-#     restart: unless-stopped
-#     depends_on:
-#       - db
-#     ports:
-#       - "8080:80"
-#     environment:
-#       PMA_HOST: db
-#       PMA_PORT: 3306
-#       PMA_USER: ${DB_USERNAME:-root}
-#       PMA_PASSWORD: ${DB_PASSWORD:-secret}
-#       UPLOAD_LIMIT: 300M
+#   MariaDB 11.4
+  db:
+    image: mariadb:11.4
+    container_name: uwezo-lms-db
+    command: [
+      "mariadbd",
+      "--max-allowed-packet=1G",
+      "--wait-timeout=28800",
+      "--net_read_timeout=600",
+      "--net_write_timeout=600"
+    ]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_DATABASE: ${DB_DATABASE:-uwezo_fund03}
+      MYSQL_USER: ${DB_USERNAME:-root}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    ports:
+      - "${DB_PORT:-3307}:3306"  # Your local 3307 → container 3306
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "--protocol=tcp", "ping", "-pHwApaIFbh1yJeUTdYaSwZjXKGneuNQZtivannpQcWho="]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: uwezo-lms-phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: ${DB_USERNAME:-root}
+      PMA_PASSWORD: ${DB_PASSWORD:-secret}
+      UPLOAD_LIMIT: 300M
 
   # Redis
   redis:
@@ -126,8 +150,10 @@ services:
     volumes:
       - .:/var/www/html
     depends_on:
-      - app
-      - redis
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
       - QUEUE_CONNECTION=redis
 

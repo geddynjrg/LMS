@@ -17,3 +17,13 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+
+
+/mysql_data
+/dbdata
+
+/init-db/*.sql
+/init-db/*.gz
+
+.DS_Store
+Thumbs.db

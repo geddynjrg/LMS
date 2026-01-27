@@ -14,8 +14,8 @@ class County extends Model
         return 'slug'; // or 'county_name_slug'
     }
 
-    public function Constituencies(): HasMany
+    public function constituencies(): HasMany
     {
-        return $this->hasMany(Constituency::class, 'constituency_code', 'constituency_code');
+        return $this->hasMany(Constituency::class, 'county_code', 'county_code');
     }
 }

@@ -26,7 +26,6 @@ class DashboardComponent extends Component
         $this->county = $county;
         $this->constituencies = $constituencies;
 
-
     }
 
     public function selected($code) {

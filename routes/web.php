@@ -6,10 +6,15 @@ use App\Http\Controllers\ConstituencyController;
 use App\Http\Controllers\GroupsController;
 use App\Http\Controllers\LoansController;
 use App\Http\Controllers\MeReportingController;
-use App\Http\Controllers\TestController;
+use App\Http\Controllers\Hq\HqReviewController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\UsersController;
 use Illuminate\Support\Facades\Artisan;
+use App\Http\Controllers\Hq\HqApplications;
+use App\Http\Controllers\Hq\HqGroupController;
+use App\Http\Controllers\Hq\HqLoanController;
+use App\Http\Controllers\Hq\HqMemberController;
+use App\Http\Controllers\Hq\HqReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -21,8 +26,6 @@ use Illuminate\Support\Facades\Artisan;
 | be assigned to the "web" middleware group. Make something great!
 |
 */
-
-
 
 Route::get('/', function () {
     return view('auth.login');
@@ -39,13 +42,53 @@ Route::get('/clear', function () {
 Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    /*Route::get('/dashboard/users/export/', [TestController::class, 'export']);
-    Route::middleware('role:super-admin|admin')->get('/test-role', function () {
-        return 'You are admin';
-    });*/
+
+    // --- HQ / National Administration Routes ---
+    Route::middleware(['role:super-admin|hq_officer'])
+    ->prefix('hq')
+    ->name('hq.')
+    ->group(function () {
+
+        // Submissions Management
+        Route::prefix('applications')->name('submissions.')->group(function () {
+            // View all phases submitted to HQ
+            Route::get('/', [HqApplications::class, 'index'])->name('apps.index');
+
+            // 2. Approval Tasks (The Batches/Phases)
+            Route::get('/approval-tasks', [HqApplications::class, 'tasks'])->name('tasks.phases');
+
+            // Approval/Action routes (Likely Livewire methods, but route defined for direct access)
+            Route::get('/{phase}/review', [HqApplications::class, 'review'])->name('phase.review');
+        });
+
+        Route::prefix('groups')->name('groups.')->group(function () {
+            Route::get('/dashboard', [HqGroupController::class, 'dashboard'])->name('dashboard');
+            Route::get('/list', [HqGroupController::class, 'index'])->name('index');
+        });
+
+        // Members
+        Route::prefix('members')->name('members.')->group(function () {
+            Route::get('/dashboard', [HqMemberController::class, 'dashboard'])->name('dashboard');
+            Route::get('/list', [HqMemberController::class, 'index'])->name('index');
+            Route::get('/contagious', [HqMemberController::class, 'contagious'])->name('contagious');
+        });
+
+        // Loans
+        Route::prefix('loans')->name('loans.')->group(function () {
+            Route::get('/repayments', [HqLoanController::class, 'repayments'])->name('repayments');
+            Route::get('/phases', [HqLoanController::class, 'phases'])->name('phases');
+            Route::get('/receipts', [HqLoanController::class, 'receipts'])->name('receipts');
+        });
+
+        // Reports
+        Route::get('/reports', [HqReportController::class, 'index'])->name('reports.index');
 
 
-    Route::middleware('role:super-admin|admin')->prefix('{county}/users')            // dynamic county + constituency
+        // Global Reports (National level)
+        Route::get('/hq-reports', [ReportsController::class, 'nationalIndex'])->name('reports');
+    });
+
+    Route::middleware('role:super-admin|constituency_officer')->prefix('{county}/users')
         ->where([
             // optional regex constraints (slug‑style: letters, numbers, hyphens) users.viewuser
             'county'       => '[A-Za-z0-9\-]+',
@@ -56,7 +99,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware(['currentConstituency'])
-        ->prefix('{county}/{constituency}')            // dynamic county + constituency
+        ->prefix('{county}/{constituency}')
         ->where([
             // optional regex constraints (slug‑style: letters, numbers, hyphens)
             'county'       => '[A-Za-z0-9\-]+',

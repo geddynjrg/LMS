@@ -116,7 +116,7 @@
                             Uwezo Fund
                         </div>
                         <!-- Default to the left -->
-                        <strong>Copyright &copy; 2023-2024 <a href="#">PSC</a>.</strong> All rights reserved.
+                        <strong>Copyright &copy; 2025-2026 <a href="#">uwezo</a>.</strong> All rights reserved.
                     </footer>
                 @endauth
 

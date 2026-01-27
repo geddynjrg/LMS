@@ -43,6 +43,8 @@ class ApplicationPhaseDetails extends Component
         'riskFilter' => ['except' => ''],
     ];
 
+    public $remarks = '';
+
     public $extraUploads = [];
     public $minutesFile;
     public $selectedAppId;
@@ -80,6 +82,7 @@ class ApplicationPhaseDetails extends Component
         unset($this->activePhases);
         unset($this->allPhases);
         $this->resetPage();
+        $this->resetFilters();
     }
 
     public function updatedSearch() { $this->resetPage(); }
@@ -88,7 +91,7 @@ class ApplicationPhaseDetails extends Component
 
     public function resetFilters()
     {
-        $this->reset(['search', 'statusFilter', 'riskFilter', 'perPage']);
+        $this->reset(['search', 'statusFilter', 'riskFilter', 'perPage', 'remarks']);
     }
 
     #[Computed]
@@ -188,60 +191,8 @@ class ApplicationPhaseDetails extends Component
 
             return false;
         }
-        $this->dispatch('confirm-submission-to-hq',
-            title       : 'Final Submission to HQ',
-            html        : "<div class='text-left px-2' style='max-height: 450px; overflow-y: auto; overflow-x: hidden;'>
-                            <div class='alert alert-warning border-left-warning shadow-sm mb-4' style='position: sticky; top: 0; z-index: 10;'>
-                                <div class='d-flex align-items-center'>
-                                    <i class='fas fa-exclamation-triangle fa-2x mr-3 text-warning'></i>
-                                    <div>
-                                        <strong>STERN WARNING:</strong><br>
-                                        <small>Once submitted, this phase is <strong>LOCKED</strong>. No further corrections are possible.</small>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <p class='mb-2 text-muted'>Review the phase details below:</p>
-                            <h6 class='text-primary mb-3'><strong>{$this->phase->phase}</strong></h6>
-
-                            <table class='table table-sm table-hover border mb-3'>
-                                <tr>
-                                    <td><strong>Total Applications:</strong></td>
-                                    <td class='text-right'><strong>" . number_format($this->detailedPhase->total_applications) . "</strong></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Total Disbursement:</strong></td>
-                                    <td class='text-right text-success'><strong>KES " . number_format($this->detailedPhase->total_approved, 2) . "</strong></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Constituency:</strong></td>
-                                    <td class='text-right'>{$this->constituency->constituency_name}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Approved:</strong></td>
-                                    <td class='text-right'>{$this->phase->pending_submission_to_hq_count}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Rejected:</strong></td>
-                                    <td class='text-right'>{$this->detailedPhase->rejected_count}</td>
-                                </tr>
-                                <tr class='bg-light'>
-                                    <td><strong>Submission Date:</strong></td>
-                                    <td class='text-right'>" . now()->format('d-M-Y H:i') . "</td>
-                                </tr>
-                            </table>
-
-                            <div class='form-group'>
-                                <label class='text-xs font-weight-bold text-uppercase'>Final Remarks (Optional)</label>
-                                <textarea class='form-control form-control-sm' id='submissionRemarks' rows='3' placeholder='Enter any final notes for HQ...'></textarea>
-                            </div>
-                        </div>",
-            icon        : '',
-            confirmText : 'Confirm & Submit to HQ',
-            componentId : $this->getId(),
-            action      : 'executeHqSubmission',
-            params      : null
-        );
+        $this->dispatch('open-modal', name: 'hqSubmissionModal');
     }
 
     public function executeHqSubmission($data = null)
@@ -255,77 +206,49 @@ class ApplicationPhaseDetails extends Component
             return;
         }
 
-        // 1. Fetch the phase with its applications
-        // $phase = ReviewPhase::with('applications')->findOrFail($this->phaseId);
+        $phase = $this->detailedPhase;
 
-        // // 2. Guard Clause: Prevent double submission
-        // if ($phase->status === 'submitted_to_hq') {
-        //     $this->dispatch('swal:modal', [
-        //         'type'  => 'error',
-        //         'title' => 'Access Denied',
-        //         'text'  => 'This phase has already been submitted and is locked.'
-        //     ]);
-        //     return;
-        // }
+        if ($phase->status === 'submitted_to_hq' || $phase->is_locked) {
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => 'Action Blocked',
+                'text'  => 'This phase has already been submitted and is locked.'
+            ]);
+            return;
+        }
 
-        // // 3. Validation: Ensure all applications in this phase are vetted
-        // $unvettedCount = $phase->applications()->where('status', 'pending')->count();
-        // if ($unvettedCount > 0) {
-        //     $this->dispatch('swal:modal', [
-        //         'type'  => 'warning',
-        //         'title' => 'Incomplete Phase',
-        //         'text'  => "There are still {$unvettedCount} pending applications. All must be approved or rejected before HQ submission."
-        //     ]);
-        //     return;
-        // }
+        if ($this->detailedPhase->pending_count > 0) {
+            $this->dispatch('swal:modal', [
+                'type'  => 'warning',
+                'title' => 'Incomplete Phase',
+                'text'  => "There are still {$this->detailedPhase->pending_count} pending applications. All must be approved or rejected before HQ submission."
+            ]);
+            return;
+        }
 
-        // try {
-        //     DB::transaction(function () use ($phase, $data) {
-        //         // 4. Generate Unique Submission Reference
-        //         // Format: UWEZO/HQ/[CONSTITUENCY_CODE]/[YEAR]/[RANDOM]
-        //         $ref = 'UWEZO/HQ/' . $this->constituencyCode . '/' . date('Y') . '/' . strtoupper(bin2hex(random_bytes(3)));
+        $this->validate([
+            'remarks' => 'nullable|string|max:1000',
+        ]);
 
-        //         // 5. Update the Phase Status
-        //         $phase->update([
-        //             'status'                => 'submitted_to_hq',
-        //             'submitted_at'          => now(),
-        //             'submitted_by'          => auth()->id(),
-        //             'submission_ref'        => $ref,
-        //             'final_remarks'         => $data['remarks'] ?? null,
-        //             'is_locked'             => true, // The "No Corrections" enforcer
-        //         ]);
+        try {
+            $this->phaseService->submitToHq($phase->id, $this->remarks, $this->constituency->constituency_code);
 
-        //         // 6. Lock all related applications
-        //         $phase->applications()->update([
-        //             'is_finalized' => true,
-        //             'locked_at'    => now()
-        //         ]);
+            $this->dispatch('swal:modal', [
+                'type'  => 'success',
+                'title' => 'Submitted Successfully',
+                'text'  => 'Phase has been locked and moved to HQ Review.'
+            ]);
 
-        //         // 7. Log Activity for Audit Trail
-        //         ActivityLog::create([
-        //             'user_id'   => auth()->id(),
-        //             'action'    => 'HQ_SUBMISSION',
-        //             'reference' => $ref,
-        //             'details'   => "Phase {$phase->name} submitted to HQ with " . $phase->applications()->count() . " records."
-        //         ]);
-        //     });
+            $this->refreshData();
 
-        //     $this->dispatch('swal:modal', [
-        //         'type'  => 'success',
-        //         'title' => 'Submitted Successfully',
-        //         'text'  => 'Phase has been locked and moved to HQ Review.'
-        //     ]);
-
-        //     return redirect()->route('phases.index');
-
-        // } catch (\Exception $e) {
-        //     Log::error("HQ Submission Failed: " . $e->getMessage());
-        //     $this->dispatch('swal:modal', [
-        //         'type'  => 'error',
-        //         'title' => 'System Error',
-        //         'text'  => 'Could not finalize submission. Please try again or contact support.'
-        //     ]);
-        // }
+            $this->dispatch('close-modal', name: 'hqSubmissionModal');
+        } catch (\Exception $e) {
+            $this->dispatch('swal:modal', [
+                'type'  => 'error',
+                'title' => 'System Error',
+                'text'  => 'Could not finalize submission. Please try again or contact support.'.$e->getMessage(),
+            ]);
+        }
     }
 
     #[Computed]

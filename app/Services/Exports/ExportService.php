@@ -17,6 +17,7 @@ class ExportService
     {
         $query = PhaseApplication::query()
             ->where('loan_phase_id', $phaseId)
+            ->whereNotIn('status', ['rejected', 'deferred', 'pending'])
             ->select([
                 'id',
                 'loan_phase_id',
@@ -88,6 +89,7 @@ class ExportService
     {
         $query = PhaseApplication::query()
             ->where('loan_phase_id', $phaseId)
+            ->whereNotIn('status', ['rejected', 'deferred', 'pending'])
             ->select([
                 'id',
                 'loan_phase_id',
@@ -147,6 +149,7 @@ class ExportService
     {
         $query = PhaseApplication::query()
             ->where('loan_phase_id', $phaseId)
+            ->whereNotIn('status', ['rejected', 'deferred', 'pending'])
             ->select([
                 'id',
                 'loan_phase_id',
@@ -216,6 +219,7 @@ class ExportService
     {
         $query = PhaseApplication::query()
             ->where('loan_phase_id', $phaseId)
+            ->whereNotIn('status', ['rejected', 'deferred', 'pending'])
             ->select([
                 'id',
                 'loan_phase_id',
