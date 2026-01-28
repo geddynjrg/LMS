@@ -9,16 +9,26 @@ use App\Models\GroupMember;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use App\Services\Loan\LoanAnalysisService;
+use Livewire\Attributes\Computed;
 
 class ConstituencyComponent extends Component
 {
+    protected LoanAnalysisService $analysisService;
+
     public Constituency $constituency;
+    public $stats = [];
 
     // Properties to be mapped from cache/data
     public $totalgroups, $totalmembers, $totalAmountIssued, $totalAmountRepaid, $totalAmountApproved;
     public $repaymentProgressRate, $repaymentPerformanceRate, $activeLoans, $pendingApplications, $outstandingBalance;
     public $womenGroups, $youthGroups, $pwdGroups, $defaultedLoans;
     public $totalAmountDue, $totalArrears, $averageDefaultMonths, $defaultRate, $recentApplications;
+
+    public function boot(LoanAnalysisService $analysisService)
+    {
+        $this->analysisService = $analysisService;
+    }
 
     public function mount(Constituency $constituency)
     {
@@ -28,65 +38,76 @@ class ConstituencyComponent extends Component
 
     public function loadData()
     {
-        $cacheKey = "const_dash_v2_{$this->constituency->constituency_code}";
+        $data = $this->analysisService->getConstituencyStats($this->constituency);
 
-        $data = Cache::remember($cacheKey, 300, function() {
-            // 1. Get Financed Loans for this constituency via Phase
-            $financedLoans = GroupLoan::whereHas('loanPhase', function($q) {
-                $q->where('constituency_code', $this->constituency->constituency_code);
-            })->where('loan_status', 'financed')->get();
+        // Calculate derived rates that don't need caching
+        $data['outstandingBalance'] = $data['totalAmountIssued'] - $data['totalAmountRepaid'];
+        $data['repaymentProgressRate'] = $data['totalAmountIssued'] > 0
+            ? round(($data['totalAmountRepaid'] / $data['totalAmountIssued']) * 100, 2) : 0;
 
-            // 2. Run Financial Analysis
-            $analysis = $this->runComprehensiveAnalysis($financedLoans);
+        $this->stats = $data;
+    }
 
-            // 3. Category Breakdown (Optimized query)
-            $categories = DB::table('group_loans')
-                ->join('loan_phases', 'group_loans.loan_phase_id', '=', 'loan_phases.id')
-                ->where('loan_phases.constituency_code', $this->constituency->constituency_code)
-                ->select('category', DB::raw('count(*) as count'))
-                ->groupBy('category')
-                ->pluck('count', 'category');
+    #[Computed]
+    public function kpis()
+    {
+        $approved = $this->stats['totalAmountApproved'] ?? 0;
+        $issued = $this->stats['totalAmountIssued'] ?? 0;
+        $repaid = $this->stats['totalAmountRepaid'] ?? 0;
+        $progress = $this->stats['repaymentProgressRate'] ?? 0;
 
-            return [
-                'totalgroups' => $this->constituency->groups()->count(),
-                'totalmembers' => $this->getMembersCount(),
-                'totalAmountIssued' => $financedLoans->sum('amount_issued'),
-                'totalAmountRepaid' => $financedLoans->sum('amount_repaid'),
-                'totalAmountApproved' => $this->getTotalApproved(),
+        return [
+            [
+                'title' => 'Approved Portfolio',
+                'val' => $approved,
+                'color' => 'info',
+                'icon' => 'fa-landmark',
+                'desc' => 'Total lifecycle value',
+                'prog' => 100
+            ],
+            [
+                'title' => 'Actual Disbursement',
+                'val' => $issued,
+                'color' => 'success',
+                'icon' => 'fa-hand-holding-usd',
+                'desc' => 'Issued vs Approved',
+                'prog' => ($approved > 0 ? ($issued / $approved) * 100 : 0)
+            ],
+            [
+                'title' => 'Total Repaid',
+                'val' => $repaid,
+                'color' => 'danger',
+                'icon' => 'fa-history',
+                'desc' => $progress . '% recovery rate',
+                'prog' => $progress
+            ],
+            [
+                'title' => 'Outstanding',
+                'val' => $this->stats['outstandingBalance'] ?? 0,
+                'color' => 'dark',
+                'icon' => 'fa-balance-scale',
+                'desc' => 'Current liability',
+                'prog' => 100
+            ],
+        ];
+    }
 
-                'activeLoans' => $analysis['active_count'],
-                'defaultedLoans' => $analysis['default_count'],
-                'totalAmountDue' => $analysis['due_sum'],
-                'totalArrears' => $analysis['arrears_sum'],
-                'defaultRate' => $analysis['active_count'] > 0 ? round(($analysis['default_count'] / $analysis['active_count']) * 100, 1) : 0,
+    #[Computed]
+    public function performance()
+    {
+        $rate = $this->stats['repaymentPerformanceRate'] ?? 0;
+        $due = $this->stats['totalAmountDue'] ?? 0;
+        $repaid = $this->stats['totalAmountRepaid'] ?? 0;
 
-                'womenGroups' => $categories['Women'] ?? 0,
-                'youthGroups' => $categories['Youth'] ?? 0,
-                'pwdGroups' => $categories['PWD'] ?? 0,
-
-                'pendingApplications' => GroupLoan::whereHas('loanPhase', fn($q) => $q->where('constituency_code', $this->constituency->constituency_code))
-                                        ->where('loan_status', 'pending')->count(),
-
-                'recentApplications' => GroupLoan::whereHas('loanPhase', fn($q) => $q->where('constituency_code', $this->constituency->constituency_code))
-                                        ->with('group')->latest()->limit(5)->get(),
-                'lastUpdated' => now()->format('h:i A'),
-            ];
-        });
-
-        foreach ($data as $key => $value) {
-            $this->$key = $value;
-        }
-
-        // Post-calculate derived rates
-        $this->outstandingBalance = $this->totalAmountIssued - $this->totalAmountRepaid;
-        $this->repaymentProgressRate = $this->totalAmountIssued > 0 ? round(($this->totalAmountRepaid / $this->totalAmountIssued) * 100, 2) : 0;
-        $this->repaymentPerformanceRate = $this->totalAmountDue > 0
-            ? round(($this->totalAmountRepaid / $this->totalAmountDue) * 100, 2) -100
-            : 0;
-
-        if ($this->repaymentPerformanceRate > 100) {
-            $this->repaymentPerformanceRate = 100;
-        }
+        return [
+            'rate' => $rate,
+            'due' => $due,
+            'repaid' => $repaid,
+            'deficit' => max(0, $due - $repaid),
+            'gap_percentage' => 100 - min($rate, 100),
+            'arrears_ratio' => $due > 0 ? round((($due - $repaid) / $due) * 100, 1) : 0,
+            'progress_rate' => $this->stats['repaymentProgressRate'] ?? 0,
+        ];
     }
 
     private function runComprehensiveAnalysis($loans)
@@ -159,18 +180,15 @@ class ConstituencyComponent extends Component
 
     public function refreshStats()
     {
-        // Clear the specific cache key for this constituency
-        $cacheKey = "const_dash_v2_{$this->constituency->constituency_code}";
-        Cache::forget($cacheKey);
-
-        // Re-run the data loading logic
-        $this->loadData();
-
-        // Optional: Dispatch a browser event for a toast notification
-        $this->dispatch('stats-refreshed', message: 'Dashboard data updated successfully!');
+        Cache::forget("const_stats_v3_{$this->constituency->constituency_code}");
+        $this->loadData($this->analysisService);
+        $this->dispatch('stats-refreshed', message: 'Data updated!');
     }
 
     public function render() {
-        return view('livewire.constituency-component');
+        dd($this->performance, $this->stats);
+        return view('livewire.constituency-component', [
+            'performance' => $this->performance,
+        ]);
     }
 }

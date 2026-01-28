@@ -34,7 +34,7 @@ class HorizonServiceProvider extends HorizonApplicationServiceProvider
 
             $allowedEmails = ['mundia@gmail.com'];
 
-            if (app()->environment('local')) {
+            if (app()->environment('staging')) {
                 return in_array($user->email, $allowedEmails);
             }
 

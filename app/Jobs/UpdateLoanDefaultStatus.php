@@ -40,25 +40,12 @@ class UpdateLoanDefaultStatus implements ShouldQueue
             return;
         }
 
-        $result = $analysisService->analyzeSingleLoan($loan);
+        $groupLoans = GroupLoan::where('group_id', $loan->group_id)
+            ->orderBy('disbursement_date', 'asc')
+            ->get();
 
-        $newStatus = $loan->status;
+        $analysisService->analyzeGroupLoans($groupLoans);
 
-        if ($result['arrears'] <= 0 && $loan->amount_repaid >= $loan->amount_issued) {
-            $newStatus = 'completed';
-        }
-
-        if ($loan->status === 'Pending' && $result['arrears'] > 0) $newStatus = 'active';
-
-
-        $loan->update([
-            'is_defaulted' => $result['is_defaulted'],
-            'months_defaulted' => $result['months_defaulted'],
-            'total_arrears' => $result['arrears'],
-            'default_status_updated_at' => now(),
-            'status' => $newStatus,
-        ]);
-
-        Log::info("Updated loan {$this->loanId}: Status = {$newStatus}, Defaulted = {$result['is_defaulted']}");
+        Log::info("Updated group loans for group {$loan->group_id}.");
     }
 }

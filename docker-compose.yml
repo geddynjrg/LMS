@@ -58,35 +58,14 @@ services:
       - LMS_API_KEY=${LMS_API_KEY:-}
       - LMS_EXTERNAL_API_URL=${LMS_EXTERNAL_API_URL:-http://host.docker.internal:3000/api/v1/application}
       - LMS_API_TIMEOUT=${LMS_API_TIMEOUT:-10}
-
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: uwezo-lms-worker
-    restart: unless-stopped
-    command: php artisan horizon
-    volumes:
-      - .:/var/www/html
-    environment:
-      - DB_CONNECTION=mysql
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_DATABASE=${DB_DATABASE}
-      - DB_USERNAME=${DB_USERNAME}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - REDIS_HOST=redis
-    depends_on:
-      - db
-      - redis
-      - app
+    networks:
+      - uwezo-network
 
 #   MariaDB 11.4
   db:
@@ -115,6 +94,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - uwezo-network
 
   # phpMyAdmin
   phpmyadmin:
@@ -124,13 +105,13 @@ services:
     depends_on:
       - db
     ports:
-      - "8081:80"
+      - "8081:80" # 127.0.0.1:8081:80
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
-      PMA_USER: ${DB_USERNAME:-root}
-      PMA_PASSWORD: ${DB_PASSWORD:-secret}
       UPLOAD_LIMIT: 300M
+    networks:
+      - uwezo-network
 
   # Redis
   redis:
@@ -138,6 +119,13 @@ services:
     container_name: uwezo-lms-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - uwezo-network
 
   # Laravel Horizon
   horizon:
@@ -150,12 +138,33 @@ services:
     volumes:
       - .:/var/www/html
     depends_on:
-      app:
-        condition: service_healthy
-      redis:
-        condition: service_started
+      - db
+      - redis
+      - app
     environment:
       - QUEUE_CONNECTION=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    networks:
+      - uwezo-network
+
+  scheduler:
+    build: .
+    container_name: uwezo-lms-scheduler
+    command: php artisan schedule:work
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+      - redis
+      - app
+    networks:
+      - uwezo-network
 
 volumes:
   dbdata:
+
+networks:
+  uwezo-network:
+    driver: bridge

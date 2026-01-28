@@ -92,10 +92,10 @@ class LoansController extends Controller
 
     public function app_loans(Request $request, County $county, Constituency $constituency)
     {
-        return View('loan.app.loans', [
-            'county' => $county,
-            'constituency' => $constituency,
-        ]);
+        // return View('loan.app.loans', [
+        //     'county' => $county, 
+        //     'constituency' => $constituency,
+        // ]);
     }
 
     public function app_loan(Request $request, County $county, Constituency $constituency, $applicationId)

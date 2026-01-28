@@ -1,16 +1,7 @@
 <section class="content">
     <div class="container-fluid">
         <div class="row">
-            @php
-                $kpis = [
-                    ['title' => 'Approved Portfolio', 'val' => $totalAmountApproved, 'color' => 'info', 'icon' => 'fa-landmark', 'desc' => 'Total lifecycle value', 'prog' => 100],
-                    ['title' => 'Actual Disbursement', 'val' => $totalAmountIssued, 'color' => 'success', 'icon' => 'fa-hand-holding-usd', 'desc' => 'Issued vs Approved', 'prog' => ($totalAmountApproved > 0 ? ($totalAmountIssued/$totalAmountApproved)*100 : 0)],
-                    ['title' => 'Total Repaid', 'val' => $totalAmountRepaid, 'color' => 'danger', 'icon' => 'fa-history', 'desc' => $repaymentProgressRate . '% recovery rate', 'prog' => $repaymentProgressRate],
-                    ['title' => 'Outstanding', 'val' => $outstandingBalance, 'color' => 'dark', 'icon' => 'fa-balance-scale', 'desc' => 'Current liability', 'prog' => 100],
-                ];
-            @endphp
-
-            @foreach($kpis as $kpi)
+            @foreach($this->kpis as $kpi)
             <div class="col-md-3 col-sm-6 col-12">
                 <div class="card shadow-sm border-0 mb-3">
                     <div class="card-body p-3">
@@ -35,6 +26,105 @@
             @endforeach
         </div>
         <div class="row mt-3">
+            <div class="col-md-7">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-0 py-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h3 class="card-title font-weight-bold text-dark mb-0">
+                                    <i class="fas fa-chart-line text-success mr-2"></i>Collection Efficiency
+                                </h3><br>
+                                <span class="text-xs text-muted mb-0">Assessment of actual vs. scheduled recovery</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="badge {{ $this->performance['rate'] >= 90 ? 'bg-success' : 'bg-warning' }} rounded-pill px-3 shadow-sm">
+                                    {{ $this->performance['rate'] }}% Performance
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body pt-0">
+                        <div class="row align-items-center">
+                            <div class="col-md-5 text-center border-right">
+                                <div class="position-relative d-inline-block py-3">
+                                    <div class="gauge-container">
+                                        <svg viewBox="0 0 100 100" class="gauge-svg">
+                                            <circle class="gauge-base" cx="50" cy="50" r="45"></circle>
+                                            <circle class="gauge-progress" cx="50" cy="50" r="45"
+                                                style="stroke-dashoffset: {{ 283 - (283 * min($this->performance['rate'], 100) / 100) }};
+                                                    stroke: {{ $this->performance['rate'] >= 90 ? '#28a745' : ($this->performance['rate'] >= 70 ? '#ffc107' : '#dc3545') }};">
+                                            </circle>
+                                        </svg>
+                                        <div class="gauge-center-content">
+                                            @if($this->performance['rate'] >= 100)
+                                                <i class="fas fa-level-up-alt text-success fa-2x animate-bounce"></i>
+                                            @elseif($this->performance['rate'] >= 80)
+                                                <i class="fas fa-minus text-warning fa-2x"></i>
+                                            @else
+                                                <i class="fas fa-level-down-alt text-danger fa-2x animate-pulse"></i>
+                                            @endif
+                                            <span class="d-block font-weight-bold mt-1 text-lg">{{ $this->performance['rate'] }}%</span>
+                                        </div>
+                                    </div>
+                                    <small class="text-uppercase text-muted font-weight-bold mt-2 d-block" style="letter-spacing: 1px; font-size: 10px;">
+                                        Repayment Trend
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="col-md-7 pl-md-4">
+                                <div class="mb-3">
+                                    <span class="text-xs text-muted text-uppercase font-weight-bold d-block mb-1">Status Summary</span>
+                                    @if($this->performance['rate'] >= 100)
+                                        <div class="alert alert-soft-success py-2 px-3 border-0 mb-0">
+                                            <small class="font-weight-bold text-success"><i class="fas fa-check-circle mr-1"></i> SURPLUS RECOVERY</small>
+                                        </div>
+                                    @else
+                                        <div class="alert alert-soft-danger py-2 px-3 border-0 mb-0">
+                                            <small class="font-weight-bold text-danger"><i class="fas fa-exclamation-circle mr-1"></i> DEFICIT: KES {{ number_format($this->performance['deficit']) }}</small>
+                                        </div>
+                                    @endif
+                                </div>
+
+                                <ul class="list-group list-group-unbordered">
+                                    <li class="list-group-item border-0 d-flex justify-content-between align-items-center py-2">
+                                        <span class="text-muted small">Expected Payments</span>
+                                        <span class="font-weight-bold text-dark">KES {{ number_format($this->performance['due']) }}</span>
+                                    </li>
+                                    <li class="list-group-item border-0 d-flex justify-content-between align-items-center py-2">
+                                        <span class="text-muted small">Total Collections</span>
+                                        <span class="font-weight-bold text-success">KES {{ number_format($this->performance['repaid']) }}</span>
+                                    </li>
+                                    <li class="list-group-item border-0 pt-3 mt-2 border-top">
+                                        <div class="d-flex justify-content-between mb-1 small text-uppercase font-weight-bold">
+                                            <span class="text-muted">Collection Gap</span>
+                                            <span class="text-danger">{{ $this->performance['gap_percentage'] }}% Missing</span>
+                                        </div>
+                                        <div class="progress rounded-pill shadow-xs" style="height: 6px;">
+                                            <div class="progress-bar bg-danger" style="width: {{ $this->performance['gap_percentage'] }}%"></div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-footer bg-light border-0 py-2">
+                        <div class="row text-center small">
+                            <div class="col-6 border-right">
+                                <span class="text-muted d-block text-uppercase" style="font-size: 9px;">Total Progress</span>
+                                <span class="font-weight-bold">{{ $this->performance['progress_rate'] }}%</span>
+                            </div>
+                            <div class="col-6">
+                                <span class="text-muted d-block text-uppercase" style="font-size: 9px;">Arrears Ratio</span>
+                                <span class="font-weight-bold text-danger">{{ $this->performance['arrears_ratio'] }}%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="col-md-7">
                 <div class="card border-0 shadow-sm h-100">
                     <div class="card-header bg-white border-0 py-3">

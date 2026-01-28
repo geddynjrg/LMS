@@ -30,8 +30,7 @@ class UpdateGroupLoanDefaultStatus extends Command
     {
         $constituencyCode = $this->option('constituency');
 
-        $query = GroupLoan::where('status', 'active')
-                  ->where('loan_status', 'financed');
+        $query = GroupLoan::where('loan_status', 'financed');
 
         if ($constituencyCode) {
             $query->whereHas('loanPhase', fn($q) => $q->where('constituency_code', $constituencyCode));
@@ -46,6 +45,7 @@ class UpdateGroupLoanDefaultStatus extends Command
         $query->chunk(500, function ($loans) {
             foreach ($loans as $loan) {
                 UpdateLoanDefaultStatus::dispatch($loan->id);
+                $this->info("Queued job for loan ID: {$loan->id}");
             }
         });
 
