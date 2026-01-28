@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
     libjpeg62-turbo-dev \
     libpng-dev \
     curl \
+    gnupg \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo_mysql \
@@ -24,6 +25,9 @@ RUN apt-get update && apt-get install -y \
         gd \
     && a2enmod rewrite
 
+# Install Node.js 18.x and NPM
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
 # 2. Point Apache to the Laravel /public folder
 # We overwrite the default Apache config with your custom one
 COPY .docker/vhost.conf /etc/apache2/sites-available/000-default.conf
@@ -44,6 +48,8 @@ RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/memory-limit.ini
 # Increase the timeout to 300 seconds (5 minutes)
 RUN COMPOSER_PROCESS_TIMEOUT=300 composer install --no-interaction --optimize-autoloader --no-dev
 
+RUN npm install && npm run build
+
 # 8. Set permissions so Laravel can write to logs and cache
 RUN mkdir -p /var/www/html/storage/framework/sessions \
     /var/www/html/storage/framework/views \
@@ -51,8 +57,6 @@ RUN mkdir -p /var/www/html/storage/framework/sessions \
     /var/www/html/storage/logs
 
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
-
-
 
 EXPOSE 80
 

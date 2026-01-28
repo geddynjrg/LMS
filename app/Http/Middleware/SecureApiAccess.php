@@ -53,13 +53,6 @@ class SecureApiAccess
             return $this->unauthorizedResponse('ip_not_allowed', 'IP address not authorized');
         }
 
-        // 3. Check User Agent (recommended)
-        // $allowedUserAgents = config('app.allowed_user_agents', []);
-        // if (!empty($allowedUserAgents) && !$this->isAllowedUserAgent($userAgent, $allowedUserAgents)) {
-        //     Log::warning('User Agent Not Allowed', ['user_agent' => $userAgent]);
-        //     return $this->unauthorizedResponse('user_agent_not_allowed', 'User agent not allowed');
-        // }
-
         // 4. Rate Limiting
         if ($this->isRateLimited($request)) {
             Log::warning('Rate Limit Exceeded', ['ip' => $clientIp]);
