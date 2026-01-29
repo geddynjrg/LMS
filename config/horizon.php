@@ -218,27 +218,38 @@ return [
     'environments' => [
         'production' => [
             'supervisor-1' => [
-                'maxProcesses' => 10,
-                'balanceMaxShift' => 1,
-                'balanceCooldown' => 3,
+                'connection' => 'redis',
+                'queue' => ['default'],
+                'balance' => 'simple',
+                'processes' => 10,
+                'tries' => 3,
+                'timeout' => 60,
+                'memory' => 128,
+            ],
+        ],
+
+        'staging' => [
+            'supervisor-1' => [
+                'connection' => 'redis',
+                'queue' => ['default'],
+                'balance' => 'simple',
+                'processes' => 5,      // Adjust as needed (3-10 is fine for staging)
+                'tries' => 3,
+                'timeout' => 60,
+                'memory' => 128,
             ],
         ],
 
         'local' => [
             'supervisor-1' => [
-            'connection' => 'redis',
-            'queue' => ['default'],
-            'balance' => 'simple', // Change 'auto' to 'simple'
-            'minProcesses' => 1,
-            'maxProcesses' => 5,
-            'workers' => 3,
+                'connection' => 'redis',
+                'queue' => ['default'],
+                'balance' => 'simple',
+                'processes' => 3,
+                'tries' => 3,
+                'timeout' => 60,
+                'memory' => 128,
             ],
         ],
     ],
 ];
-
-// Force local config (remove after testing)
-if (app()->environment('local')) {
-    config(['horizon.environments.local.supervisor-1.workers' => 3]);
-    config(['horizon.environments.local.supervisor-1.maxProcesses' => 5]);
-}

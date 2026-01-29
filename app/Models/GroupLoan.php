@@ -52,8 +52,15 @@ class GroupLoan extends Model
         'is_defaulted',
         'months_defaulted',
         'total_arrears',
+        'amount_due',
         'default_status_updated_at',
     ];
+
+    protected $casts = [
+        'total_arrears' => 'decimal:2',
+        'amount_due' => 'decimal:2',
+    ];
+
 
     public function loanPhase(): BelongsTo
     {

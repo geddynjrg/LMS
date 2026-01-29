@@ -186,6 +186,7 @@ class ConstituencyComponent extends Component
     }
 
     public function render() {
+        GroupLoan::where('id', 1)->update(['amount_due' => 1000]);
         dd($this->performance, $this->stats);
         return view('livewire.constituency-component', [
             'performance' => $this->performance,

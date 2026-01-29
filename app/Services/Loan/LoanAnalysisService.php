@@ -9,6 +9,7 @@ use App\Models\Constituency;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 class LoanAnalysisService
 {
@@ -85,6 +86,7 @@ class LoanAnalysisService
                 'is_defaulted' => $isDefaulted,
                 'months_defaulted' => $monthsDefaulted,
                 'total_arrears' => $adjustedArrears,
+                'amount_due' => $result['amount_due'],
                 'default_status_updated_at' => now(),
                 'status' => $newStatus,
             ]);
@@ -96,17 +98,37 @@ class LoanAnalysisService
         $disbursementDate = Carbon::parse($loan->disbursement_date);
         $gracePeriodEnd = $disbursementDate->copy()->addMonths(6);
 
+        $monthlyInstallment = $loan->amount_issued > 0 ? $loan->amount_issued / 24 : 0;
+
         if ($today->lte($gracePeriodEnd)) {
-            return $this->formatResult(true, false, 0, 0, 0, $loan->amount_issued / 24);
+            // During grace period: no repayment due yet
+            $amountDue = 0.0;
+            $isStillActive = true;
+            $isDefaulted = false;
+            $monthsDefaulted = 0;
+            $arrears = 0.0;
+        } else {
+            // After grace period
+            $repaymentStart = $gracePeriodEnd->copy()->addDay();
+            $monthsInRepayment = min($repaymentStart->diffInMonths($today), 24);
+            $amountDue = $monthlyInstallment * $monthsInRepayment;
+
+            $isStillActive = $disbursementDate->diffInMonths($today) <= 30 || $amountDue > 0;
+            $isDefaulted = false;
+            $monthsDefaulted = 0;
+            $arrears = 0.0;
         }
 
-        $repaymentStart = $gracePeriodEnd->copy()->addDay();
-        $monthsInRepayment = min($repaymentStart->diffInMonths($today), 24);
-        $monthlyInstallment = $loan->amount_issued / 24;
-        $amountDue = $monthlyInstallment * $monthsInRepayment;
-        $isStillActive = $disbursementDate->diffInMonths($today) <= 30;
+        Log::info("calculateLoanMetrics: {$amountDue} at " . now()->toDateTimeString());
 
-        return $this->formatResult($isStillActive, false, $amountDue, 0, 0, $monthlyInstallment);
+        return $this->formatResult(
+            $isStillActive,
+            $isDefaulted,
+            $amountDue,
+            $arrears,
+            $monthsDefaulted,
+            $monthlyInstallment
+        );
     }
 
     /**
