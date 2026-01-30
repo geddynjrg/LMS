@@ -21,7 +21,7 @@ class ConstituencyComponent extends Component
 
     // Properties to be mapped from cache/data
     public $totalgroups, $totalmembers, $totalAmountIssued, $totalAmountRepaid, $totalAmountApproved;
-    public $repaymentProgressRate, $repaymentPerformanceRate, $activeLoans, $pendingApplications, $outstandingBalance;
+    public $repaymentProgressRate, $recoveryRate, $activeLoans, $pendingApplications, $outstandingBalance;
     public $womenGroups, $youthGroups, $pwdGroups, $defaultedLoans;
     public $totalAmountDue, $totalArrears, $averageDefaultMonths, $defaultRate, $recentApplications;
 
@@ -95,19 +95,152 @@ class ConstituencyComponent extends Component
     #[Computed]
     public function performance()
     {
-        $rate = $this->stats['repaymentPerformanceRate'] ?? 0;
+        $recovery_rate = $this->stats['recoveryRate'] ?? 0;
         $due = $this->stats['totalAmountDue'] ?? 0;
         $repaid = $this->stats['totalAmountRepaid'] ?? 0;
 
         return [
-            'rate' => $rate,
+            'recovery_rate' => $recovery_rate,
+            'arrears' => $this->stats['totalArrears'],
             'due' => $due,
             'repaid' => $repaid,
             'deficit' => max(0, $due - $repaid),
-            'gap_percentage' => 100 - min($rate, 100),
+            'gap_percentage' => 100 - min($recovery_rate, 100),
             'arrears_ratio' => $due > 0 ? round((($due - $repaid) / $due) * 100, 1) : 0,
             'progress_rate' => $this->stats['repaymentProgressRate'] ?? 0,
+            'financial_rate' => $this->stats['financialDefaultRate'],
         ];
+    }
+
+    #[Computed]
+    public function riskProfile2()
+    {
+        $rate = $this->stats['defaultRate'] ?? 0;
+        $isHighRisk = $rate > 10;
+
+        return [
+            'count' => $this->stats['defaultedLoansCount'] ?? 0,
+            'avg_lag' => $this->stats['averageDefaultMonths'] ?? 0,
+            'rate' => $rate,
+            'is_high_risk' => $isHighRisk,
+            'bg_class' => $isHighRisk ? 'bg-light-danger' : 'bg-light-info',
+            'icon' => $isHighRisk ? 'fa-exclamation-circle text-danger' : 'fa-check-circle text-info',
+            'message' => $isHighRisk
+                ? 'Immediate intervention required for delinquent groups.'
+                : 'Default rate is within acceptable institutional limits.'
+        ];
+    }
+
+    #[Computed]
+    public function riskProfile()
+    {
+        $rate = $this->stats['defaultRate'] ?? 0;
+        $isHighRisk = $rate > 10;
+        return [
+            'count' => $this->stats['defaultedLoansCount'] ?? 0,
+                'avg_lag' => $this->stats['averageDefaultMonths'] ?? 0,
+                'rate' => $rate,
+                'is_high_risk' => $isHighRisk,
+            'rate' => $this->performance['financial_rate'],  // main number
+            'bg_class' => $this->performance['financial_rate'] > 40 ? 'bg-danger-soft'
+                        : ($this->performance['financial_rate'] > 20 ? 'bg-warning-soft' : 'bg-success-soft'),
+            'text_color' => $this->performance['financial_rate'] > 40 ? 'text-danger'
+                            : ($this->performance['financial_rate'] > 20 ? 'text-info' : 'text-pink'),
+            'icon' => $this->performance['financial_rate'] > 40 ? 'fa-exclamation-triangle'
+                    : ($this->performance['financial_rate'] > 20 ? 'fa-exclamation-circle' : 'fa-check-circle'),
+            'message' => $this->performance['financial_rate'] > 40 ? 'High Risk – Urgent Action Required'
+                        : ($this->performance['financial_rate'] > 20 ? 'Moderate Risk – Monitor Closely'
+                            : 'Low Risk – Portfolio Healthy'),
+        ];
+    }
+
+    #[Computed]
+    public function demographics()
+    {
+        $totalGroups = $this->stats['totalGroups'] ?? 0;
+        $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
+
+        return [
+            [
+                'label' => 'Women Groups',
+                'val' => $this->stats['womenGroups'] ?? 0,
+                'amount' => $this->stats['womenAmount'],
+                'color' => 'pink',
+                'icon' => 'fa-female',
+                'cat' => 'Women'
+            ],
+            [
+                'label' => 'Youth Groups',
+                'val' => $this->stats['youthGroups'] ?? 0,
+                'amount' => $this->stats['youthAmount'],
+                'color' => 'orange',
+                'icon' => 'fa-child',
+                'cat' => 'Youth'
+            ],
+            [
+                'label' => 'PWD Groups',
+                'val' => $this->stats['pwdGroups'] ?? 0,
+                'amount' => $this->stats['pwdAmount'],
+                'color' => 'purple',
+                'icon' => 'fa-wheelchair',
+                'cat' => 'PWD'
+            ],
+            [
+                'label' => 'Registry Size',
+                'val' => $totalGroups,
+                'amount' => $totalIssued,
+                'color' => 'primary',
+                'icon' => 'fa-users',
+                'cat' => null
+            ]
+        ];
+    }
+
+    /**
+ * Maps sector names to Bootstrap colors
+ */
+private function getSectorColor($sector)
+{
+    return match (trim($sector)) {
+        'Trade'         => 'primary', // Blue
+        'Service'       => 'info',    // Light Blue
+        'Manufacturing' => 'indigo',  // Purple/Dark Blue
+        'Agriculture'   => 'success', // Green
+        default         => 'secondary', // Gray for "Others"
+    };
+}
+
+/**
+ * Maps sector names to FontAwesome icons
+ */
+private function getSectorIcon($sector)
+{
+    return match (trim($sector)) {
+        'Trade'         => 'fa-store',
+        'Service'       => 'fa-concierge-bell',
+        'Manufacturing' => 'fa-industry',
+        'Agriculture'   => 'fa-leaf',
+        default         => 'fa-ellipsis-h', // Generic icon for "Others"
+    };
+}
+
+    #[Computed]
+    public function economicSectors()
+    {
+        $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
+        $breakdown = $this->stats['sector_breakdown'] ?? collect();
+
+        // Dynamically build the list from whatever sectors exist in the DB
+        return $breakdown->map(function($data, $sectorName) use ($totalIssued) {
+            return [
+                'label' => $sectorName,
+                'amount' => $data->total_issued,
+                'count' => $data->loan_count,
+                'percentage' => $totalIssued > 0 ? round(($data->total_issued / $totalIssued) * 100) : 0,
+                'color' => $this->getSectorColor($sectorName),
+                'icon' => $this->getSectorIcon($sectorName),
+            ];
+        });
     }
 
     private function runComprehensiveAnalysis($loans)
@@ -186,10 +319,9 @@ class ConstituencyComponent extends Component
     }
 
     public function render() {
-        GroupLoan::where('id', 1)->update(['amount_due' => 1000]);
-        dd($this->performance, $this->stats);
         return view('livewire.constituency-component', [
             'performance' => $this->performance,
+            'riskProfile' => $this->riskProfile,
         ]);
     }
 }

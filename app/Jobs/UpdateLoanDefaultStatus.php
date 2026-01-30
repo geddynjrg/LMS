@@ -18,14 +18,14 @@ class UpdateLoanDefaultStatus implements ShouldQueue
     public $tries = 3;
     public $timeout = 300; // 5 minutes
 
-    protected $loanId;
+    protected $groupId;
 
     /**
      * Create a new job instance.
      */
-    public function __construct($loanId)
+    public function __construct($groupId)
     {
-        $this->loanId = $loanId;
+        $this->groupId = $groupId;
     }
 
     /**
@@ -33,19 +33,18 @@ class UpdateLoanDefaultStatus implements ShouldQueue
      */
     public function handle(LoanAnalysisService $analysisService): void
     {
-        $loan = GroupLoan::find($this->loanId);
-
-        if (!$loan) {
-            Log::warning("Loan {$this->loanId} not found for default status update.");
-            return;
-        }
-
-        $groupLoans = GroupLoan::where('group_id', $loan->group_id)
+        $groupLoans = GroupLoan::where('group_id', $this->groupId)
+            ->where('loan_status', 'financed')
             ->orderBy('disbursement_date', 'asc')
             ->get();
 
+        if ($groupLoans->isEmpty()) {
+            Log::warning("No loans found for group {$this->groupId}.");
+            return;
+        }
+
         $analysisService->analyzeGroupLoans($groupLoans);
 
-        Log::info("Updated group loans for group {$loan->group_id}.");
+        Log::info("Updated group loans for group {$this->groupId}.");
     }
 }

@@ -41,6 +41,7 @@ class LoanAnalysisService
         return $this->formatResult($isStillActive, $isDefaulted, $amountDue, $arrears, $monthsDefaulted, $monthlyInstallment);
     }
 
+
     private function formatResult($isStillActive, $isDefaulted, $due, $arrears, $months, $installment)
     {
         return [
@@ -55,30 +56,65 @@ class LoanAnalysisService
 
     public function analyzeGroupLoans(Collection $groupLoans): void
     {
+        $groupId = $groupLoans->first()?->group_id ?? 'unknown';
+        Log::info("Starting group analysis for group {$groupId} - {$groupLoans->count()} financed loans");
+
         $runningOverpayment = 0.0;
         $today = Carbon::now();
 
-        foreach ($groupLoans as $loan) {
+        // Filter out any financed loans that still have NULL disbursement_date
+        $validLoans = $groupLoans->filter(function ($loan) {
+            if ($loan->disbursement_date === null) {
+                Log::warning("Financed loan {$loan->id} has NULL disbursement_date - treating as latest");
+                return true; // keep it, but it will go last
+            }
+            return true;
+        });
+
+        // Sort: valid dates first (oldest to newest), NULL dates at the very end
+        $sortedLoans = $validLoans->sortBy(function ($loan) {
+            return $loan->disbursement_date
+                ? Carbon::parse($loan->disbursement_date)->timestamp
+                : PHP_INT_MAX;
+        });
+
+        $processed = 0;
+
+        foreach ($sortedLoans as $loan) {
+            $processed++;
+
             $result = $this->calculateLoanMetrics($loan, $today);
 
             $rawArrears = max($result['amount_due'] - $loan->amount_repaid, 0);
 
-            // Apply running overpayment to reduce arrears
-            $adjustedArrears = max($rawArrears - $runningOverpayment, 0);
+            // Apply cumulative overpayment (only if we have a valid date)
+            $adjustedArrears = $loan->disbursement_date === null
+                ? $rawArrears  // No offset for NULL-date loans
+                : max($rawArrears - $runningOverpayment, 0);
 
             $isDefaulted = $adjustedArrears > 0;
-            $monthsDefaulted = $isDefaulted ? floor($adjustedArrears / $result['monthly_installment']) : 0;
+            $monthsDefaulted = $isDefaulted ? floor($adjustedArrears / max($result['monthly_installment'], 1)) : 0;
 
             $excessPayment = max($loan->amount_repaid - $result['amount_due'], 0);
 
-            // Update running overpayment for next loans
+            // Carry forward overpayment even from NULL-date loans
             $runningOverpayment = max($runningOverpayment - $rawArrears, 0) + $excessPayment;
 
-            // Update loan
+            // Force clean slate if fully repaid
+            if ($loan->amount_repaid >= $loan->amount_issued) {
+                $adjustedArrears = 0;
+                $isDefaulted = false;
+                $monthsDefaulted = 0;
+            }
+
+            $finalAmountDue = $result['amount_due'];
+
             $newStatus = $loan->status;
             if ($adjustedArrears <= 0 && $loan->amount_repaid >= $loan->amount_issued) {
                 $newStatus = 'completed';
-            } elseif ($loan->status === 'Pending' && $adjustedArrears > 0) {
+            } elseif ($adjustedArrears > 0) {
+                $newStatus = 'defaulted';
+            } elseif ($loan->status === 'Pending') {
                 $newStatus = 'active';
             }
 
@@ -86,11 +122,15 @@ class LoanAnalysisService
                 'is_defaulted' => $isDefaulted,
                 'months_defaulted' => $monthsDefaulted,
                 'total_arrears' => $adjustedArrears,
-                'amount_due' => $result['amount_due'],
+                'amount_due' => $finalAmountDue,
                 'default_status_updated_at' => now(),
                 'status' => $newStatus,
             ]);
+
+            Log::info("Loan {$loan->id} updated: due={$finalAmountDue}, arrears={$adjustedArrears}, status={$newStatus}, running_overpay={$runningOverpayment}" . ($loan->disbursement_date === null ? ' (NULL date)' : ''));
         }
+
+        Log::info("Finished group {$groupId} analysis - {$processed} loans processed");
     }
 
     private function calculateLoanMetrics(GroupLoan $loan, Carbon $today): array
@@ -101,31 +141,32 @@ class LoanAnalysisService
         $monthlyInstallment = $loan->amount_issued > 0 ? $loan->amount_issued / 24 : 0;
 
         if ($today->lte($gracePeriodEnd)) {
-            // During grace period: no repayment due yet
+            // Grace period: no repayment due
             $amountDue = 0.0;
             $isStillActive = true;
             $isDefaulted = false;
             $monthsDefaulted = 0;
             $arrears = 0.0;
         } else {
-            // After grace period
+            // Repayment period
             $repaymentStart = $gracePeriodEnd->copy()->addDay();
-            $monthsInRepayment = min($repaymentStart->diffInMonths($today), 24);
-            $amountDue = $monthlyInstallment * $monthsInRepayment;
+            $monthsElapsed = $repaymentStart->diffInMonths($today);
+            $theoreticalDue = $monthlyInstallment * min($monthsElapsed, 24);
 
-            $isStillActive = $disbursementDate->diffInMonths($today) <= 30 || $amountDue > 0;
-            $isDefaulted = false;
+            // No cap on theoretical due
+            $amountDue = $theoreticalDue;
+
+            $isStillActive = $disbursementDate->diffInMonths($today) <= 30 || $theoreticalDue > $loan->amount_repaid;
+            $isDefaulted = false; // Calculated later with overpayment
             $monthsDefaulted = 0;
             $arrears = 0.0;
         }
-
-        Log::info("calculateLoanMetrics: {$amountDue} at " . now()->toDateTimeString());
 
         return $this->formatResult(
             $isStillActive,
             $isDefaulted,
             $amountDue,
-            $arrears,
+            0.0, // arrears calculated later
             $monthsDefaulted,
             $monthlyInstallment
         );
@@ -190,17 +231,62 @@ class LoanAnalysisService
                     AVG(months_defaulted) as avg_months_defaulted
                 ')->first();
 
-            // Category Breakdown using DB for speed
-            $categories = DB::table('group_loans')
+            $categoryData = DB::table('group_loans')
                 ->join('loan_phases', 'group_loans.loan_phase_id', '=', 'loan_phases.id')
                 ->where('loan_phases.constituency_code', $code)
-                ->select('category', DB::raw('count(*) as count'))
+                ->where('group_loans.loan_status', 'financed')
+                ->select(
+                    'category',
+                    DB::raw('count(*) as loan_count'),
+                    DB::raw('SUM(amount_issued) as total_issued')
+                )
                 ->groupBy('category')
-                ->pluck('count', 'category');
+                ->get()
+                ->keyBy('category');
+
+            $sectorData = DB::table('group_loans')
+                ->join('loan_phases', 'group_loans.loan_phase_id', '=', 'loan_phases.id')
+                ->where('loan_phases.constituency_code', $code)
+                ->where('group_loans.loan_status', 'financed')
+                ->select(
+                    'sector',
+                    DB::raw('count(*) as loan_count'),
+                    DB::raw('SUM(amount_issued) as total_issued'))
+                ->groupBy('sector')
+                ->get()
+                ->keyBy('sector');
 
             $repaid = $totals->repaid ?? 0;
             $due = $totals->due ?? 0;
             $issued = $totals->issued ?? 0;
+
+            $newApplications = DB::table('temp_applications')
+                ->where('constituency_code', $code)
+                ->whereIn('status', ['submitted'])
+                ->select(
+                    'group_name',
+                    'loan_amount',
+                    'nature_of_business',
+                    'created_at',
+                    'application_id'
+                )
+                ->latest()
+                ->limit(5)
+                ->get();
+
+            $approvedPhases = DB::table('loan_phases')
+                ->where('constituency_code', $code)
+                ->where('status', 'approved')
+                ->select(
+                    'phase_ref',
+                    'slug',
+                    'constituency_code',
+                    'phase',
+                    'total_amount_approved'
+                )
+                ->latest('hq_approved_at')
+                ->limit(5)
+                ->get();
 
             return [
                 'totalGroups' => $constituency->groups()->count(),
@@ -213,7 +299,7 @@ class LoanAnalysisService
                 'defaultedLoansCount' => $totals->default_count ?? 0,
                 'averageDefaultMonths' => round($totals->avg_months_defaulted ?? 0, 1),
 
-                'repaymentPerformanceRate' => $due > 0 ? round(($repaid / $due) * 100, 1) : 0,
+                'recoveryRate' => $due > 0 ? round(($repaid / $due) * 100, 1) : 0,
 
                 'repaymentProgressRate' => $issued > 0 ? round(($repaid / $issued) * 100, 1) : 0,
 
@@ -221,12 +307,28 @@ class LoanAnalysisService
                     ? round(($totals->default_count / $totals->active_count) * 100, 1)
                     : 0,
 
-                'womenGroups' => $categories['Women'] ?? 0,
-                'youthGroups' => $categories['Youth'] ?? 0,
-                'pwdGroups' => $categories['PWD'] ?? 0,
+                'financialDefaultRate' => $totals->due > 0
+                    ? round((max($totals->due - $totals->repaid, 0) / $totals->due) * 100, 1)
+                    : 0,
 
-                'pendingApplications' => (clone $baseQuery)->where('loan_status', 'pending')->count(),
-                'recentApplications' => (clone $baseQuery)->with('group')->latest()->limit(5)->get(),
+                'averageArrearsPerDefaultedLoan' => $totals->default_count > 0
+                    ? round($totals->arrears / $totals->default_count, 0)
+                    : 0,
+
+                'sector_breakdown' => $sectorData,
+
+                'womenGroups' => $categoryData['Women']->loan_count ?? 0,
+                'womenAmount' => $categoryData['Women']->total_issued ?? 0,
+
+                'youthGroups' => $categoryData['Youth']->loan_count ?? 0,
+                'youthAmount' => $categoryData['Youth']->total_issued ?? 0,
+
+                'pwdGroups'   => $categoryData['PWD']->loan_count ?? 0,
+                'pwdAmount'   => $categoryData['PWD']->total_issued ?? 0,
+
+                'newApplications' => $newApplications,
+
+                'approvedPhases' => $approvedPhases,
             ];
         });
     }
