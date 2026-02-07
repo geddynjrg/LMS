@@ -172,6 +172,7 @@ return [
         App\Providers\FortifyServiceProvider::class,
         App\Providers\JetstreamServiceProvider::class,
         Maatwebsite\Excel\ExcelServiceProvider::class,
+        Barryvdh\DomPDF\ServiceProvider::class,
         Spatie\Permission\PermissionServiceProvider::class,
     ])->toArray(),
 
@@ -189,6 +190,7 @@ return [
     'aliases' => Facade::defaultAliases()->merge([
         // 'Example' => App\Facades\Example::class,
         'Excel' => Maatwebsite\Excel\Facades\Excel::class,
+        'PDF' => Barryvdh\DomPDF\Facade\Pdf::class,
     ])->toArray(),
 
     'lms_api_key' => env('LMS_API_KEY'),
@@ -197,7 +199,8 @@ return [
     'allowed_ips' => [
         env('ALLOWED_IP_1', '127.0.0.1'),
         env('ALLOWED_IP_2', '::1'),
-        'http://172.29.0.1:3000',
+        env('ALLOWED_IP_3', '172.21.0.1'),
+        'http://172.21.0.1:3000',
         // Add your production server IPs here
     ],
 

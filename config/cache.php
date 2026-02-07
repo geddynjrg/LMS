@@ -144,6 +144,10 @@ return [
             'per_application' => 'application_data',
             'constituency'    => 'application_constituency_',
         ],
+        'groups' => [
+            'constituency' => 'groups_constituency_',
+            'group' => 'group_'
+        ],
         // User
         'users' => [
             'per_role' => 'user_role_scope_',

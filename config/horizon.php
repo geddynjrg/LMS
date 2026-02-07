@@ -201,7 +201,7 @@ return [
     'defaults' => [
         'supervisor-1' => [
             'connection' => 'redis',
-            'queue' => ['default'],
+            'queue' => ['default', 'loan-applications'],
             'balance' => 'simple', // Change from 'auto' to 'simple'
             'processes' => 3,      // Add this line
             'autoScalingStrategy' => 'time',
@@ -219,7 +219,7 @@ return [
         'production' => [
             'supervisor-1' => [
                 'connection' => 'redis',
-                'queue' => ['default'],
+                'queue' => ['default', 'loan-applications'],
                 'balance' => 'simple',
                 'processes' => 10,
                 'tries' => 3,
@@ -231,7 +231,7 @@ return [
         'staging' => [
             'supervisor-1' => [
                 'connection' => 'redis',
-                'queue' => ['default'],
+                'queue' => ['default', 'loan-applications'],
                 'balance' => 'simple',
                 'processes' => 5,      // Adjust as needed (3-10 is fine for staging)
                 'tries' => 3,
@@ -243,7 +243,7 @@ return [
         'local' => [
             'supervisor-1' => [
                 'connection' => 'redis',
-                'queue' => ['default'],
+                'queue' => ['default', 'loan-applications'],
                 'balance' => 'simple',
                 'processes' => 3,
                 'tries' => 3,
