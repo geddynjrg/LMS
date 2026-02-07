@@ -141,7 +141,6 @@
         <!-- Filters and Actions -->
         <div class="card">
             <div class="card-header">
-
                 <div class="d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Applications List</h3>
 
@@ -425,7 +424,6 @@
                 <div class="pagination-sm">
                     {{ $applications->links() }}
                 </div>
-
             </div>
         </div>
 
@@ -560,8 +558,6 @@
         Livewire.on('clear-selects', () => {
             $('select.select2').val(null).trigger('change');
         });
-
-
     });
 
     window.addEventListener('open-modal', event => { $('#' + event.detail.name).modal('show'); });

@@ -24,18 +24,19 @@ class EditMember extends Component
 
 
     #[On('editMember-modal')]
-    public function editMember($member)
+    public function editMember($member_Id, $loan_id)
     {
         $this->loading = true;
-        $this->member = json_decode($member);
-        $this->groupMember = [
-            'name' => $this->member->member->name,
-            'role' => $this->member->role,
-            'phonenumber' => $this->member->member->number,
-            'gender' => $this->member->member->gender,
-            'disabled' => $this->member->member->disabled == 1?true:false,
-            'member_Id' => $this->member->member_Id,
-        ];
+
+        // $this->member = json_decode($member);
+        // $this->groupMember = [
+        //     'name' => $this->member->member->name,
+        //     'role' => $this->member->role,
+        //     'phonenumber' => $this->member->member->number,
+        //     'gender' => $this->member->member->gender,
+        //     'disabled' => $this->member->member->disabled == 1?true:false,
+        //     'member_Id' => $this->member->member_Id,
+        // ];
         $this->loading = false;
         $this->error_id = null;
     }

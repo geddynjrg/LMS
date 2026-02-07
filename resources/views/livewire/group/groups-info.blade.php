@@ -1,425 +1,414 @@
 <section class="content">
     <div class="container-fluid">
-        <h5 class="mt-4 mb-2">Groups Summary <code>(Youth, Women and PWDs)</code></h5>
-        <div class="row">
-            <div class="col-md-3 col-sm-6 col-12">
-                <div class="info-box bg-gradient-info">
-                    <span class="info-box-icon"><i class="fa fa-users"></i></span>
+        <h5 class="text-muted font-weight-bold mb-3">Groups Summary (Women, Youth, and PWDs)</h5>
+        <div class="row mt-4">
+            @foreach($this->demographics as $d)
+                @php
+                    $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
+                    // Calculate share of money, capped at 100%
+                    $percentage = ($totalIssued > 0 && $d['cat'])
+                        ? min(100, round(($d['amount'] / $totalIssued) * 100))
+                        : 0;
+                @endphp
 
-                    <div class="info-box-content">
-                    <span class="info-box-text">Total Groups</span>
-                    <span class="info-box-number">{{ $totalgroups }}</span>
+                <div class="col-lg-3 col-6">
+                    <a href=""
+                    class="text-decoration-none">
+                        <div class="card card-hover shadow-sm border-0 mb-3">
+                            <div class="card-body p-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-light-{{ $d['color'] }} p-2 rounded-circle mr-3 d-flex align-items-center justify-content-center" style="width: 45px; height: 45px;">
+                                        <i class="fas {{ $d['icon'] }} text-{{ $d['color'] }} fa-lg"></i>
+                                    </div>
+                                    <div class="overflow-hidden">
+                                        {{-- Primary Value: Money for demographics, Count for Registry --}}
+                                        <h4 class="mb-0 font-weight-bold text-dark">
+                                            {{ number_format($d['val']) }}
+                                        </h4>
+                                        <p class="text-muted text-xs text-uppercase mb-0 truncate-text">{{ $d['label'] }}</p>
+                                    </div>
+                                </div>
 
-                    <div class="progress">
-                        <div class="progress-bar" style="width: 40%"></div>
-                    </div>
-                    <span class="progress-description">
-                         Loan return rate;
-                    </span>
-                    </div>
-                    <!-- /.info-box-content -->
+                                @if($d['cat'])
+                                    <div class="mt-2">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="text-xs font-weight-bold text-muted">Capital Share</span>
+                                            <span class="text-xs font-weight-bold text-{{ $d['color'] }}">{{ $percentage }}%</span>
+                                        </div>
+                                        <div class="progress rounded-pill" style="height: 4px;">
+                                            <div class="progress-bar bg-{{ $d['color'] }}" role="progressbar" style="width: {{ $percentage }}%"></div>
+                                        </div>
+                                        <small class="text-xs text-muted mt-1 d-block font-weight-bold">
+                                            KES {{ number_format($d['amount']) }}/=
+                                        </small>
+                                    </div>
+                                @else
+                                    <div class="mt-2 pt-1">
+                                        <span class="text-xs text-primary font-weight-bold">
+                                            <i class="fas fa-database mr-1"></i> Total Registry
+                                        </span>
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    </a>
                 </div>
-                <!-- /.info-box -->
-            </div>
-            <!-- /.col -->
-            <div class="col-md-3 col-sm-6 col-12">
-                <div class="info-box bg-gradient-success">
-                    <span class="info-box-icon"><i class="fa fa-user-friends"></i></span>
-
-                    <div class="info-box-content">
-                    <span class="info-box-text">Youth Groups</span>
-                    <span class="info-box-number">Total {{ $youths }}</span>
-
-                    <div class="progress">
-                        <div class="progress-bar" style="width: {{ $totalgroups > 0 ? number_format(($youths/$totalgroups)*100, 2) : 0 }}%"></div>
-                    </div>
-                    <span class="progress-description">
-                        {{ $totalgroups > 0 ? number_format(($youths/$totalgroups)*100, 2) : 0}}% of Total Groups
-                    </span>
-                    </div>
-                    <!-- /.info-box-content -->
-                </div>
-                <!-- /.info-box -->
-            </div>
-            <!-- /.col -->
-            <div class="col-md-3 col-sm-6 col-12">
-                <div class="info-box bg-gradient-warning">
-                    <span class="info-box-icon"><i class="fa fa-female text-white"></i></span>
-
-                    <div class="info-box-content">
-                    <span class="info-box-text">Women Groups</span>
-                    <span class="info-box-number">Total {{ $women }}</span>
-
-                    <div class="progress">
-                        <div class="progress-bar" style="width: {{ $totalgroups > 0 ? number_format(($women/$totalgroups)*100, 2) : 0}}%"></div>
-                    </div>
-                    <span class="progress-description">
-                        {{ $totalgroups > 0 ? number_format(($women/$totalgroups)*100, 2) : 0}}% of total groups
-                    </span>
-                    </div>
-                    <!-- /.info-box-content -->
-                </div>
-                <!-- /.info-box -->
-            </div>
-            <!-- /.col -->
-            <div class="col-md-3 col-sm-6 col-12">
-                <div class="info-box bg-gradient-danger">
-                    <span class="info-box-icon"><i class="fa fa-wheelchair"></i></span>
-
-                    <div class="info-box-content">
-                    <span class="info-box-text">PWD Groups</span>
-                    <span class="info-box-number">Total {{ $pwds }} </span>
-
-                    <div class="progress">
-                        <div class="progress-bar" style="width: {{ $totalgroups > 0 ? number_format(($pwds/$totalgroups)*100, 2) : 0}}%"></div>
-                    </div>
-                    <span class="progress-description">
-                        {{ $totalgroups > 0 ? number_format(($pwds/$totalgroups)*100, 2) : 0}}% of total groups
-                    </span>
-                    </div>
-                    <!-- /.info-box-content -->
-                </div>
-                <!-- /.info-box -->
-            </div>
+            @endforeach
         </div>
-        <!--/row -->
 
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Groups Information Data</h3>
-                <div class="card-tools">
-                    <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                        <i class="fas fa-minus"></i>
-                    </button>
+        <div class="card card-outline card-pink shadow">
+            <div class="card-header border-0 py-3">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+                    <h3 class="card-title font-weight-bold mb-3 mb-md-0 mr-md-4">
+                        Application List
+                    </h3>
+
+                    <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-md-end flex-md-grow-1" style="gap: 15px;">
+
+                        <div class="input-group input-group-sm order-2 order-sm-1"
+                            style="min-width: 250px; width: 100%; max-width: 450px;">
+                            <input type="text"
+                                wire:model.live.debounce.500ms="search"
+                                class="form-control"
+                                placeholder="Search by group name, gfs code, or group identifier...">
+                            <div class="input-group-append">
+                                <button class="btn btn-default" wire:loading.attr="disabled">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="d-flex order-1 order-sm-2" style="gap: 8px;">
+                            <div class="btn-group">
+                                <x-loading-button
+                                    title="refresh"
+                                    target="refreshData"
+                                    class="btn-default"
+                                    icon="fas fa-sync-alt"
+                                    label=""
+                                />
+                                <x-loading-button
+                                    title="clear filters"
+                                    target="resetFilters"
+                                    class="btn-default"
+                                    icon="fas fa-filter"
+                                    label=""
+                                />
+                            </div>
+
+                            <x-loading-button
+                                target="exportGroupList"
+                                class="btn-dark"
+                                icon="fas fa-file-excel"
+                                label="Export Data" {{-- Added text back for desktop clarity --}}
+                                loadingLabel="..."
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="card-body">
-    <!-- MOBILE-FRIENDLY DATATABLE -->
-    <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-        <table id="groupsTable" class="table table-bordered" style="min-width: 800px;">
-            <thead class="table-primary">
-                <tr>
-                    <th width="5%">#</th>
-                    <th width="20%">Group Name</th>
-                    <th width="10%">GFS Code</th>
-                    <th width="15%">Ward</th>
-                    <th width="10%">Category</th>
-                    <th width="15%">Activity</th>
-                    <th width="10%">Identifier</th>
-                    <th width="10%">Actions</th>
-                </tr>
-            </thead>
-            <!-- MOVED FILTER ROW TO tfoot FOR BETTER EXPORT HANDLING -->
-            <tfoot style="display: table-header-group;">
-                <tr class="filters bg-light">
-                    <th></th> <!-- No filter for serial number -->
-                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Group" /></th>
-                    <th><input type="text" class="form-control form-control-sm" placeholder="Search GFS" /></th>
-                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Ward" /></th>
-                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Category" /></th>
-                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Activity" /></th>
-                    <th><input type="text" class="form-control form-control-sm" placeholder="Search Identifier" /></th>
-                    <th></th> <!-- No filter for actions -->
-                </tr>
-            </tfoot>
-            <tbody>
-                @foreach($groups as $index => $group)
-                <tr>
-                    <td>{{ $loop->iteration }}</td>
-                    <td class="text-capitalize">{{ $group->name }}</td>
-                    <td>{{ $group->gfs_code ?? '-' }}</td>
-                    <td class="text-capitalize">{{ $group->ward->ward_name }}</td>
-                    <td>
-                        <span class="badge badge-{{ $group->category == 'Youth' ? 'success' : ($group->category == 'Women' ? 'warning' : 'danger') }}">
-                            {{ $group->category }}
-                        </span>
-                    </td>
-                    <td>{{ $group->activity }}</td>
-                    <td>{{ $group->identifier ?? '-' }}</td>
-                    <td>
-                        <a href="{{ route('const.groups.group', [
-                            'county' => $county->slug,
-                            'constituency' => $constituency->slug,
-                            'group' => $group->slug
-                        ]) }}" class="btn btn-sm btn-primary">
-                            <i class="fas fa-eye"></i>
-                        </a>
-                    </td>
-                </tr>
-                @endforeach
-            </tbody>
-        </table>
-    </div>
-</div>
+                @if ($search || $wardFilter || $categoryFilter || $sectorFilter)
+                    <div class="d-flex flex-wrap align-items-center mb-3 p-2 bg-light rounded border shadow-sm" style="gap: 8px;">
+                        <small class="text-muted font-weight-bold text-uppercase mr-2" style="font-size: 0.7rem;">
+                            <i class="fas fa-filter mr-1"></i> Active Filters:
+                        </small>
+
+                        {{-- Search Chip --}}
+                        @if($search)
+                            <span class="badge badge-pill badge-primary py-2 px-3 shadow-sm">
+                                Search: <strong>{{ $search }}</strong>
+                                <i class="fas fa-times ml-2 cursor-pointer" wire:click="$set('search', '')" title="Remove search"></i>
+                            </span>
+                        @endif
+
+                        {{-- Ward Chip --}}
+                        @if($wardFilter)
+                            <span class="badge badge-pill badge-success py-2 px-3 shadow-sm">
+                                Ward: <strong>{{ $wardFilter }}</strong>
+                                <i class="fas fa-times ml-2 cursor-pointer" wire:click="clearFilter('wardFilter')" title="Remove ward"></i>
+                            </span>
+                        @endif
+
+                        {{-- Category Chip --}}
+                        @if($categoryFilter)
+                            <span class="badge badge-pill badge-warning py-2 px-3 shadow-sm">
+                                Category: <strong>{{ $categoryFilter }}</strong>
+                                <i class="fas fa-times ml-2 cursor-pointer" wire:click="clearFilter('categoryFilter')" title="Remove category"></i>
+                            </span>
+                        @endif
+
+                        {{-- Sector Chip --}}
+                        @if($sectorFilter)
+                            <span class="badge badge-pill badge-info py-2 px-3 shadow-sm">
+                                Sector: <strong>{{ $sectorFilter }}</strong>
+                                <i class="fas fa-times ml-2 cursor-pointer" wire:click="clearFilter('sectorFilter')" title="Remove sector"></i>
+                            </span>
+                        @endif
+
+                        {{-- Clear All Link --}}
+                        <button type="button"
+                                class="btn btn-link btn-sm text-danger font-weight-bold ml-auto"
+                                wire:click="resetFilters">
+                            Clear All
+                        </button>
+                    </div>
+                @endif
+
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <x-select2
+                            model="wardFilter"
+                            label="Ward"
+                            :options="$wards"
+                            placeholder="All Wards"
+                            optionLabel="ward_name"
+                            optionValue="ward_name"
+                        />
+                    </div>
+                    <div class="col-md-3">
+                        @php
+                            $category = [
+                                'Women' => 'Women',
+                                'Youth' => 'Youth',
+                                'Pwd' => 'PWD',
+                            ]
+                        @endphp
+                        <x-select2
+                            model="categoryFilter"
+                            label="Category"
+                            :options="$category"
+                            placeholder="All Categories"
+                        />
+                    </div>
+                    <div class="col-md-3">
+                        @php
+                            $sector = [
+                                'Trade' => 'Trade',
+                                'Service' => 'Servie',
+                                'Manufacturing' => 'Manufacturing',
+                                'Agriculture' => 'Agriculture',
+                                'Others' => 'Others',
+                            ]
+                        @endphp
+                        <x-select2
+                            model="sectorFilter"
+                            label="Sector"
+                            :options="$sector"
+                            placeholder="All Sectors"
+                        />
+                    </div>
+                    <div class="col-md-1">
+                        <label for="perpage">Per Page</label>
+                        <select wire:model.live="perPage" class="form-control form-control-sm">
+                            <option value="10">10</option>
+                            <option value="15">15</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="position-relative">
+                    <div wire:loading.delay.shortest
+                        wire:target="nextPage, previousPage, gotoPage, refreshData, perPage, wardFilter, categoryfilter, sectorfilter, search"
+                        class="w-100 h-100 position-absolute justify-content-center align-items-center"
+                        style="background: rgba(255,255,255,0.7); z-index: 1000; top: 0; left: 0; min-height: 200px;">
+                        <div class="text-center">
+                            <i class="fas fa-circle-notch fa-spin fa-3x text-navy"></i>
+                            <p class="text-navy font-weight-bold mt-2">Loading Data...</p>
+                        </div>
+                    </div>
+                    <div class="table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch; max-height: 550px;" >
+                        <table id="groups-table" class="table table-hover text-wrap table-head-fixed" style="min-width: 800px;">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th style="width: 50px;">#</th>
+                                    <th wire:click="sortBy('group_name')" class="cursor-pointer" style="user-select: none;">
+                                        @include('partials.sort-icon', ['field' => 'group_name', 'label' => 'Group Name'])
+                                    </th>
+                                    <th wire:click="sortBy('gfs_code')" class="cursor-pointer" style="user-select: none;">
+                                        @include('partials.sort-icon', ['field' => 'gfs_code', 'label' => 'GFS Code'])
+                                    </th>
+                                    <th wire:click="sortBy('ward_name')" class="cursor-pointer" style="user-select: none;">
+                                        @include('partials.sort-icon', ['field' => 'ward_name', 'label' => 'Ward'])
+                                    </th>
+                                    <th>Category</th>
+                                    <th>Sector</th>
+                                    <th>Identifier</th>
+                                    <th class="text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-uppercase">
+                                @forelse($groups as $index => $group)
+                                    <tr>
+                                        <td class="text-muted font-weight-normal" style="width: 50px;">
+                                            {{ ($groups->currentPage() - 1) * $groups->perPage() + $loop->iteration }}
+                                        </td>
+                                        <td style="width: 300px; min-width: 280px; max-width: 300px; white-space: normal;">
+                                            <div class="d-flex align-items-start">
+                                                <div class="mr-3 bg-light rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+                                                    style="width: 35px; height: 35px;">
+                                                    <i class="fas fa-users text-primary"></i>
+                                                </div>
+
+                                                <div style="overflow-wrap: break-word; word-wrap: break-word;">
+                                                    <span class="d-block font-weight-bold text-dark mb-1" style="line-height: 1.2;">
+                                                        {{ ucwords($group->name) }}
+                                                    </span>
+
+                                                    <div class="d-block">
+                                                        <small class="text-muted d-block mb-1">
+                                                            <i class="fas fa-stamp mr-1" style="font-size: 0.75rem;"></i>
+                                                            REG #: <span class="font-weight-600">{{ $group->reg_number ?? 'N/A' }}</span>
+                                                        </small>
+                                                        <small class="text-muted d-block">
+                                                            <i class="far fa-calendar-alt mr-1" style="font-size: 0.75rem;"></i>
+                                                            {{ $group->date_registered ? \Carbon\Carbon::parse($group->date_registered)->format('d M Y') : 'Date N/A' }}
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-light border px-3 py-2 text-monospace"
+                                                style="font-size: 0.8rem; letter-spacing: 1px; color: #2c3e50; font-weight: 700;">
+                                                {{ $group->currentLoan->gfs_code ?? '---' }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="text-dark"><i class="fas fa-map-marker-alt text-muted mr-1"></i> {{ $group->ward->ward_name }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge badge-outline-info" style="border: 1px solid #17a2b8; color: #17a2b8; background: transparent; padding: 4px 8px; border-radius: 4px; font-size: 10px;">
+                                                {{ $group->currentLoan->category ?? 'N/A' }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="text-truncate" style="max-width: 120px;" title="{{ $group->currentLoan->sector ?? '' }}">
+                                                <span class="font-weight-600 text-secondary">{{ $group->currentLoan->sector ?? 'N/A' }}</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <small style="font-size: 0.9rem;" class="font-weight-bold text-dark">{{ $group->identifier ?? '---' }}</small>
+                                        </td>
+                                        <td class="text-center">
+                                            <div class="btn-group shadow-sm">
+                                                <x-table-action-btn
+                                                    type="view"
+                                                    route="const.groups.group"
+                                                    :params="[
+                                                        'county' => $constituency->county->slug,
+                                                        'constituency' => $constituency->slug,
+                                                        'group' => $group->slug
+                                                    ]"
+                                                />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    @endforelse
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    {{--  --}}
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer clearfix">
+                <div class="pagination-sm">
+                    {{ $groups->links() }}
+                </div>
+            </div>
         </div>
     </div>
 </section>
 
 @push('styles')
 <style>
-    /* Remove hover effects */
-    .table-hover tbody tr:hover {
-        background-color: transparent !important;
+    th.cursor-pointer {
+        cursor: pointer;
+        transition: background 0.2s ease;
     }
 
-    /* Add padding to table cells */
-    .table td, .table th {
-        padding: 12px 8px !important;
-        vertical-align: middle;
+    th.cursor-pointer:hover {
+        background-color: rgba(0,0,0,0.05); /* Subtle highlight on hover */
     }
 
-    /* Better badge styling */
-    .badge {
-        font-size: 0.85em;
-        padding: 6px 10px;
+    /* Ensures the flex container takes full width of the cell */
+    th .d-flex {
+        display: flex !important;
     }
-
-    /* Mobile responsiveness */
-    @media (max-width: 768px) {
-        .table-responsive {
-            border: 1px solid #dee2e6;
-            -webkit-overflow-scrolling: touch;
-        }
-        #groupsTable {
-            min-width: 800px; /* Force horizontal scroll on mobile */
-        }
-        .dataTables_wrapper .dataTables_filter input {
-            width: 100% !important;
-            margin-bottom: 10px;
-        }
-        .dataTables_wrapper .dataTables_length select {
-            width: 100% !important;
-            margin-bottom: 10px;
-        }
-        .btn-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin-bottom: 10px;
-        }
-        .btn-group .btn {
-            flex: 1;
-            min-width: 80px;
-            font-size: 0.8rem;
-        }
-        .dataTables_wrapper .dataTables_info {
-            padding-left: 10px;
-        }
-        .dataTables_wrapper .dataTables_paginate {
-            padding-right: 10px;
-        }
-
-        /* Adjust padding for mobile */
-        .table td, .table th {
-            padding: 8px 6px !important;
-        }
+    .badge-pill i:hover {
+        color: #ff0000;
+        transform: scale(1.2);
     }
-
-    /* Better table styling */
-    .table th {
-        border-top: none;
-        font-weight: 600;
-        white-space: nowrap;
-    }
-
-    .table td {
-        white-space: nowrap;
-    }
-
-    .filters input {
-        font-size: 0.8rem;
-    }
-
-    /* Ensure table headers don't overlap on mobile */
-    .table-responsive::-webkit-scrollbar {
-        -webkit-appearance: none;
-        height: 8px;
-    }
-
-    .table-responsive::-webkit-scrollbar-thumb {
-        border-radius: 4px;
-        background-color: rgba(0,0,0,.5);
+    .badge-pill {
+        display: inline-flex;
+        align-items: center;
+        transition: all 0.2s ease;
     }
 </style>
+<style>
+    #groups-table {
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+    /* Soften the table header */
+    #groups-table thead th {
+        background-color: #f8f9fa;
+        color: #495057;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+        border-top: none;
+        border-bottom: 2px solid #dee2e6;
+        vertical-align: middle;
+    }
+    /* Row styling */
+    #groups-table tbody tr {
+        transition: all 0.2s ease;
+    }
+    #groups-table tbody tr:hover {
+        background-color: rgba(0, 123, 255, 0.03) !important;
+        box-shadow: inset 4px 0 0 #007bff; /* Visual indicator on the left */
+    }
+    /* Cell padding */
+    #groups-table td {
+        padding: 12px 8px;
+        vertical-align: middle;
+        font-size: 0.85rem;
+        border-bottom: 1px solid #f2f2f2;
+    }
+    /* Custom Scrollbar for the container */
+    .table-responsive::-webkit-scrollbar {
+        height: 6px;
+    }
+    .table-responsive::-webkit-scrollbar-thumb {
+        background: #ced4da;
+        border-radius: 10px;
+    }
+</style>
+
 @endpush
 
 @push('scripts')
-<script src="{{ asset('plugins/datatables-buttons/js/buttons.html5.min.js') }}"></script>
-<script src="{{ asset('plugins/datatables-buttons/js/buttons.print.min.js') }}"></script>
-<script src="{{ asset('plugins/jszip/jszip.min.js') }}"></script>
-<script src="{{ asset('plugins/pdfmake/pdfmake.min.js') }}"></script>
-<script src="{{ asset('plugins/pdfmake/vfs_fonts.js') }}"></script>
+    <script>
+        document.addEventListener('livewire:init', function () {
+            Livewire.on('flash-success', ({ message }) => { toastr.success(message); });
+            Livewire.on('flash-error', ({ message }) => { toastr.error(message); });
 
+            Livewire.on('clear-selects', () => {
+                $('select.select2').val(null).trigger('change');
+            });
 
-
-<script>
-    $(document).ready(function() {
-        // Initialize DataTable
-        var table = $('#groupsTable').DataTable({
-            "responsive": false,
-            "lengthChange": true,
-            "autoWidth": false,
-            "pageLength": 10,
-            "pagingType": "simple_numbers",
-            "ordering": false,
-            "language": {
-                "search": "Global Search:",
-                "lengthMenu": "Show _MENU_ groups",
-                "zeroRecords": "No groups found",
-                "info": "Showing _START_ to _END_ of _TOTAL_ groups",
-                "infoEmpty": "No groups available",
-                "infoFiltered": "(filtered from _MAX_ total groups)",
-                "paginate": {
-                    "first": "First",
-                    "last": "Last",
-                    "next": "Next",
-                    "previous": "Previous"
-                }
-            },
-            "dom": '<"row"<"col-sm-12 col-md-4"l><"col-sm-12 col-md-4"B><"col-sm-12 col-md-4"f>>rt<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>',
-            "buttons": [
-                {
-                    extend: 'excel',
-                    text: '<i class="fas fa-file-excel"></i> Excel',
-                    title: '{{ $constituency->constituency_name }} Constituency Groups Information',
-                    className: 'btn-success btn-sm',
-                    exportOptions: {
-                        // Export only the actual data columns (0-6), excluding actions column
-                        columns: [0, 1, 2, 3, 4, 5, 6],
-                        // Important: Exclude the footer (filter row) from export
-                        format: {
-                            header: function (data, column, node) {
-                                return data;
-                            }
-                        }
-                    }
-                },
-                {
-                    extend: 'pdf',
-                    text: '<i class="fas fa-file-pdf"></i> PDF',
-                    title: '{{ $constituency->constituency_name }} ConstituencyGroups Information',
-                    className: 'btn-danger btn-sm',
-                    exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6],
-                        format: {
-                            header: function (data, column, node) {
-                                return data;
-                            }
-                        }
-                    },
-                    customize: function (doc) {
-                        doc.content[1].table.widths = ['5%', '20%', '10%', '15%', '10%', '15%', '10%'];
-                        doc.styles.tableHeader = {
-                            bold: true,
-                            fontSize: 10,
-                            color: 'white',
-                            fillColor: '#343a40',
-                            alignment: 'center'
-                        };
-                        // Ensure proper header display
-                        doc.content.splice(0, 0, {
-                            text: '{{ $constituency->constituency_name }} Constituency Groups Information',
-                            style: 'header'
-                        });
-                    }
-                },
-                {
-                    extend: 'print',
-                    text: '<i class="fas fa-print"></i> Print',
-                    title: '', // Remove default title since we'll customize
-                    className: 'btn-info btn-sm',
-                    exportOptions: {
-                        columns: [0, 1, 2, 3, 4, 5, 6],
-                        format: {
-                            header: function (data, column, node) {
-                                return data;
-                            }
-                        }
-                    },
-                    customize: function (win) {
-                        // Remove the filter row from print view
-                        $(win.document.body).find('tfoot').remove();
-
-                        // Add custom title
-                        $(win.document.body).prepend(
-                            '<h3 class="text-center">{{ $constituency->constituency_name }} Constituency Groups Information</h3>'
-                        );
-
-                        // Style the table for printing
-                        $(win.document.body).find('table').addClass('table-bordered').css('font-size', '10px');
-                        $(win.document.body).find('thead tr:first th').css({
-                            'background-color': '#343a40',
-                            'color': 'white',
-                            'font-weight': 'bold',
-                            'border': '1px solid #454d55'
-                        });
-                    }
-                }
-            ],
-            "columnDefs": [
-                {
-                    "targets": 0,
-                    "orderable": false,
-                    "searchable": false
-                },
-                {
-                    "targets": -1,
-                    "orderable": false,
-                    "searchable": false
-                }
-            ],
-            "initComplete": function () {
-                // Apply individual column filtering
-                this.api().columns().every(function () {
-                    var column = this;
-
-                    // Skip first and last columns
-                    if (column.index() === 0 || column.index() === 7) {
-                        return;
-                    }
-
-                    // Create input for filtering - now using tfoot
-                    $('input', $('tfoot .filters th').eq(column.index()))
-                        .on('keyup change clear', function () {
-                            if (column.search() !== this.value) {
-                                column.search(this.value).draw();
-                            }
-                        });
-                });
-
-                // Initialize sequential numbering
-                updateRowNumbers();
-            }
+            Livewire.on('clear-select-single', (event) => {
+                const targetId = `#select2-${event.target}`;
+                $(targetId).val(null).trigger('change');
+            });
         });
-
-        // Update row numbers when table is filtered/paged
-        table.on('search.dt page.dt draw.dt', function () {
-            updateRowNumbers();
-        });
-
-        function updateRowNumbers() {
-            if (table && table.column) {
-                try {
-                    table.column(0, { search: 'applied' }).nodes().each(function (cell, i) {
-                        if (cell) {
-                            cell.innerHTML = i + 1;
-                        }
-                    });
-                } catch (error) {
-                    console.log('Error updating row numbers:', error);
-                }
-            }
-        }
-
-        // Add buttons container with mobile-friendly layout
-        table.buttons().container()
-            .addClass('btn-group btn-group-sm')
-            .appendTo('#groupsTable_wrapper .col-md-4:eq(1)');
-
-        // Mobile-specific adjustments
-        if ($(window).width() < 768) {
-            $('.dataTables_length, .dataTables_filter').addClass('mb-2');
-        }
-    });
-</script>
+    </script>
 @endpush

@@ -1,5 +1,15 @@
 <section class="content">
     <div class="container-fluid">
+        <div wire:loading.delay.shortest>
+            <div class="loading-overlay">
+                <div class="d-flex flex-column align-items-center">
+                    <div class="dancing-loader mb-3"></div>
+                    <h5 class="text-primary font-weight-bold animate__animated animate__pulse animate__infinite">
+                        Refreshing Data...
+                    </h5>
+                </div>
+            </div>
+        </div>
         <div class="row">
             @foreach($this->kpis as $kpi)
             <div class="col-md-3 col-sm-6 col-12">
@@ -25,6 +35,9 @@
             </div>
             @endforeach
         </div>
+
+        <hr class="my-4">
+        <h5 class="text-muted font-weight-bold mb-3">Performance Metric</h5>
         <div class="row mt-3">
             <div class="col-md-7">
                 <div class="card card-hover border-0 shadow-sm h-100">
@@ -190,7 +203,7 @@
                 @endphp
 
                 <div class="col-lg-3 col-6">
-                    <a href="{{ $d['cat'] ? route('const.groups.index', ['county' => $constituency->county->slug, 'constituency' => $constituency->slug, 'category' => $d['cat']]) : '#' }}"
+                    <a href="{{ $d['cat'] ? route('const.groups.index', ['county' => $constituency->county->slug, 'constituency' => $constituency->slug, 'categoryFilter' => $d['cat']]) : '#' }}" wire:navigate
                     class="text-decoration-none">
                         <div class="card card-hover shadow-sm border-0 mb-3">
                             <div class="card-body p-3">
@@ -246,7 +259,7 @@
 
                 <div class="col-lg-3 col-6">
                     {{-- Link to filtered groups by sector --}}
-                    <a href="{{ route('const.groups.index', ['county' => $constituency->county->slug, 'constituency' => $constituency->slug, 'sector' => $s['label']]) }}"
+                    <a href="{{ route('const.groups.index', ['county' => $constituency->county->slug, 'constituency' => $constituency->slug, 'sectorFilter' => $s['label']]) }}" wire:navigate
                     class="text-decoration-none">
                         <div class="card card-hover shadow-sm border-0 mb-3">
                             <div class="card-body p-3">
@@ -297,20 +310,33 @@
                             <table class="table table-hover align-items-center mb-0">
                                 <thead class="bg-light text-muted">
                                     <tr>
+                                        <th class="text-xs text-uppercase py-2">Application Details</th>
                                         <th class="text-xs text-uppercase py-2">Group & Activity</th>
                                         <th class="text-xs text-uppercase py-2">Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @forelse($this->stats['newApplications'] as $app)
-                                    <tr>
-                                        <td class="py-3">
+                                    <tr class="position-relative" onclick="Livewire.navigate('{{ route('const.app.application-view', [$constituency->county->slug, $constituency->slug, $app->application_id]) }}')"
+                                        style="cursor: pointer;">
+
+                                        <td class="py-3 col-3">
                                             <span class="font-weight-bold text-dark d-block text-truncate" style="max-width: 150px;">
+                                                {{ $app->application_id }}
+                                            </span>
+                                            <span class="text-dark d-block text-truncate" style="max-width: 150px;">
                                                 {{ $app->group_name }}
                                             </span>
-                                            <span class="text-xs text-muted">{{ $app->nature_of_business ?? $app->key_activities }}</span>
                                         </td>
                                         <td class="py-3">
+                                            <span class="font-weight-bold text-dark d-block text-truncate" style="max-width: 150px;">
+                                                {{ ucwords($app->nature_of_group) }} - {{ implode(', ', json_decode($app->business_type, true) ?? []) }}
+                                            </span>
+                                            <span class="text-xs text-muted">
+                                                {{ implode(', ', json_decode($app->key_activities, true) ?? []) }}
+                                            </span>
+                                        </td>
+                                        <td class="py-3 col-3">
                                             <span class="text-sm font-weight-bold">KES {{ number_format($app->loan_amount) }}</span>
                                             <small class="d-block text-xs text-muted">{{ \Carbon\Carbon::parse($app->created_at)->diffForHumans() }}</small>
                                         </td>
@@ -323,9 +349,9 @@
                         </div>
                     </div>
                     <div class="card-footer bg-white border-0 py-2">
-                        <a href="#" class="btn btn-sm btn-block btn-outline-info border-0 font-weight-bold">
+                        <button onclick="Livewire.navigate('{{ route('const.app.app_dashboard', [$constituency->county->slug, $constituency->slug]) }}')" class="btn btn-sm btn-block btn-outline-info border-0 font-weight-bold">
                             Open Application Portal <i class="fas fa-external-link-alt ml-1"></i>
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -395,38 +421,6 @@
 </section>
 
 @push('styles')
-    <style>
-    .alert-soft-danger { background-color: #fceaea; color: #e53e3e; }
-    .bg-light-pink { background-color: #fff5f7; }
-    .bg-light-orange { background-color: #fffaf0; }
-    .bg-light-purple { background-color: #f3f0ff; }
-    .bg-light-primary { background-color: #ebf8ff; }
-    .btn-round { border-radius: 50px; }
-    .info-box-content { overflow: visible !important; }
-</style>
-<style>
-    /* Mimics a modern SaaS dashboard look */
-    .icon-circle {
-        width: 35px;
-        height: 35px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .bg-light-info { background-color: #e0f2fe; }
-    .bg-light-success { background-color: #dcfce7; }
-    .bg-light-danger { background-color: #fee2e2; }
-    .bg-light-dark { background-color: #f3f4f6; }
-
-    .text-xs { font-size: 0.75rem; }
-</style>
-<style>
-    .bg-light-danger { background-color: #fff5f5; border: 1px solid #fed7d7; }
-    .bg-light-info { background-color: #f0f9ff; border: 1px solid #bae6fd; }
-    .border-dashed { border-style: dashed !important; }
-</style>
 <style>
     /* Gauge Styles */
     .gauge-container { position: relative; width: 150px; height: 150px; margin: 0 auto; }
@@ -451,41 +445,5 @@
     .alert-soft-success { background-color: #f0fdf4; color: #166534; }
     .alert-soft-danger { background-color: #fef2f2; color: #991b1b; }
 </style>
-<style>
-    /* Modern Styling */
-    .card-hover {
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        border-radius: 12px;
-    }
-    .card-hover:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 8px 15px rgba(0,0,0,0.1) !important;
-    }
-    .bg-light-pink { background-color: #fff1f2; }
-    .text-pink { color: #e11d48 !important; }
-    .bg-pink { background-color: #e11d48 !important; }
 
-    .bg-light-orange { background-color: #fff7ed; }
-    .bg-light-purple { background-color: #f5f3ff; }
-    .bg-light-primary { background-color: #eff6ff; }
-
-    .truncate-text {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    .text-xs { font-size: 0.7rem; letter-spacing: 0.5px; }
-</style>
-@endpush
-@push('scripts')
-    <script>
-    $(function () {
-        $('.knob').knob({
-            draw: function () {
-                // Style the value text
-                $(this.i).css('font-size', '18px').css('font-weight', 'bold');
-            }
-        });
-    });
-</script>
 @endpush

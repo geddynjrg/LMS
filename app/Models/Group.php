@@ -42,6 +42,8 @@ class Group extends Model
             ->dontSubmitEmptyLogs(); // skip logs if no changes
     }
 
+
+
     public function getRouteKeyName()
     {
         return 'slug';
@@ -86,18 +88,20 @@ class Group extends Model
         'ward_id',
         'identifier',
         'code',
-        'gfs_code',
         'date_formed',
         'date_registered',
         'reg_number',
         'bank',
         'account',
-        'category',
-        'activity',
         'activity_desc',
         'location',
         'box',
         'status',
+    ];
+
+    protected $casts = [
+        'date_registered' => 'datetime',
+        'date_formed' => 'datetime',
     ];
 
     public function ward(): BelongsTo

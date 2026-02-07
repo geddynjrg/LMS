@@ -46,9 +46,5 @@
         </div>
     </div>
 
-    <section class="content">
-        <div class="container-fluid">
-            @livewire('constituency-component', ['constituency'=>$constituency])
-        </div>
-    </section>
+    @livewire('constituency-component', ['constituency'=>$constituency])
 @endsection

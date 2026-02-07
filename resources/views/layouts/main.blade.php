@@ -84,6 +84,65 @@
                 }
             }
         </style>
+        <style>
+            /* Make the content wrapper the boundary for the loader */
+            .container-fluid {
+                position: relative; /* Ensures the loader has space if content is empty */
+            }
+
+            .loading-overlay {
+                position: absolute; /* Changed from fixed */
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(255, 255, 255, 0.8);
+                backdrop-filter: blur(1px);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000; /* High enough to cover content but stay under the Navbar */
+            }
+
+            .dancing-loader {
+                width: 50px;
+                height: 50px;
+                border: 4px solid #f3f3f3;
+                border-top: 4px solid #007bff;
+                border-radius: 50%;
+                animation: spin 0.8s linear infinite;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+        <style>
+            /* Modern Styling */
+            .card-hover {
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+                border-radius: 12px;
+            }
+            .card-hover:hover {
+                transform: translateY(-4px);
+                box-shadow: 0 8px 15px rgba(0,0,0,0.1) !important;
+            }
+            .bg-light-pink { background-color: #fff1f2; }
+            .text-pink { color: #e11d48 !important; }
+            .bg-pink { background-color: #e11d48 !important; }
+
+            .bg-light-orange { background-color: #fff7ed; }
+            .bg-light-purple { background-color: #f5f3ff; }
+            .bg-light-primary { background-color: #eff6ff; }
+
+            .truncate-text {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .text-xs { font-size: 0.7rem; letter-spacing: 0.5px; }
+        </style>
     </head>
     <body class="hold-transition sidebar-mini layout-fixed text-sm layout-footer-fixed layout-navbar-fixed ">
 
@@ -185,6 +244,7 @@
             window.progressInterval = window.progressInterval || null;
 
             document.addEventListener('livewire:navigate', () => {
+                document.body.classList.add('loading-process');
                 const bar = document.getElementById('livewire-main-progress');
                 if (!bar) return;
 
@@ -255,7 +315,7 @@
             }
 
             document.addEventListener('livewire:navigated', () => {
-
+                document.body.classList.remove('loading-process');
                 const bar = document.getElementById('livewire-main-progress');
                 if (!bar) return;
 

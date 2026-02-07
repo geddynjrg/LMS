@@ -27,4 +27,19 @@ class Handler extends ExceptionHandler
             //
         });
     }
+
+    public function render($request, Throwable $exception)
+    {
+        // Force JSON for anything starting with /api
+        if ($request->is('api/*')) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'exception' => get_class($exception),
+                // Only show trace if APP_DEBUG is true
+                'trace' => config('app.debug') ? $exception->getTrace() : [],
+            ], 500);
+        }
+
+        return parent::render($request, $exception);
+    }
 }

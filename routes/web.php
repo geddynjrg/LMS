@@ -26,6 +26,17 @@ use App\Http\Controllers\Hq\HqReportController;
 | be assigned to the "web" middleware group. Make something great!
 |
 */
+use Illuminate\Http\Request;
+
+Route::get('/debug-ip', function (Request $request) {
+    return response()->json([
+        'ip_laravel_sees' => $request->ip(),
+        'all_ips_in_chain' => $request->ips(),
+        'is_ipv4' => filter_var($request->ip(), FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) ? true : false,
+        'is_ipv6' => filter_var($request->ip(), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) ? true : false,
+        'user_agent' => $request->userAgent(),
+    ]);
+});
 
 Route::get('/', function () {
     return view('auth.login');

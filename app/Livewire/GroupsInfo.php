@@ -5,18 +5,54 @@ namespace App\Livewire;
 use App\Models\Constituency;
 use App\Models\County;
 use Livewire\Component;
+use Livewire\WithPagination;
 use App\Models\Group;
 use Illuminate\Support\Facades\Cache;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\GroupsListExport;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Computed;
+use Livewire\Attributes\Url;
+use App\Services\Loan\LoanAnalysisService;
+use App\Services\Group\GroupsService;
 
 class GroupsInfo extends Component
 {
+    use WithPagination;
+
+    protected LoanAnalysisService $analysisService;
+    protected GroupsService $groupsService;
+    protected $paginationTheme = 'bootstrap';
+
+    public $stats = [];
+
+    #[Url(except: '')]
+    public $search = '';
+
+    #[Url(except: '')]
+    public $wardFilter = '';
+
+    public $wards = [];
+
+    #[Url(except: '')]
+    public $categoryFilter;
+
+    #[Url(except: '')]
+    public $sectorFilter = '';
+
+    #[Url(except: '')]
+    public $sortField = 'group_name';
+
+    public $sortDirection = 'asc';
+
+    #[Url(except: 15)]
+    public $perPage = 15;
+
     public $totalgroups = 0;
     public $youths = 0;
     public $women = 0;
     public $pwds = 0;
-    public $groups = null;
     public Constituency $constituency;
     public $county;
     public $cacheHit = false;
@@ -27,191 +63,146 @@ class GroupsInfo extends Component
     protected $cacheTtl;
     protected $cachePrefix;
 
+    public function boot(LoanAnalysisService $analysisService, GroupsService $groupsService)
+    {
+        $this->analysisService = $analysisService;
+        $this->groupsService = $groupsService;
+    }
+
     public function mount(County $county, Constituency $constituency)
     {
-        $this->cacheTtl = config('cache-config.groups.ttl');
-        $this->cachePrefix = config('cache-config.groups.prefix');
+        $data = $this->analysisService->getConstituencyStats($this->constituency);
 
-        $this->constituency = $constituency;
-        $this->county = $county;
-        $this->loadCachedGroups();
+        $this->stats = $data;
+
+        $this->wards = $constituency->wards;
     }
 
-    public function hydrate()
+    public function getFilters(): array
     {
-        $this->loading = true;
-    }
-
-    private function loadCachedGroups()
-    {
-        $this->loading = true;
-
-        $cacheKey = "{$this->cachePrefix}_{$this->constituency->constituency_code}";
-        $summaryKey = "{$cacheKey}_summary";
-        $timestampKey = "{$cacheKey}_timestamp";
-
-        // Cache tags for better management
-        $cacheTags = [
-            "constituency:{$this->constituency->constituency_code}",
-            "groups:all",
-            "component:groups-info"
+        return [
+            'search' => $this->search,
+            'ward_name' => $this->wardFilter,
+            'category'  => $this->categoryFilter,
+            'sector' => $this->sectorFilter,
         ];
-
-        // Check cache status with tags
-        $this->cacheHit = Cache::tags($cacheTags)->has($cacheKey) &&
-                         Cache::tags($cacheTags)->has($summaryKey);
-
-        if ($this->cacheHit) {
-            Log::info("Groups cache HIT", [
-                'constituency' => $this->constituency->constituency_code,
-                'key' => $cacheKey,
-                'ttl' => $this->cacheTtl,
-                'tags' => $cacheTags
-            ]);
-        } else {
-            Log::info("Groups cache MISS", [
-                'constituency' => $this->constituency->constituency_code,
-                'key' => $cacheKey,
-                'tags' => $cacheTags
-            ]);
-        }
-
-        // Get groups data with tags
-        $cachedGroups = Cache::tags($cacheTags)->remember($cacheKey, $this->cacheTtl, function() {
-            return $this->loadGroupsData();
-        });
-
-        // Get summary data with tags
-        $summary = Cache::tags($cacheTags)->remember($summaryKey, $this->cacheTtl, function() {
-            return $this->calculateGroupsSummary();
-        });
-
-        // Store timestamp with tags
-        Cache::tags($cacheTags)->put($timestampKey, now()->toDateTimeString(), $this->cacheTtl);
-        $this->lastUpdated = Cache::tags($cacheTags)->get($timestampKey);
-
-        // Assign data
-        $this->groups = $cachedGroups;
-        $this->totalgroups = $summary['totalgroups'];
-        $this->youths = $summary['youths'];
-        $this->women = $summary['women'];
-        $this->pwds = $summary['pwds'];
-
-        $this->loading = false;
     }
 
-    private function loadGroupsData()
+    public function resetFilters()
     {
-        try {
-            $const_code = $this->constituency->constituency_code;
-
-            $groups = Group::whereHas('ward.constituency', function ($query) use ($const_code) {
-                $query->where('constituency_code', $const_code);
-            })
-            ->with(['ward:id,ward_name'])
-            ->select(['id', 'name', 'code', 'gfs_code', 'ward_id', 'identifier', 'category', 'activity', 'slug'])
-            ->get();
-
-            return $groups;
-
-        } catch (\Exception $e) {
-            Log::error("Error loading groups data for constituency {$this->constituency->constituency_code}: " . $e->getMessage());
-            return collect();
-        }
+        $this->reset(['search', 'wardFilter', 'categoryFilter', 'sectorFilter']);
+        $this->resetPage();
+        $this->dispatch('clear-selects');
     }
 
-    private function calculateGroupsSummary()
+    public function clearFilter($filterName)
     {
-        try {
-            $const_code = $this->constituency->constituency_code;
+        $this->reset($filterName);
 
-            $groups = Group::whereHas('ward.constituency', function ($query) use ($const_code) {
-                $query->where('constituency_code', $const_code);
-            })->get();
-
-            $totalgroups = $groups->count();
-            $youths = $groups->where('category', 'Youth')->count();
-            $women = $groups->where('category', 'Women')->count();
-            $pwds = $groups->where('category', 'PWD')->count();
-
-            return [
-                'totalgroups' => $totalgroups,
-                'youths' => $youths,
-                'women' => $women,
-                'pwds' => $pwds,
-            ];
-
-        } catch (\Exception $e) {
-            Log::error("Error calculating groups summary for constituency {$this->constituency->constituency_code}: " . $e->getMessage());
-
-            return [
-                'totalgroups' => 0,
-                'youths' => 0,
-                'women' => 0,
-                'pwds' => 0,
-            ];
-        }
+        // Pass the specific filter name to the browser
+        $this->dispatch('clear-select-single', target: $filterName);
     }
 
-    #[On('refresh-groups')]
-    public function refreshGroups()
+    #[Computed]
+    public function demographics()
     {
-        $this->loading = true;
-
-        $cacheKey = "{$this->cachePrefix}_{$this->constituency->constituency_code}";
-        $summaryKey = "{$cacheKey}_summary";
-        $timestampKey = "{$cacheKey}_timestamp";
-
-        // Cache tags for clearing
-        $cacheTags = [
-            "constituency:{$this->constituency->constituency_code}",
-            "groups:all",
-            "component:groups-info"
-        ];
-
-        // Clear cache with tags
-        Cache::tags($cacheTags)->forget($cacheKey);
-        Cache::tags($cacheTags)->forget($summaryKey);
-        Cache::tags($cacheTags)->forget($timestampKey);
-
-        // Small delay to ensure cache is cleared
-        usleep(100000);
-
-        $this->loadCachedGroups();
-
-        $this->dispatch('groups-refreshed', [
-            'message' => 'Groups data refreshed successfully',
-            'constituency' => $this->constituency->constituency_name
-        ]);
-
-        $this->loading = false;
-    }
-
-    // Get cache status for debugging
-    public function getCacheStatus()
-    {
-        $cacheKey = "{$this->cachePrefix}_{$this->constituency->constituency_code}";
-        $summaryKey = "{$cacheKey}_summary";
-        $timestampKey = "{$cacheKey}_timestamp";
-        $cacheTags = [
-            "constituency:{$this->constituency->constituency_code}",
-            "groups:all",
-            "component:groups-info"
-        ];
+        $totalGroups = $this->stats['totalGroups'] ?? 0;
+        $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
 
         return [
-            'cache_key' => $cacheKey,
-            'has_cache' => Cache::tags($cacheTags)->has($cacheKey),
-            'has_summary_cache' => Cache::tags($cacheTags)->has($summaryKey),
-            'last_updated' => Cache::tags($cacheTags)->get($timestampKey),
-            'ttl' => $this->cacheTtl,
-            'tags' => $cacheTags,
-            'component' => 'groups-info'
+            [
+                'label' => 'Women Groups',
+                'val' => $this->stats['womenGroups'] ?? 0,
+                'amount' => $this->stats['womenAmount'],
+                'color' => 'pink',
+                'icon' => 'fa-female',
+                'cat' => 'Women'
+            ],
+            [
+                'label' => 'Youth Groups',
+                'val' => $this->stats['youthGroups'] ?? 0,
+                'amount' => $this->stats['youthAmount'],
+                'color' => 'orange',
+                'icon' => 'fa-child',
+                'cat' => 'Youth'
+            ],
+            [
+                'label' => 'PWD Groups',
+                'val' => $this->stats['pwdGroups'] ?? 0,
+                'amount' => $this->stats['pwdAmount'],
+                'color' => 'purple',
+                'icon' => 'fa-wheelchair',
+                'cat' => 'PWD'
+            ],
+            [
+                'label' => 'Registry Size',
+                'val' => $totalGroups,
+                'amount' => $totalIssued,
+                'color' => 'primary',
+                'icon' => 'fa-users',
+                'cat' => null
+            ]
         ];
+    }
+
+    public function sortBy($field)
+    {
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'asc'; // Reset to asc for new field
+        }
+
+        $this->resetPage();
+    }
+
+    public function refreshData()
+    {
+        $groupsTag = config('cache.tags.phases.constituency_summary' . $this->constituency->constituency_code);
+        Cache::tags([$groupsTag])->flush();
+        $this->resetPage();
+    }
+
+    public function loadGroups()
+    {
+        $groupsTag = config('cache.tags.phases.constituency_summary') . $this->constituency->constituency_code;
+        if (empty($this->getFilters())) {
+            $cacheKey = "groups_list_{$this->constituency->constituency_code}_page_{$this->getPage()}";
+            return Cache::tags([$groupsTag])->remember($cacheKey, now()->addMinutes(15), function () {
+                return $this->groupsService->getGroupsQuery($this->constituency->constituency_code, [],$this->sortField, $this->sortDirection);
+            });
+        }
+
+        return $this->groupsService->getGroupsQuery($this->constituency->constituency_code, $this->getFilters(),$this->sortField, $this->sortDirection);
+    }
+
+    public function exportGroupList()
+    {
+        $query = $this->loadGroups();
+
+        $filtersUsed = array_filter([
+            $this->wardFilter ? str_replace(' ', '-', $this->wardFilter) : null,
+            $this->categoryFilter ? str_replace(' ', '-', $this->categoryFilter) : null,
+            $this->sectorFilter ? str_replace(' ', '-', $this->sectorFilter) : null,
+        ]);
+
+        $filterString = count($filtersUsed) > 0 ? '-' . implode('-', $filtersUsed) : '';
+        $constituencyName = str_replace(' ', '-', ucwords($this->constituency->constituency_name));
+
+        $fileName = $constituencyName . '-GROUP-LIST' . $filterString . '-' . now()->format('Y-m-d-His') . '.xlsx';
+
+        // 4. Return the download
+        return Excel::download(
+            new GroupsListExport($query, $this->constituency->constituency_name),
+            $fileName
+        );
     }
 
     public function render()
     {
-        return view('livewire.group.groups-info');
+        return view('livewire.group.groups-info', [
+            'groups' => $this->loadGroups()->paginate((int)$this->perPage),
+        ]);
     }
 }

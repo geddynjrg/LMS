@@ -59,6 +59,10 @@ class GroupLoan extends Model
     protected $casts = [
         'total_arrears' => 'decimal:2',
         'amount_due' => 'decimal:2',
+        'is_defaulted' => 'boolean',
+        'default_status_updated_at' => 'datetime',
+        'application_date' => 'datetime',
+        'disbursement_date' => 'datetime',
     ];
 
 

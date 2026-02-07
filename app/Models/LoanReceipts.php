@@ -30,6 +30,10 @@ class LoanReceipts extends Model
         'reference_number',
     ];
 
+    protected $casts = [
+        'transaction_date' => 'datetime',
+    ];
+
     public function groupLoan(): BelongsTo
     {
         return $this->belongsTo(GroupLoan::class, 'group_loans_id', 'id');

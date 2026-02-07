@@ -195,8 +195,6 @@ class LoanAnalysisService
 
         $maxCeiling = $lastLoan ? ($lastLoan->amount_issued * 2) : 100000;
 
-        //
-
         $maximum = $requeted > 0 ? min($requeted, $maxCeiling) : min($maxCeiling, 500000);
         return [
             'min' => 50000,
@@ -264,11 +262,14 @@ class LoanAnalysisService
                 ->where('constituency_code', $code)
                 ->whereIn('status', ['submitted'])
                 ->select(
+                    'application_id',
                     'group_name',
                     'loan_amount',
-                    'nature_of_business',
                     'created_at',
-                    'application_id'
+                    'nature_of_group',
+                    'business_type',
+                    'application_id',
+                    'key_activities'
                 )
                 ->latest()
                 ->limit(5)
