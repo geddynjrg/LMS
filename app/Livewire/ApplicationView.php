@@ -27,6 +27,7 @@ use Mpdf\Tag\Th;
 use Throwable;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ApplicationInstitutionalDataExport;
+use App\Jobs\SyncApplicationStatusToDrupal;
 
 class ApplicationView extends Component
 {
@@ -640,7 +641,7 @@ class ApplicationView extends Component
         try {
             DB::transaction(function () {
                 $this->application->update([
-                    'status'           => 'under_hq_review',
+                    // 'status'           => 'under_hq_review',
                     'ward_id'          => $this->selectedWardId ?? $this->application->ward_id,
                     'risk_level'       => $this->assessmentData['overall_category'],
                     'assessment_data'  => $this->assessmentData,
@@ -671,12 +672,12 @@ class ApplicationView extends Component
 
             });
 
-
-            // dd($nextApp);
+            SyncApplicationStatusToDrupal::dispatch($this->application->id);
 
             $this->reset(['approvalAmount', 'approvalComments', 'groupCode', 'selectedWardId']);
 
             $this->dispatch('flash-success', message: 'Applications approved successfully');
+
 
             $this->navigateToNextAfterReview();
 
@@ -728,6 +729,7 @@ class ApplicationView extends Component
                     'level' => 'constituency',
                     'action' => 'declined_at_constituency',
                     'rejection_reason' => $reason,
+                    'rejection_message' => $reason,
                 ]);
 
                 $this->application->update([
@@ -743,11 +745,15 @@ class ApplicationView extends Component
                     ])
                     ->log("Declined application at constituency level.");
 
+                SyncApplicationStatusToDrupal::dispatch($this->application->id);
+
                 $this->dispatch('flash-success', message: 'Application has been declined.');
 
                 $this->navigateToNextAfterReview();
 
                 $this->refreshData();
+
+
 
             } else {
                 // return and rollback
@@ -759,6 +765,8 @@ class ApplicationView extends Component
                 return false;
             }
         });
+
+
     }
 
     private function navigateToNextAfterReview()
@@ -827,10 +835,11 @@ class ApplicationView extends Component
                     'level' => 'constituency',
                     'action' => 'review',
                     'rejection_reason' => null,
+                    'rejection_message' => null,
                 ]);
 
                 $this->application->update([
-                    'status' => 'submitted',
+                    'status' => 'under_constituency_review',
                 ]);
 
                 activity()
@@ -851,6 +860,7 @@ class ApplicationView extends Component
 
                 $this->refreshData();
             });
+            SyncApplicationStatusToDrupal::dispatch($this->application->id);
         } catch (Exception $e) {
             $this->dispatch('swal:modal', [
                 'type'  => 'error',
@@ -894,7 +904,7 @@ class ApplicationView extends Component
 
             DB::transaction(function () {
                 $this->application->update([
-                    'status'           => 'submitted',
+                    'status'           => 'under_constituency_review',
                     'ward_id'          => null,
                     'risk_level'       => null,
                     'assessment_data'  => null,
@@ -930,6 +940,8 @@ class ApplicationView extends Component
 
                 $this->refreshData();
             });
+
+
 
         } catch (Exception $e) {
             $this->dispatch('swal:modal', [

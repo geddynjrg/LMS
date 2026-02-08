@@ -14,6 +14,7 @@ use App\Models\TempFile;
 use App\Models\County;
 use App\Models\Constituency;
 use App\Models\Wards as Ward;
+use App\Jobs\SyncApplicationStatusToDrupal;
 use Illuminate\Support\Facades\Log;
 
 class LoanApplicationService
@@ -30,9 +31,9 @@ class LoanApplicationService
                 $locationCodes = $this->mapLocationCodes($data);
 
                 // $attributes = \App\Mappers\LoanApplicationMapper::mapToTable($data, $user->id, $locationCodes);
-                
+
                 $application = $this->createOrUpdateTempApplication($data, $user->id, $locationCodes);
-                
+
 
                 $this->syncTempGroupMembers($application, $data['group_members'] ?? []);
 
@@ -42,6 +43,7 @@ class LoanApplicationService
 
                 // Mark Success
                 $application->update([
+                    'status' => 'under_constituency_review',
                     'sync_status' => 'completed',
                     'last_sync_at'  => now(),
                 ]);
@@ -51,15 +53,17 @@ class LoanApplicationService
                     'temp_application_id' => $application->id,
                 ]);
 
+                SyncApplicationStatusToDrupal::dispatch($application->id);
+
                 return $application;
             });
         } catch (\Throwable $e) {
             TempApplication::where('application_id', $data['application_id'])->update([
                 'sync_status' => 'failed',
                 'sync_error' => sprintf(
-                    "Error: %s in %s:%d", 
-                    $e->getMessage(), 
-                    basename($e->getFile()), 
+                    "Error: %s in %s:%d",
+                    $e->getMessage(),
+                    basename($e->getFile()),
                     $e->getLine()
                 ),
                 'last_sync_at' => now()
@@ -138,7 +142,7 @@ class LoanApplicationService
         ];
     }
 
-    public function findOrCreateTempUser(array $data) 
+    public function findOrCreateTempUser(array $data)
     {
         $userIdentifier = [
             'identifier_type' => $data['identifier_type'],
@@ -153,7 +157,7 @@ class LoanApplicationService
         ]);
     }
 
-    public function mapLocationCodes(array $data) 
+    public function mapLocationCodes(array $data)
     {
         $county = County::where('county_name', 'like', '%' . $data['county'] . '%')->first();
         $constituency = Constituency::where('constituency_name', 'like', '%' . $data['constituency'] . '%')
@@ -570,5 +574,35 @@ class LoanApplicationService
                 'amount' => $expenseData['amount'] ?? 0,
             ]);
         }
+    }
+
+    public function notifyDrupal(TempApplication $application)
+    {
+        $drupalStatus = $this->mapToDrupalStatus($application->status);
+
+        $response = Http::withHeaders([
+            'X-API-Key' => config('services.drupal.api_key'),
+            'Content-Type' => 'application/json',
+        ])->patch(config('services.drupal.url') . "/api/v1/lms/application/{$application->application_id}", [
+            'status' => $drupalStatus,
+            'rejection_reason' => $application->rejection_reason ?? null,
+            'rejection_message' => $application->rejection_message ?? null,
+        ]);
+
+        if ($response->successful()) {
+            $application->update([
+                'drupal_sync_status' => 'synced',
+                'drupal_synced_at' => now(),
+                'drupal_sync_error' => null,
+            ]);
+            return true;
+        }
+
+        $application->update([
+            'drupal_sync_status' => 'failed',
+            'drupal_sync_error' => $response->body(),
+        ]);
+
+        return false;
     }
 }

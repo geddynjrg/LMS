@@ -82,6 +82,9 @@ class TempApplication extends Model
         'risk_level',
         'assessment_data',
         'amount_approved',
+        'lms_to_loan_app_sync_status',
+        'lms_to_loan_app_synced_at',
+        'lms_to_loan_app_sync_error',
     ];
 
     protected $casts = [
@@ -99,6 +102,7 @@ class TempApplication extends Model
         'last_sync_at' => 'datetime',
         'raw_data' => 'array',
         'assessment_data' => 'array',
+        'lms_to_loan_app_synced_at' => 'datetime',
     ];
 
     protected $hidden = [

@@ -88,7 +88,7 @@ class AddMember extends Component
         $groupMember->group_loans_id = $this->group_loans_id;
         $groupMember->role = $this->groupMember['role'];
 
-        //if can create member
+        /** @var \App\Models\User $user */
         if (auth()->user()->hasPermissionTo('create member')) {
             $groupMember->save();
 

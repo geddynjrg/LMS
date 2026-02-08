@@ -64,8 +64,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    extra_hosts:
+      - "uwezo.ddev.site:host-gateway"
+      - "ddev-drupal.ddev.site:host-gateway"
     networks:
       - uwezo-network
+      - ddev_bridge
 
 #   MariaDB 11.4
   db:
@@ -147,6 +151,7 @@ services:
       - REDIS_PORT=6379
     networks:
       - uwezo-network
+      - ddev_bridge
 
   scheduler:
     build: .
@@ -169,3 +174,6 @@ networks:
   uwezo-network:
     driver: bridge
     name: uwezo-network
+  ddev_bridge:
+    external: true
+    name: ddev-uwezo_default
