@@ -37,7 +37,7 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
 
         foreach ($this->phases as $phase) {
             foreach ($this->levelOrder as $level) {
-                $levelLoans = $phase->grouploans->where('level', $level);
+                $levelLoans = $phase->grouploans->where('loan_type', $level);
 
                 if ($levelLoans->isNotEmpty()) {
                     $data->push([
@@ -64,9 +64,9 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                             'S/N' => $i++,
                             'Date of Disbursement' => $grouploan->disbursement_date ? Carbon::parse($grouploan->disbursement_date)->format('Y-m-d') : 'N/A',
                             'Name of the group/institution' => $grouploan->group->name ?? 'N/A',
-                            'G.F.S.CODE' => $grouploan->group->gfs_code ?? 'N/A',
-                            'Sector' => $grouploan->group->activity ?? 'N/A',
-                            'Category' => $grouploan->group->category ?? 'N/A',
+                            'G.F.S.CODE' => $grouploan->gfs_code ?? 'N/A',
+                            'Sector' => $grouploan->sector ?? 'N/A',
+                            'Category' => $grouploan->category ?? 'N/A',
                             'Amount Approved' => $grouploan->amount_approved ?: '0',
                             'Actual Amount Issued' => $grouploan->amount_issued ?: '0',
                             'Variance' => (($grouploan->amount_approved ?: 0) - ($grouploan->amount_issued ?: 0)) ?: '0',
@@ -157,8 +157,8 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
             // Row 1: REPUBLIC OF KENYA (merged across all columns)
             array_fill(0, 14, 'REPUBLIC OF KENYA'),
 
-            // Row 2: MINISTRY OF COOPERATIVES AND MSMES DEVELOPMENT (merged)
-            array_fill(0, 14, 'MINISTRY OF COOPERATIVES AND MSMES DEVELOPMENT'),
+            // Row 2: MINISTRY OF CO-OPERATIVES AND MSMES DEVELOPMENT (merged)
+            array_fill(0, 14, 'MINISTRY OF COOPERATIVES AND MICRO, SMALL AND MEDIUM ENTERPRISES (MSMEs) DEVELOPMENT'),
 
             // Row 3: UWEZO FUND OVERSIGHT BOARD (merged)
             array_fill(0, 14, 'UWEZO FUND OVERSIGHT BOARD'),
@@ -549,14 +549,11 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                 $drawing->setName('Logo');
                 $drawing->setDescription('Logo');
                 $drawing->setPath($usedLogoPath);
-                $drawing->setHeight(50); // Adjust height as needed
+                $drawing->setHeight(55); // Adjust height as needed
                 $drawing->setCoordinates('A1');
                 $drawing->setOffsetX(10);
                 $drawing->setOffsetY(10);
                 $drawing->setWorksheet($event->sheet->getDelegate());
-
-                // Adjust header row height to accommodate logo
-                $event->sheet->getRowDimension(1)->setRowHeight(60);
             }
 
         } catch (\Exception $e) {

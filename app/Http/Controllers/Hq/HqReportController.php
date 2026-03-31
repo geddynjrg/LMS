@@ -9,6 +9,6 @@ class HqReportController extends Controller
 {
     public function index()
     {
-        // ... code
+       return View('reports.hq.generate_report');
     }
 }

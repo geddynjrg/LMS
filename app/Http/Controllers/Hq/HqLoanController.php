@@ -17,8 +17,13 @@ class HqLoanController extends Controller
         // ... code
     }
 
-    public function reciepts()
+    public function receipts()
     {
-        // ... code
+        return View('hq.loans.receipts');
+    }
+
+    public function groupLoans()
+    {
+        return View('hq.loans.group_loans');
     }
 }

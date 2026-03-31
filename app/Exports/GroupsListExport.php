@@ -33,7 +33,7 @@ class GroupsListExport implements
     protected $rowNumber = 0;
     protected $constituencyName;
 
-    public function __construct($query, ?string $constituencyName) {
+    public function __construct($query, ?string $constituencyName = null) {
         $this->query = $query;
         $this->constituencyName = $constituencyName;
     }
@@ -50,9 +50,11 @@ class GroupsListExport implements
     {
         return [
             'S/No.',
+            'COUNTY',
+            'CONSTITUENCY',
+            'WARD',
             'GROUP NAME',
             'GFS CODE',
-            'WARD',
             'CATEGORY',
             'SECTOR',
             'IDENTIFIER',
@@ -61,7 +63,7 @@ class GroupsListExport implements
 
     public function columnWidths(): array {
         return [
-            'A' => 7, 'B' => 30, 'C' => 25, 'D' => 15, 'E' => 20, 'F' => 20, 'G' => 15,
+            'A' => 7, 'B' => 20, 'C' => 20, 'D' => 15, 'E' => 30, 'F' => 25, 'G' => 15, 'H' => 20, 'I' => 20, 'J' => 15,
         ];
     }
 
@@ -71,11 +73,13 @@ class GroupsListExport implements
 
         return [
             $this->rowNumber,
+            strtoupper($group->county_name),
+            strtoupper($group->constituency_name ?? 'N/A'),
+            strtoupper($group->ward_name ?? 'N/A'),
             strtoupper($group->name),
-            $group->currentLoan->gfs_code ?? '---',
-            strtoupper($group->ward->ward_name),
-            strtoupper($group->currentLoan->category ?? 'N/A'),
-            strtoupper($group->currentLoan->sector ?? 'N/A'),
+            $group->gfs_code ?? '---',
+            strtoupper($group->category ?? 'N/A'),
+            strtoupper($group->sector ?? 'N/A'),
             strtoupper($group->identifier ?? '---'),
         ];
     }
@@ -124,7 +128,7 @@ class GroupsListExport implements
                     'startColor' => ['rgb' => 'E9E9E9']
                 ]
             ],
-            'B' => ['alignment' => ['wrapText' => true]],
+            'E' => ['alignment' => ['wrapText' => true]],
             'F' => ['alignment' => ['wrapText' => true]],
         ];
     }
