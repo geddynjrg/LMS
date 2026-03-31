@@ -56,7 +56,7 @@ class ProcessLoanApplication implements ShouldQueue
             ]);
 
             $validator = \Illuminate\Support\Facades\Validator::make(
-                $this->payload, 
+                $this->payload,
                 $service->validationRules()
             );
 
@@ -65,9 +65,9 @@ class ProcessLoanApplication implements ShouldQueue
                     'application_id' => $this->applicationId,
                     'errors' => $validator->errors()->toArray()
                 ]);
-                
-                $lock->release(); 
-                return; 
+
+                $lock->release();
+                return;
             }
 
             $service->process($validator->validated());
@@ -86,7 +86,7 @@ class ProcessLoanApplication implements ShouldQueue
                 'application_id' => $this->applicationId,
                 'error' => $e->getMessage()
             ]);
-            throw $e; 
+            throw $e;
         } finally {
             optional($lock)->release();
         }
@@ -98,8 +98,5 @@ class ProcessLoanApplication implements ShouldQueue
             'application_id' => $this->applicationId,
             'error' => $exception->getMessage(),
         ]);
-
-        // Optional: send alert to Slack/email
-        // dispatch(new SendFailedApplicationAlert($this->applicationId));
     }
 }

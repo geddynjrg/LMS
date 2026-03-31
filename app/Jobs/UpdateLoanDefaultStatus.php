@@ -23,7 +23,7 @@ class UpdateLoanDefaultStatus implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct($groupId)
+    public function __construct(int $groupId)
     {
         $this->groupId = $groupId;
     }
@@ -33,17 +33,8 @@ class UpdateLoanDefaultStatus implements ShouldQueue
      */
     public function handle(LoanAnalysisService $analysisService): void
     {
-        $groupLoans = GroupLoan::where('group_id', $this->groupId)
-            ->where('loan_status', 'financed')
-            ->orderBy('disbursement_date', 'asc')
-            ->get();
 
-        if ($groupLoans->isEmpty()) {
-            Log::warning("No loans found for group {$this->groupId}.");
-            return;
-        }
-
-        $analysisService->analyzeGroupLoans($groupLoans);
+        $analysisService->analyzeGroupLoans($this->groupId);
 
         Log::info("Updated group loans for group {$this->groupId}.");
     }

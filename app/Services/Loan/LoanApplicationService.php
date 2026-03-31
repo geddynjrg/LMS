@@ -281,7 +281,7 @@ class LoanApplicationService
                 $savedFile = FileUploadHelper::saveBase64File(
                     $data[$fileKey],
                     $baseDirectory . '/' . $fileKey,
-                    'public',
+                    'local',
                     $shouldCleanup
                 );
 
@@ -320,7 +320,7 @@ class LoanApplicationService
             $savedMinutes = FileUploadHelper::saveBase64Files(
                 $data['group_meeting_minutes'],
                 $baseDirectory . '/meeting_minutes',
-                'public',
+                'local',
                 $shouldCleanup
             );
 
@@ -354,7 +354,7 @@ class LoanApplicationService
             $savedCreditHistory = FileUploadHelper::saveBase64Files(
                 $data['group_credit_history'],
                 $baseDirectory . '/credit_history',
-                'public',
+                'local',
                 $shouldCleanup
             );
 
@@ -465,7 +465,7 @@ class LoanApplicationService
                 $memberPhotoData = FileUploadHelper::saveBase64File(
                     $memberData['photo_member_id'],
                     $baseDirectory,
-                    'public',
+                    'local',
                     $shouldCleanup
                 );
             } elseif ($existingMember && $existingMember->photo_member_id) {
@@ -490,7 +490,7 @@ class LoanApplicationService
                 $disabilityCertificateData = FileUploadHelper::saveBase64File(
                     $memberData['certificate_disability'],
                     $baseDirectory,
-                    'public',
+                    'local',
                     $shouldCleanup
                 );
             } elseif ($existingMember && $existingMember->certificate_of_disability) {

@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Redis;
 use App\Services\DrupalApiService;
 use App\Models\TempApplication;
 use Illuminate\Support\Facades\Log;
@@ -44,59 +45,69 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
             return;
         }
 
-        $app->update([
-            'lms_to_loan_app_sync_status' => 'processing',
-            'lms_to_loan_app_synced_at' => now(),
-        ]);
+        Redis::throttle('drupal-api-sync')
+            ->allow(10)
+            ->every(1)
+            ->then(function () use ($drupal, $app) {
 
-        try {
-            $payload = [
-                'status' => $this->mapToDrupalStatus($app->status),
-            ];
 
-            if ($app->status === 'rejected') {
-                $payload['rejection_reason']   = $app->phaseApplication?->rejection_reason ?? 'unspecified';
-                $payload['rejection_message']  = $app->phaseApplication?->rejection_message ?? 'No message provided';
-            }
-
-            $response = $drupal->updateApplicationStatus($app->application_id, $payload);
-
-            if ($drupal->isSuccessful($response)) {
                 $app->update([
-                    'lms_to_loan_app_sync_status' => 'completed',
-                    'lms_to_loan_app_synced_at' => now(),
-                    'lms_to_loan_app_sync_error'  => null,
-                    'external_id'          => $response->json('data.id') ?? null,
-                ]);
-
-                Log::info('Successfully synced status to Drupal', [
-                    'application_id' => $app->application_id,
-                    'new_status'     => $app->status,
-                ]);
-            } else {
-                throw new \Exception('Drupal returned unsuccessful response: ' . $response->body());
-            }
-        } catch (Throwable $e) {  // ← Catch Throwable, not just Exception
-            $errorMessage = $e ? $e->getMessage() : 'Unknown error (no exception object)';
-            $errorFile    = $e ? $e->getFile() : 'Unknown file';
-            $errorLine    = $e ? $e->getLine() : 'Unknown line';
-
-            $app->update([
-                'lms_to_loan_app_sync_status' => 'failed',
+                'lms_to_loan_app_sync_status' => 'processing',
                 'lms_to_loan_app_synced_at' => now(),
-                'lms_to_loan_app_sync_error'  => substr($errorMessage, 0, 1000),
             ]);
 
-            Log::error('Failed to sync status to Drupal', [
-                'application_id' => $app->application_id,
-                'error'          => $errorMessage,
-                'file'           => $errorFile,
-                'line'           => $errorLine,
-                'trace'          => $e ? $e->getTraceAsString() : 'No trace available',
-            ]);
+            try {
+                $payload = [
+                    'status' => $this->mapToDrupalStatus($app->status),
+                ];
 
-            throw $e;  // Re-throw for retry
-        }
+                if ($app->status === 'rejected') {
+                    $payload['rejection_reason']   = $app->phaseApplication?->rejection_reason ?? 'unspecified';
+                    $payload['rejection_message']  = $app->phaseApplication?->rejection_message ?? 'No message provided';
+                }
+
+                $response = $drupal->updateApplicationStatus($app->application_id, $payload);
+
+                if ($drupal->isSuccessful($response)) {
+                    $app->update([
+                        'lms_to_loan_app_sync_status' => 'completed',
+                        'lms_to_loan_app_synced_at' => now(),
+                        'lms_to_loan_app_sync_error'  => null,
+                        'external_id'          => $response->json('data.id') ?? null,
+                    ]);
+
+                    Log::info('Successfully synced status to Drupal', [
+                        'application_id' => $app->application_id,
+                        'new_status'     => $app->status,
+                    ]);
+                } else {
+                    throw new \Exception('Drupal returned unsuccessful response: ' . $response->body());
+                }
+            } catch (Throwable $e) {
+                $errorMessage = $e ? $e->getMessage() : 'Unknown error (no exception object)';
+                $errorFile    = $e ? $e->getFile() : 'Unknown file';
+                $errorLine    = $e ? $e->getLine() : 'Unknown line';
+
+                $app->update([
+                    'lms_to_loan_app_sync_status' => 'failed',
+                    'lms_to_loan_app_synced_at' => now(),
+                    'lms_to_loan_app_sync_error'  => substr($errorMessage, 0, 1000),
+                ]);
+
+                Log::error('Failed to sync status to Drupal', [
+                    'application_id' => $app->application_id,
+                    'error'          => $errorMessage,
+                    'file'           => $errorFile,
+                    'line'           => $errorLine,
+                    'trace'          => $e ? $e->getTraceAsString() : 'No trace available',
+                ]);
+
+                throw $e;  // Re-throw for retry
+            }
+
+        }, function () {
+            return $this->release(10);
+        });
     }
 
     protected function mapToDrupalStatus(string $lmsStatus): string
@@ -108,7 +119,8 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
             'pending_hq_approval'            => 'under_review',
             'approved'                       => 'approved',
             'rejected'                       => 'rejected',
-            'disbursed', 'in_training'       => 'disbursed',
+            'disbursed',                     => 'disbursed',
+            'in_training'                    => 'training',
             'closed'                         => 'closed',
             'waiting_sms'                    => 'group_member_confirmation',
             default                          => 'draft',

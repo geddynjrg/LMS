@@ -3,6 +3,7 @@
 namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
+use Symfony\Component\Mailer\Exception\TransportException;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -18,28 +19,26 @@ class Handler extends ExceptionHandler
         'password_confirmation',
     ];
 
-    /**
-     * Register the exception handling callbacks for the application.
-     */
-    public function register(): void
-    {
-        $this->reportable(function (Throwable $e) {
-            //
-        });
-    }
-
     public function render($request, Throwable $exception)
     {
-        // Force JSON for anything starting with /api
         if ($request->is('api/*')) {
             return response()->json([
                 'message' => $exception->getMessage(),
                 'exception' => get_class($exception),
-                // Only show trace if APP_DEBUG is true
                 'trace' => config('app.debug') ? $exception->getTrace() : [],
             ], 500);
         }
 
         return parent::render($request, $exception);
+    }
+
+    /**
+     * Register the exception handling callbacks for the application.
+    */
+    public function register(): void
+    {
+        $this->renderable(function (TransportException $e, $request) {
+            return back()->with('error', 'Mail server connection timeout. Action completed, but email not sent.');
+        });
     }
 }

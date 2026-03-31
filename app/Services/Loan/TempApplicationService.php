@@ -2,27 +2,42 @@
 
 namespace App\Services\Loan;
 
-use App\Models\TempApplication;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Validation\ValidationException;
+use App\Models\TempApplication;
 use App\Models\Group;
-use Illuminate\Support\Collection;
 use App\Models\GroupLoan;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use App\Services\Loan\DefaultAnalysisService;
 use App\Models\PhaseApplication;
+use App\Services\Loan\DefaultAnalysisService;
+use App\Services\IdempotencyService;
+use App\Services\Cache\ApplicationCacheService;
+use App\Services\Cache\AppCacheService;
+use App\Jobs\SyncApplicationStatusToDrupal;
 
 class TempApplicationService
 {
-    protected $analysisService;
+    protected DefaultAnalysisService $analysisService;
+    protected IdempotencyService $idempotencyService;
+    protected ApplicationCacheService $appCache;
+    protected AppCacheService $cacheService;
 
     // Laravel automatically resolves this for you
-    public function __construct(DefaultAnalysisService $analysisService)
+    public function __construct(
+        DefaultAnalysisService $analysisService,
+        IdempotencyService $idempotencyService,
+        ApplicationCacheService $applicationCacheService,
+        AppCacheService $cacheService,
+    )
     {
         $this->analysisService = $analysisService;
+        $this->idempotencyService = $idempotencyService;
+        $this->appCache = $applicationCacheService;
+        $this->cacheService = $cacheService;
     }
 
     /**
@@ -30,7 +45,7 @@ class TempApplicationService
     */
     public function clearCache(string $applicationId, string $constituencyCode): void
     {
-        Cache::forget("temp_app_detail_{$applicationId}_{$constituencyCode}");
+        Cache::forget("temp_app_detail_{$applicationId}");
     }
 
     /**
@@ -44,16 +59,17 @@ class TempApplicationService
     /**
      * Invalidate cache for this application
     */
-    public function invalidateApplicationCache(TempApplication $application): void
+    public function invalidateApplicationCache($applicationId, $groupId = null): void
     {
-        $applicationId = $application->application_id;
-        $constituencyCode = $application->constituency_code;
-        $groupId = $application->group_id;
+        Cache::forget("temp_app_{$applicationId}");
+        Cache::forget("temp_app_detail_{$applicationId}");
+        Cache::forget("temp_app_default_members_{$applicationId}");
+        Cache::forget("temp_app_linked_group_{$groupId}");
+        Cache::forget("app_enrichment_{$applicationId}");
 
-        Cache::forget("temp_app_{$applicationId}_{$constituencyCode}");
-        Cache::forget("temp_app_detail_{$applicationId}_{$constituencyCode}");
-        cache::forget("temp_app_default_members_{$applicationId}_{$constituencyCode}");
-        cache::forget("temp_app_linked_group_{$groupId}");
+        if ($groupId) {
+            Cache::forget("temp_app_linked_group_{$groupId}");
+        }
     }
 
     /**
@@ -90,54 +106,77 @@ class TempApplicationService
     /**
      * Get stats for a constituency (cached)
     */
-    public function getStats(string $constituencyCode): array
+    public function getStats(?string $constituencyCode = null): array
     {
-        return Cache::remember("temp_app_stats_{$constituencyCode}", now()->addMinutes(10),
-            function () use ($constituencyCode) {
-                $appStats = DB::table('temp_applications')
-                    ->leftJoin('phase_applications', 'temp_applications.id', '=', 'phase_applications.temp_application_id')
-                    ->where('temp_applications.constituency_code', $constituencyCode)
-                    ->selectRaw("
-                        COUNT(temp_applications.id) as total,
-                        SUM(temp_applications.loan_amount) as total_amount,
-                        COUNT(phase_applications.id) as in_phase,
-                        SUM(CASE WHEN phase_applications.status = 'pending' THEN 1 ELSE 0 END) as pending,
-                        SUM(CASE WHEN phase_applications.status = 'approved' THEN 1 ELSE 0 END) as approved,
-                        SUM(CASE WHEN phase_applications.status = 'rejected' THEN 1 ELSE 0 END) as rejected
-                    ")
-                    ->first();
 
-                $memberStats = DB::table('temp_group_members')
-                    ->join('temp_applications', 'temp_group_members.temp_application_id', '=', 'temp_applications.id')
-                    ->where('temp_applications.constituency_code', $constituencyCode)
-                    ->selectRaw("
-                        SUM(gender = 'male') as total_males,
-                        SUM(gender = 'female') as total_females,
-                        SUM(person_with_disability = 1) as total_pwds
-                    ")
-                    ->first();
+        $appStats = DB::table('temp_applications')
+            ->leftJoin('phase_applications', 'temp_applications.id', '=', 'phase_applications.temp_application_id')
+            ->when($constituencyCode, function ($query, $code) {
+                return $query->where('temp_applications.constituency_code', $code);
+            })
+            ->selectRaw("
+                COUNT(temp_applications.id) as total,
+                SUM(temp_applications.loan_amount) as total_amount,
+                COUNT(phase_applications.id) as in_phase,
 
-                return [
-                    'total'        => (int)$appStats->total,
-                    'total_amount' => (float)$appStats->total_amount,
-                    'in_phase'     => (int)$appStats->in_phase,
-                    'not_in_phase' => (int)($appStats->total - $appStats->in_phase),
-                    'approved'     => (int)$appStats->approved,
-                    'rejected'     => (int)$appStats->rejected,
+                /* Status Counts */
+                SUM(CASE WHEN phase_applications.status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN phase_applications.status = 'approved' THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN phase_applications.status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+                SUM(CASE WHEN phase_applications.status = 'pending_hq_approval' THEN 1 ELSE 0 END) as pending_hq,
 
-                    // Member Stats
-                    'total_males'   => (int)$memberStats->total_males,
-                    'total_females' => (int)$memberStats->total_females,
-                    'total_pwds'    => (int)$memberStats->total_pwds,
-                ];
-            }
-        );
+                /* Financial Summaries */
+                SUM(CASE WHEN phase_applications.status = 'approved' THEN temp_applications.amount_approved ELSE 0 END) as amount_approved,
+                SUM(CASE WHEN phase_applications.status = 'rejected' THEN temp_applications.amount_approved ELSE 0 END) as amount_declined,
+
+                /* Demographic Category Counts */
+                SUM(CASE WHEN LOWER(temp_applications.nature_of_group) = 'youth' THEN 1 ELSE 0 END) as youth_count,
+                SUM(CASE WHEN LOWER(temp_applications.nature_of_group) = 'women' THEN 1 ELSE 0 END) as women_count,
+                SUM(CASE WHEN LOWER(temp_applications.nature_of_group) = 'pwd' THEN 1 ELSE 0 END) as pwd_count
+            ")
+            ->first();
+
+
+
+        $memberStats = DB::table('temp_group_members')
+            ->join('temp_applications', 'temp_group_members.temp_application_id', '=', 'temp_applications.id')
+            ->when($constituencyCode, function ($query, $code) {
+                return $query->where('temp_applications.constituency_code', $code);
+            })
+            ->selectRaw("
+                SUM(gender = 'male') as total_males,
+                SUM(gender = 'female') as total_females,
+                SUM(person_with_disability = 1) as total_pwds
+            ")
+            ->first();
+
+        return [
+            'total'        => (int)$appStats->total,
+            'total_amount' => (float)$appStats->total_amount,
+            'in_phase'     => (int)$appStats->in_phase,
+            'not_in_phase' => (int)($appStats->total - $appStats->in_phase),
+            'approved'     => (int)$appStats->approved,
+            'pending_hq'   => (int)$appStats->pending_hq,
+            'approved_amount' => (float)$appStats->amount_approved,
+            'declined_amount' => (float)$appStats->amount_declined,
+            'rejected'     => (int)$appStats->rejected,
+
+            // Member Stats
+            'total_males'   => (int)$memberStats->total_males,
+            'total_females' => (int)$memberStats->total_females,
+            'total_pwds'    => (int)$memberStats->total_pwds,
+
+            // category counts
+            'total_youth'   => (int)$appStats->youth_count,
+            'total_women'   => (int)$appStats->women_count,
+            'total_pwd'     => (int)$appStats->pwd_count,
+        ];
     }
 
     /**
      * Build the filtered query (reusable, eager-loaded)
     */
-    public function getFilteredQuery(string $constituencyCode, array $filters = []): Builder
+    public function getFilteredQuery(?string $constituencyCode = null, array $filters = [], ?string $sortField, ?string $sortDirection): Builder
     {
         return TempApplication::query()
             ->select([
@@ -151,7 +190,9 @@ class TempApplicationService
                 'created_at',
                 'constituency_code'
             ])
-            ->where('constituency_code', $constituencyCode)
+            ->when($constituencyCode, function ($query, $code) {
+                return $query->where('constituency_code', $code);
+            })
             ->when($filters['search'] ?? null, function ($q, $search) {
                 $q->where(function ($query) use ($search) {
                     $query->where('application_id', 'like', "%{$search}%")
@@ -180,12 +221,48 @@ class TempApplicationService
                     );
                 }
             })
+            ->when($filters['county_code' ] ?? null, function ($q, $county_code) {
+                $q->where('county_code', $county_code);
+            })
+            ->when($filters['constituency_code'] ?? null, function ($q, $constituency_code){
+                $q->where('constituency_code', $constituency_code);
+            })
             ->when($filters['date_from'] ?? null, fn($q, $d) => $q->whereDate('created_at', '>=', $d))
             ->when($filters['date_to'] ?? null, fn($q, $d) => $q->whereDate('created_at', '<=', $d))
             ->with([
-                'phaseApplication:id,temp_application_id,loan_phase_id,status',
+                'phaseApplication:id,temp_application_id,loan_phase_id,status,is_trained',
                 'phaseApplication.reviewPhase:id,phase,status,slug' // Load only needed columns
-            ]);
+            ])
+            ->when($sortField, function ($q) use ($sortField, $sortDirection) {
+                switch($sortField) {
+                    case 'applicationId':
+                        $q->orderBy('application_id', $sortDirection);
+                        break;
+
+                    case 'user':
+                        $q->orderBy('owner_identifier', $sortDirection);
+                        break;
+
+                    case 'groupName':
+                        $q->orderBy('group_name', $sortDirection);
+                        break;
+
+                    case 'applied':
+                        $q->orderBy('loan_amount', $sortDirection);
+                        break;
+
+                    case 'status':
+                        $q->orderBy('status', $sortDirection);
+                        break;
+
+                    case 'created':
+                        $q->orderBy('created_at', $sortDirection);
+                        break;
+                }
+            }, function ($query) {
+                $query->orderBy('created_at', 'desc');
+            });
+
     }
 
     public function getPendingApplicationsProperty(string $constituencyCode, ?string $search) : Builder
@@ -223,32 +300,39 @@ class TempApplicationService
     */
     public function loadApplication(string $applicationId, string $constituencyCode): TempApplication
     {
-        $cacheKey = "temp_app_{$applicationId}_{$constituencyCode}";
+        $cacheKey = "temp_app_{$applicationId}";
 
-        return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($applicationId, $constituencyCode) {
-            return TempApplication::where('application_id', $applicationId)
-                ->where('constituency_code', $constituencyCode) // Security check
-                ->with([
-                    'groupMembers',
-                    'expenses',
-                    'files',
-                    'user',
-                ])
-                ->firstOrFail();
-        });
+        try {
+            return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($applicationId, $constituencyCode) {
+                $app = TempApplication::where('application_id', $applicationId)
+                    ->where('constituency_code', $constituencyCode)
+                    ->with(['groupMembers', 'expenses', 'files', 'user'])
+                    ->first();
+
+                if (!$app) {
+                    Log::error("Application not found: ID {$applicationId} in Const {$constituencyCode}");
+                    throw new ModelNotFoundException("Application {$applicationId} not found.");
+                }
+                return $app;
+            });
+        } catch (\Exception $e) {
+            Cache::forget($cacheKey);
+            throw $e;
+        }
     }
 
     /**
      * Get a single application with all important relations pre-loaded
     */
-    public function getDetailedApplication(string $applicationId, string $constituencyCode): TempApplication
+    public function getDetailedApplication(string $applicationId, ?string $constituencyCode = null): TempApplication
     {
-        $cacheKey = "temp_app_detail_{$applicationId}_{$constituencyCode}";
+        $phaseId = null;
 
-        return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($applicationId, $constituencyCode) {
-            $application = TempApplication::query()
+        $application = TempApplication::query()
                 ->where('application_id', $applicationId)
-                ->where('constituency_code', $constituencyCode)
+                ->when($constituencyCode, function ($query, $code) {
+                    return $query->where('constituency_code', $code);
+                })
                 ->with([
                     'groupMembers',
                     'activities' => function($query) {
@@ -263,16 +347,77 @@ class TempApplicationService
                             ->withCount(['groupLoans as defaulted_count' => function ($q) {
                                 $q->where('is_defaulted', true);
                             }])
-                            ->with('groupLoans', 'groupLoans.loanReceipts', 'currentLoan');
+                            ->with([
+                                'groupLoans' => function($q) {
+                                    $q->where('loan_status', 'financed');
+                                },
+                                'groupLoans.loanReceipts',
+                                'currentLoan',
+                                'groupLoans.loanPhase' => function($q) {
+                                    $q->select('id', 'phase');
+                                }
+                            ]);
                     },
                     'ward',
+                    'constituency'
                 ])
                 ->firstOrFail();
 
-            // Optional: append useful computed data
+            $phaseId = $application->phaseApplication->reviewPhase->id ?? null;
+
             $application->append(['current_phase', 'approval_progress']);
+
             return $application;
-        });
+
+        // return $this->appCache->rememberApp(
+        //     $applicationId,
+        //     'temp_app_detail',
+        //     function () use ($applicationId, $constituencyCode, &$phaseId) {
+        //         $application = TempApplication::query()
+        //         ->where('application_id', $applicationId)
+        //         ->when($constituencyCode, function ($query, $code) {
+        //             return $query->where('constituency_code', $code);
+        //         })
+        //         ->with([
+        //             'groupMembers',
+        //             'activities' => function($query) {
+        //                 $query->with('causer')->latest();
+        //             },
+        //             'expenses',
+        //             'phaseApplication',
+        //             'phaseApplication.linkedGroup' => function($query) {
+        //                 $query->withSum('groupLoans as total_issued', 'amount_issued')
+        //                     ->withSum('groupLoans as total_repaid', 'amount_repaid')
+        //                     ->withSum('groupLoans as total_arrears', 'total_arrears')
+        //                     ->withCount(['groupLoans as defaulted_count' => function ($q) {
+        //                         $q->where('is_defaulted', true);
+        //                     }])
+        //                     ->with([
+        //                         'groupLoans' => function($q) {
+        //                             $q->where('loan_status', 'financed');
+        //                         },
+        //                         'groupLoans.loanReceipts',
+        //                         'currentLoan',
+        //                         'groupLoans.loanPhase' => function($q) {
+        //                             $q->select('id', 'phase');
+        //                         }
+        //                     ]);
+        //             },
+        //             'ward',
+        //             'constituency'
+        //         ])
+        //         ->firstOrFail();
+
+        //     $phaseId = $application->phaseApplication->reviewPhase->id ?? null;
+
+        //     $application->append(['current_phase', 'approval_progress']);
+
+        //     return $application;
+        //     },
+        //     $constituencyCode,
+        //     $phaseId ?? null,
+        //     10
+        // );
     }
 
     private function loadDefaultMembers(TempApplication $application): Collection
@@ -281,26 +426,25 @@ class TempApplicationService
             return Collect();
         }
 
-        // Cross-default members (optimized: only check application members)
         $appMemberIds = $application->groupMembers->pluck('id_number')->toArray();
+
+        $phaseId = $application->phaseApplication->reviewPhase->id ?? null;
 
         $defaulterData =  $this->analysisService->getApplicationDefaulterMembers(
             $appMemberIds,
             $application->application_id,
             $application->group_id,
-            $application->constituency_code
+            $application->constituency_code,
+            $phaseId
         )->keyBy('member_Id');
 
         $app = $application->groupMembers->transform(function ($appMember) use ($defaulterData) {
-            // Find if this specific member has a default record
             $history = $defaulterData->get($appMember->id_number);
 
-            // Attach comprehensive data to the object
             $appMember->is_defaulter = !is_null($history);
 
             $appMember->default_history = $history ? $history->groupMembers->filter(function ($gm) {
-                // Ensure groupLoan exists and is_defaulted is true
-                return $gm->groupLoan && $gm->groupLoan->is_defaulted === 1;
+                return $gm->groupLoan && $gm->groupLoan->is_defaulted;
             }) : collect();
 
             return $appMember;
@@ -312,7 +456,7 @@ class TempApplicationService
     /**
      * Enrich application with default member data
      */
-    public function getEnrichedApplication(string $applicationId, string $constituencyCode): TempApplication
+    public function getEnrichedApplication(string $applicationId, ?string $constituencyCode = null): TempApplication
     {
         $application = $this->getDetailedApplication($applicationId, $constituencyCode);
 
@@ -351,9 +495,6 @@ class TempApplicationService
                 ->causedBy(auth()->user())
                 ->withProperties(['remarks' => $remarks])
                 ->log('Application approved');
-
-            // Invalidate cache
-            $this->invalidateApplicationCache($application);
         });
     }
 
@@ -391,8 +532,6 @@ class TempApplicationService
                 ->causedBy(auth()->user())
                 ->withProperties(['remarks' => $remarks])
                 ->log('Application rejected');
-
-            $this->invalidateApplicationCache($application);
         });
     }
 
@@ -405,7 +544,7 @@ class TempApplicationService
     */
     public function linkToMasterGroup(TempApplication $application, int $groupId): void
     {
-        if (is_null($application->phaseApplication === null)){
+        if (is_null($application->phaseApplication)){
             throw ValidationException::withMessages([
                 'group' => 'You Must Assigng the application to a phase first',
             ]);
@@ -439,8 +578,6 @@ class TempApplicationService
             ]);
         }
 
-        // dd($group);
-
         DB::transaction(function () use ($application, $group) {
             $application->phaseApplication->update([
                 'group_id' => $group->id,
@@ -450,6 +587,7 @@ class TempApplicationService
 
             $application->update([
                 'link_status' => 'linked',
+                'loan_type' => 'Endeleza',
             ]);
         });
     }
@@ -471,6 +609,7 @@ class TempApplicationService
 
             $application->update([
                 'link_status' => 'not_attempted',
+                'loan_type' => 'Wezesha',
             ]);
         });
 
@@ -482,41 +621,20 @@ class TempApplicationService
     */
     public function getProcessedExpenses(TempApplication $application): array
     {
-        $expenses = $application->expenses;
+        $expenses = is_string($application->expenses)
+            ? json_decode($application->expenses, true)
+            : $application->expenses;
 
-        // Handle JSON string
-        if (is_string($expenses)) {
-            $expenses = json_decode($expenses, true);
-        }
-
-        $processed = [];
-
-        if (is_array($expenses)) {
-            // Case 1: [{"cost_of_goods": 0, "rent": 1000}]
-            if (isset($expenses[0]) && is_array($expenses[0])) {
-                foreach ($expenses[0] as $name => $amount) {
-                    if ($amount > 0) {
-                        $processed[] = [
-                            'name'   => ucfirst(str_replace('_', ' ', $name)),
-                            'amount' => $amount
-                        ];
-                    }
-                }
+        return collect($expenses)->flatMap(function ($item) {
+            if (!isset($item['name'])) {
+                return collect($item)->filter(fn($amt) => $amt > 0)
+                    ->map(fn($amt, $name) => [
+                        'name' => ucfirst(str_replace('_', ' ', $name)),
+                        'amount' => $amt
+                    ]);
             }
-            // Case 2: [{"name": "Rent", "amount": 1000}]
-            else {
-                foreach ($expenses as $expense) {
-                    if (is_array($expense)) {
-                        $processed[] = [
-                            'name'   => $expense['name'] ?? 'Expense',
-                            'amount' => $expense['amount'] ?? 0
-                        ];
-                    }
-                }
-            }
-        }
-
-        return $processed;
+            return [$item];
+        })->values()->all();
     }
 
     /**
@@ -541,6 +659,42 @@ class TempApplicationService
             $downloadUrl = route('const.app.application.file.download', [
                 'county' => $countySlug,
                 'constituency' => $constituencySlug,
+                'applicationId' => $application->application_id,
+                'action' => 'download',
+            ]) . '?path=' . $encodedPath;
+
+            $fileType = $this->getFileTypeIcon($file['data']['original_filename'] ?? '');
+
+            $processedFiles[] = [
+                'field_name'        => $file['field_name'],
+                'original_filename' => $file['data']['original_filename'] ?? 'Unknown',
+                'view_url'          => $viewUrl,
+                'download_url'      => $downloadUrl,
+                'type'              => $fileType['icon'],
+                'can_view'          => $fileType['can_view'],
+                'size'              => $this->formatFileSize($file['data']['size'] ?? 0),
+                'google_view_url'   => $this->getGoogleDocsViewerUrl($viewUrl, $file['data']['original_filename'] ?? ''),
+            ];
+        }
+
+        return $processedFiles;
+    }
+
+    public function getHqProcessedFiles(TempApplication $application): array
+    {
+        $processedFiles = [];
+
+        foreach ($application->all_files ?? [] as $file) {
+            $encodedPath = $file['data']['path'] ?? null ? base64_encode($file['data']['path']) : null;
+
+            if (!$encodedPath) continue;
+
+            $viewUrl = route('hq.submissions.app.file.download', [
+                'applicationId' => $application->application_id,
+                'action' => 'view',
+            ]) . '?path=' . $encodedPath;
+
+            $downloadUrl = route('hq.submissions.app.file.download', [
                 'applicationId' => $application->application_id,
                 'action' => 'download',
             ]) . '?path=' . $encodedPath;
@@ -659,7 +813,7 @@ class TempApplicationService
             's.h.g' => '', 'shg' => '', 'self help group' => '',
             'w.g'   => '', 'wg'  => '', 'women group' => '',
             'y.g'   => '', 'yg'  => '', 'youth group' => '',
-            'f.f.s' => '', 'ffs' => '', 'farmer field school' => '',
+            'f.f.s' => '', 'ffs' => '', 'farmers field school' => '',
             'c.b.o' => '', 'cbo' => '', 'community based organization' => '',
         ];
 
@@ -673,8 +827,13 @@ class TempApplicationService
     {
         $const_code = $application->constituency_code;
 
-        $groups = Group::select(['id', 'ward_id', 'reg_number', 'name', 'code'])->whereHas('ward.constituency', function ($query) use ($const_code) {
+        $groups = Group::select(['id', 'ward_id', 'reg_number', 'name', 'code'])
+            ->whereHas('ward.constituency', function ($query) use ($const_code) {
                 $query->where('constituency_code', $const_code);
+            })
+            ->where(function($q) use ($application) {
+                $q->where('name', 'like', '%' . substr($application->group_name, 0, 3) . '%')
+                ->orWhere('reg_number', 'like', '%' . substr($application->group_registration_number, -4));
             })
             ->with([
                 'ward:id,ward_name',
@@ -717,7 +876,7 @@ class TempApplicationService
             if ($group->currentLoan) {
                 $existingMembers = $group->currentLoan->groupMembers->map(fn($gm) => $gm->member);
 
-                $existingIds = $existingMembers->pluck('member_Id')->filter()->toArray();
+                $existingIds = $existingMembers->pluck('member_Id')->filter()->map(fn($id) => (string)$id)->toArray();
                 $existingPhones = $existingMembers->map(fn($m) => $this->normalizePhone($m->number))
                     ->filter()
                     ->toArray();
@@ -727,14 +886,8 @@ class TempApplicationService
                 $phoneMatchCount += count(array_intersect($tempMemberPhones, $existingPhones));
             }
 
-            /**
-             * 3. WEIGHTED SCORING LOGIC
-             * We give Reg Number 60% weight and Name 40% weight.
-             * Exact Reg match + Phone match = Almost 100%
-             */
             $totalScore = ($regScore * 0.6) + ($nameScore * 0.4);
 
-            // 4. IDENTITY BOOSTS
             // If 3+ people have the same ID number, it's definitely the same group
             if ($idMatchCount >= 4) {
                 $totalScore = 100; // Hard override - 3 ID matches is the same group
@@ -791,13 +944,13 @@ class TempApplicationService
             }
 
             return null;
-        })->filter()->sortByDesc('match_score');
+        })->filter()->values()->sortByDesc('match_score');
     }
 
     private function calculateSimilarity(?string $str1, ?string $str2): float
     {
-        $s1 = $this->normalizeString($str1);
-        $s2 = $this->normalizeString($str2);
+        $s1 = substr($this->normalizeString($str1), 0, 255);
+        $s2 = substr($this->normalizeString($str2), 0, 255);
 
         // dd($str1, $str2, $s1, $s2);
 
@@ -849,13 +1002,10 @@ class TempApplicationService
 
         $maxCode = max($maxGroupCode, $maxPhaseCode);
 
-        // 2. Increment
         $nextNumber = ($maxCode) ? $maxCode + 1 : 1;
 
-        // 3. Format with leading zeros (001, 002, etc.)
         $groupCode = str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
 
-        // 4. Mapping for the GFS String
         $county_code = $constituency->county->county_code;
         $constituency_code = $constituency->constituency_code;
 
@@ -879,15 +1029,266 @@ class TempApplicationService
     {
         $texts = [
             'submitted' => 'Submitted',
-            'under_review' => 'Under Review',
+            'under_constituency_review' => 'Pending Review',
+            'pending' => 'Under Review',
+            'pending_submission_to_hq' => 'Pending Submission to HQ',
+            'pending_hq_approval' => 'Pending HQ Approval',
             'approved' => 'Approved',
             'rejected' => 'Rejected',
             'disbursed' => 'Disbursed',
             'closed' => 'Closed',
             'in_training' => 'In Training',
-            'pending_submission_to_hq' => 'Pending Submission to HQ',
-            'pending_hq_approval' => 'Pending HQ Approval',
         ];
         return $texts[$status] ?? ucfirst($status);
+    }
+
+    public function getStatusClasses($value): string
+    {
+        return match ($value) {
+            'approved', 'disbursed' => 'bg-green-50 border-green-200 text-green-700',
+
+            'pending', 'pending_submission_to_hq' => 'bg-blue-50 border-blue-200 text-blue-700',
+
+            'pending_hq_approval', 'in_training' => 'bg-amber-50 border-amber-200 text-amber-700',
+
+            'rejected' => 'bg-red-50 border-red-200 text-red-700',
+
+            'submitted' => 'bg-gray-50 border-gray-200 text-gray-700',
+
+            default => 'bg-gray-50 border-gray-200 text-gray-700',
+        };
+    }
+
+    public function getHqStatusOptionsProperty()
+    {
+        $statusMap = [
+            'submitted'                 => ['label' => 'Submitted'],
+            'under_constituency_review' => ['label' => 'Pending Constituency Review'],
+            'pending'                   => ['label' => 'Under Constituency Review'],
+            'pending_submission_to_hq'  => ['label' => 'Pending Submission to HQ'],
+            'pending_hq_approval'       => ['label' => 'Pending HQ Approval'],
+            'approved'                  => ['label' => 'Approved'],
+            'rejected'                  => ['label' => 'Rejected'],
+            'in_training'               => ['label' => 'In Training'],
+            'pending_disbursement'      => ['label' => 'Pending Disbursement'],
+            'disbursed'                 => ['label' => 'Disbursed'],
+        ];
+
+        return collect($statusMap)->map(fn($data, $value) => [
+            'value'    => $value,
+            'name'  => $data['label'],
+        ])->values()->all();
+    }
+
+    public function getConsStatusOptionsProperty()
+    {
+        $statusMap = [
+            'submitted'                 => ['label' => 'Submitted'],
+            'under_constituency_review' => ['label' => 'Unassigned'],
+            'pending'                   => ['label' => 'Under Review'],
+            'pending_submission_to_hq'  => ['label' => 'Pending Submission to HQ'],
+            'pending_hq_approval'       => ['label' => 'Under HQ Review'],
+            'approved'                  => ['label' => 'Approved'],
+            'rejected'                  => ['label' => 'Rejected'],
+            'in_training'               => ['label' => 'In Training'],
+            'pending_disbursement'      => ['label' => 'Pending Disbursement'],
+            'disbursed'                 => ['label' => 'Disbursed'],
+        ];
+
+        return collect($statusMap)->map(fn($data, $value) => [
+            'value'    => $value,
+            'name'  => $data['label'],
+        ])->values()->all();
+    }
+
+    public function rejectApplication($selectedAppId, $idempotencyKey, $data)
+    {
+        DB::transaction(function() use ($selectedAppId, $idempotencyKey, $data){
+            $app = PhaseApplication::with([
+                'linkedGroup:id,name,code,identifier',
+                'groupLoan:id,group_id',
+                'tempApplication:id,application_id'
+                ])
+                ->findOrFail($selectedAppId, ['id', 'group_id', 'group_loan_id', 'temp_application_id']);
+
+            if ($app->groupLoan) {
+                $app->groupLoan->update([
+                    'amount_issued' => 0,
+                    'comments' => $data['rejectionComment'] ?? '',
+                    'loan_status' => 'cancelled',
+                    'status' => 'cancelled'
+                ]);
+            }
+
+            $app->tempApplication->update([
+                'status' => 'rejected',
+                'lms_to_loan_app_sync_status' => 'pending',
+                'updated_at' => now()
+            ]);
+
+            $app->update([
+                'status' => 'rejected',
+                'user_id' => auth()->id(),
+                'level' => $data['level'] ?? '',
+                'action' => $data['action'] ?? '',
+                'rejection_reason' => $data['rejectionKey'],
+                'rejection_message' => $data['rejectionComment'],
+            ]);
+
+            activity()
+                ->performedOn($app)
+                ->causedBy(auth()->user())
+                ->createdAt(now())
+                ->withProperties([
+                    'type' => 'application_rejection',
+                    'attributes' => [
+                        'old_status' => $data['status'],
+                        'status' => 'rejected',
+                        'rejection_category' => $data['rejectionKey'],
+                        'rejection_label' => $data['rejection_label'],
+                        'comment' => $data['rejectionComment'],
+                        'application_id' => $app->tempApplication->application_id,
+                    ],
+                    'context' => [
+                        'ip_address' => request()->ip(),
+                        'user_agent' => request()->userAgent(),
+                    ]
+                ])
+                ->log("Application rejected due to: " . $data['rejection_label']);
+
+            SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
+
+            $this->idempotencyService->release($idempotencyKey);
+        });
+
+    }
+
+    public function approveApplicationDisbursement($selectedAppId, $idempotencyKey, $data)
+    {
+        DB::transaction(function() use ($selectedAppId, $idempotencyKey, $data){
+            $app = PhaseApplication::with([
+                'linkedGroup:id,name,code,identifier',
+                'groupLoan:id,group_id',
+                'tempApplication:id,application_id'
+                ])
+                ->findOrFail($selectedAppId, ['id', 'group_id', 'group_loan_id', 'temp_application_id']);
+
+            if (!$app->linkedGroup->identifier) {
+                $app->linkedGroup->update([
+                    'identifier' => strtoupper($data['app_group_identifier'])
+                ]);
+
+                activity()
+                    ->performedOn($app->linkedGroup)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'group' => $app->linkedGroup->name,
+                        'old_identifier' => null,
+                        'new_identifier' => strtoupper($data['app_group_identifier']),
+                        'reason' => 'identifier_was_null'
+                    ])
+                    ->event('group_identifier_updated')
+                    ->log("Group identifier set from Null to '" . strtoupper($data['app_group_identifier']) . "'");
+            }
+
+            if ($app->groupLoan) {
+                $app->groupLoan->update([
+                    'amount_issued' => $data['app_amount_issued'],
+                    'cheque_no' => strtoupper($data['app_cheque_number']),
+                    'comments' => $data['app_disbursement_comment'] ?? '',
+                    'disbursement_date' => now(),
+                    'loan_status' => 'financed',
+                    'status' => 'active'
+                ]);
+            }
+
+            $app->update([
+                'status' => 'disbursed',
+                'amount_issued' => $data['app_amount_issued'],
+                'cheque_number' => strtoupper($data['app_cheque_number']),
+                'disbursement_date' => now(),
+            ]);
+
+            $app->tempApplication->update([
+                'status' => 'disbursed',
+                'lms_to_loan_app_sync_status' => 'pending',
+                'updated_at' => now()
+            ]);
+
+            activity()
+                ->performedOn($app)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'changes' => 'pending disbursement',
+                    'disbursement_details' => [
+                        'amount' => $data['app_amount_issued'],
+                        'cheque_number' => strtoupper($data['app_cheque_number']),
+                        'date' => now()->toDateTimeString()
+                    ]
+                ])
+                ->event('application_disbursed')
+                ->log("Application status changed from 'Pending Disbursement' to 'disbursed'");
+
+            SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
+
+            $this->idempotencyService->release($idempotencyKey);
+        });
+    }
+
+    public function confirmTraining(int $id)
+    {
+        $application = PhaseApplication::findOrFail($id);
+
+        DB::transaction(function () use ($application){
+            $application->update([
+                'is_trained' => true,
+            ]);
+
+            activity()
+                ->performedOn($application)
+                ->causedBy(auth()->user())
+                ->log("Application set trained");
+        });
+    }
+
+    public function generateIdentifier(string $name, string $code): string
+    {
+        $letters = preg_replace('/[^A-Z]/', '', strtoupper($name));
+
+        if (strlen($letters) >= 3) {
+            $initials = substr($letters, 0, 3);
+        } else {
+            $words = preg_split('/\s+/', trim($name));
+            $initials = '';
+
+            foreach ($words as $word) {
+                if (empty($word)) continue;
+
+                $firstLetter = preg_filter('/[^A-Z]/', '', strtoupper(substr($word, 0, 1)));
+                if (!empty($firstLetter)) {
+                    $initials .= $firstLetter;
+                }
+
+                if (strlen($initials) >= 3) break;
+            }
+
+            $initials = substr($initials, 0, 3);
+
+            while (strlen($initials) < 3) {
+                $initials .= $this->getRandomLetter();
+            }
+        }
+
+        return $initials . $code;
+    }
+
+    protected function getRandomLetter(): string
+    {
+        return chr(random_int(65, 90));
+    }
+
+    public function forgetApplication(string $applicationId): void
+    {
+        $this->appCache->forgetApplication($applicationId);
     }
 }

@@ -54,83 +54,113 @@ class LoanAnalysisService
         ];
     }
 
-    public function analyzeGroupLoans(Collection $groupLoans): void
+    public function analyzeGroupLoans(int $groupId): void
     {
-        $groupId = $groupLoans->first()?->group_id ?? 'unknown';
-        Log::info("Starting group analysis for group {$groupId} - {$groupLoans->count()} financed loans");
+        $groupLoans = GroupLoan::where('group_id', $groupId)
+            ->where('loan_status', 'financed')
+            ->orderBy('disbursement_date', 'asc')
+            ->get();
 
-        $runningOverpayment = 0.0;
-        $today = Carbon::now();
-
-        // Filter out any financed loans that still have NULL disbursement_date
-        $validLoans = $groupLoans->filter(function ($loan) {
-            if ($loan->disbursement_date === null) {
-                Log::warning("Financed loan {$loan->id} has NULL disbursement_date - treating as latest");
-                return true; // keep it, but it will go last
-            }
-            return true;
-        });
-
-        // Sort: valid dates first (oldest to newest), NULL dates at the very end
-        $sortedLoans = $validLoans->sortBy(function ($loan) {
+        $sortedLoans = $groupLoans->sortBy(function ($loan) {
             return $loan->disbursement_date
                 ? Carbon::parse($loan->disbursement_date)->timestamp
                 : PHP_INT_MAX;
         });
 
-        $processed = 0;
+        $loanResults = [];
+        $globalExcessPool = 0;
 
-        foreach ($sortedLoans as $loan) {
-            $processed++;
-
-            $result = $this->calculateLoanMetrics($loan, $today);
-
+        foreach ($sortedLoans as $index => $loan) {
+            $result = $this->calculateLoanMetrics($loan, Carbon::now());
             $rawArrears = max($result['amount_due'] - $loan->amount_repaid, 0);
-
-            // Apply cumulative overpayment (only if we have a valid date)
-            $adjustedArrears = $loan->disbursement_date === null
-                ? $rawArrears  // No offset for NULL-date loans
-                : max($rawArrears - $runningOverpayment, 0);
-
-            $isDefaulted = $adjustedArrears > 0;
-            $monthsDefaulted = $isDefaulted ? floor($adjustedArrears / max($result['monthly_installment'], 1)) : 0;
-
             $excessPayment = max($loan->amount_repaid - $result['amount_due'], 0);
+            $globalExcessPool += $excessPayment;
 
-            // Carry forward overpayment even from NULL-date loans
-            $runningOverpayment = max($runningOverpayment - $rawArrears, 0) + $excessPayment;
 
-            // Force clean slate if fully repaid
-            if ($loan->amount_repaid >= $loan->amount_issued) {
-                $adjustedArrears = 0;
-                $isDefaulted = false;
-                $monthsDefaulted = 0;
-            }
-
-            $finalAmountDue = $result['amount_due'];
-
-            $newStatus = $loan->status;
-            if ($adjustedArrears <= 0 && $loan->amount_repaid >= $loan->amount_issued) {
-                $newStatus = 'completed';
-            } elseif ($adjustedArrears > 0) {
-                $newStatus = 'defaulted';
-            } elseif ($loan->status === 'Pending') {
-                $newStatus = 'active';
-            }
-
-            $loan->update([
-                'is_defaulted' => $isDefaulted,
-                'months_defaulted' => $monthsDefaulted,
-                'total_arrears' => $adjustedArrears,
-                'amount_due' => $finalAmountDue,
-                'default_status_updated_at' => now(),
-                'status' => $newStatus,
-            ]);
-
-            Log::info("Loan {$loan->id} updated: due={$finalAmountDue}, arrears={$adjustedArrears}, status={$newStatus}, running_overpay={$runningOverpayment}" . ($loan->disbursement_date === null ? ' (NULL date)' : ''));
+            $loanResults[] = [
+                'loan' => $loan,
+                'result' => $result,
+                'raw_arrears' => $rawArrears,
+                'index' => $index,
+            ];
         }
 
-        Log::info("Finished group {$groupId} analysis - {$processed} loans processed");
+        $totalArrearsBefore = array_sum(array_column($loanResults, 'raw_arrears'));
+
+
+        $adjustedCount = 0;
+        foreach ($loanResults as &$entry) {
+            $loanId = $entry['loan']->id;
+            $rawArrears = $entry['raw_arrears'];
+            $entry['pool_benefit'] = 0;
+
+            if ($entry['raw_arrears'] > 0 && $globalExcessPool > 0) {
+                $offset = min($entry['raw_arrears'], $globalExcessPool);
+                $entry['adjusted_arrears'] = $entry['raw_arrears'] - $offset;
+                $entry['pool_benefit'] = $offset;
+
+                $globalExcessPool -= $offset;
+                $adjustedCount++;
+
+            } else {
+                $entry['adjusted_arrears'] = $entry['raw_arrears'];
+            }
+        }
+        unset($entry);
+
+        $totalArrearsAfter = array_sum(array_column($loanResults, 'adjusted_arrears'));
+
+        $processed = 0;
+        $defaultedLoans = 0;
+        $completedLoans = 0;
+        $activeLoans = 0;
+
+        foreach ($loanResults as $entry) {
+            $processed++;
+            $loan = $entry['loan'];
+            $result = $entry['result'];
+            $poolBenefit = $entry['pool_benefit'];
+            $isStillActive = $result['is_active'] ?? true;
+            $adjustedArrears = $entry['adjusted_arrears'];
+
+            $remainingPrincipal = max($loan->amount_issued - $loan->amount_repaid, 0);
+            $totalCoverage = $loan->amount_repaid + $poolBenefit + $globalExcessPool;
+
+            $isFullyCovered = $totalCoverage >= $loan->amount_issued;
+
+            $isDefaulted = $adjustedArrears > 0;
+            $monthsDefaulted = $isDefaulted
+                ? floor($adjustedArrears / max($result['monthly_installment'], 1))
+                : 0;
+
+            $oldStatus = $loan->status;
+            $newStatus = $loan->status;
+
+            if ($loan->amount_repaid >= $loan->amount_issued) {
+                $newStatus = 'completed';
+            }
+            elseif ($adjustedArrears <= 0 && $isFullyCovered) {
+                $newStatus = 'completed';
+            }
+            elseif ($adjustedArrears <= 0) {
+                $newStatus = 'active';
+            }
+            elseif ($isDefaulted) {
+                $newStatus = 'defaulted';
+                if($monthsDefaulted <= 0) $monthsDefaulted = 1;
+            }
+
+            $updateData = [
+                'is_defaulted' => $isDefaulted,
+                'months_defaulted' => (int)$monthsDefaulted,
+                'total_arrears' => $adjustedArrears,
+                'amount_due' => $result['amount_due'],
+                'default_status_updated_at' => now(),
+                'status' => $newStatus,
+            ];
+
+            $loan->update($updateData);
+        }
     }
 
     private function calculateLoanMetrics(GroupLoan $loan, Carbon $today): array
@@ -177,6 +207,7 @@ class LoanAnalysisService
      */
     public function getEligibilityData(?Group $group, int $requeted = 0): array
     {
+
         // Default for New Groups
         if (!$group?->id) {
             return [
@@ -187,6 +218,7 @@ class LoanAnalysisService
             ];
         }
 
+
         // Calculate Global Balance (Total Approved - Total Repaid)
         $balance = ($group->total_issued ?? 0) - ($group->total_repaid ?? 0);
 
@@ -196,6 +228,7 @@ class LoanAnalysisService
         $maxCeiling = $lastLoan ? ($lastLoan->amount_issued * 2) : 100000;
 
         $maximum = $requeted > 0 ? min($requeted, $maxCeiling) : min($maxCeiling, 500000);
+
         return [
             'min' => 50000,
             'max' => $maximum,
@@ -204,133 +237,295 @@ class LoanAnalysisService
         ];
     }
 
-    public function getConstituencyStats(Constituency $constituency)
+    public function getDashboardStats(array $filters = [])
     {
-        $cacheKey = "const_stats_v3_{$constituency->constituency_code}";
+        $baseQuery = GroupLoan::query()->whereIn('loan_status', ['financed', 'cancelled']);
 
-        return Cache::remember($cacheKey, 300, function () use ($constituency) {
-            $code = $constituency->constituency_code;
-
-            // Base query for this constituency's loans
-            $baseQuery = GroupLoan::whereHas('loanPhase', function ($q) use ($code) {
-                $q->where('constituency_code', $code);
+        if (!empty($filters['county_code'])) {
+            $baseQuery->whereHas('group.ward.constituency', function ($q) use ($filters) {
+                $q->where('county_code', $filters['county_code']);
             });
+        }
 
-            // Aggregate Financial Totals (Summing the columns directly in SQL)
-            $totals = (clone $baseQuery)->where('loan_status', 'financed')
-                ->selectRaw('
-                    SUM(amount_approved) as approved,
-                    SUM(amount_issued) as issued,
-                    SUM(amount_repaid) as repaid,
-                    SUM(amount_due) as due,
-                    SUM(total_arrears) as arrears,
-                    COUNT(CASE WHEN is_defaulted = 1 THEN 1 END) as default_count,
-                    COUNT(*) as active_count,
-                    AVG(months_defaulted) as avg_months_defaulted
-                ')->first();
+        if (!empty($filters['constituency_code'])) {
+            $baseQuery->whereHas('group.ward', function ($q) use ($filters) {
+                $q->where('constituency_code', $filters['constituency_code']);
+            });
+        }
 
-            $categoryData = DB::table('group_loans')
-                ->join('loan_phases', 'group_loans.loan_phase_id', '=', 'loan_phases.id')
-                ->where('loan_phases.constituency_code', $code)
-                ->where('group_loans.loan_status', 'financed')
+        if (!empty($filters['ward_id'])) {
+            $baseQuery->whereHas('group', function ($q) use ($filters) {
+                $q->where('ward_id', $filters['ward_id']);
+            });
+        }
+
+        $totals = (clone $baseQuery)
+            ->selectRaw('
+                SUM(amount_approved) as approved,
+                SUM(amount_issued) as issued,
+                SUM(amount_repaid) as repaid,
+                SUM(amount_due) as due,
+                SUM(total_arrears) as arrears,
+                COUNT(CASE WHEN is_defaulted = 1 THEN 1 END) as default_count,
+                COUNT(*) as active_count,
+                AVG(months_defaulted) as avg_months_defaulted
+            ')->first();
+
+        $categoryData = (clone $baseQuery)
+            ->select(
+                DB::raw('LOWER(category) as category_name'),
+                DB::raw('count(*) as loan_count'),
+                DB::raw('SUM(amount_issued) as total_issued')
+            )
+            ->groupBy(DB::raw('LOWER(category)'))
+            ->get()
+            ->keyBy('category_name');
+
+        $sectorData = (clone $baseQuery)
+            ->select(
+                DB::raw('LOWER(sector) as sector_name'),
+                DB::raw('count(*) as loan_count'),
+                DB::raw('SUM(amount_issued) as total_issued')
+            )
+            ->groupBy(DB::raw('LOWER(sector)'))
+            ->get()
+            ->keyBy('sector_name');
+
+        $newApplications = DB::table('temp_applications')
+            ->whereIn('status', ['submitted', 'under_constituency_review'])
+            ->when(!empty($filters['county_code']), fn($q) => $q->where('county_code', $filters['county_code']))
+            ->when(!empty($filters['constituency_code']), fn($q) => $q->where('constituency_code', $filters['constituency_code']))
+            ->when(!empty($filters['ward_id']), fn($q) => $q->where('ward_id', $filters['ward_id']))
+            ->select(
+                'application_id',
+                'group_name',
+                'loan_amount',
+                'created_at',
+                'nature_of_group',
+                'business_type',
+                'application_id',
+                'key_activities'
+            )
+            ->latest()
+            ->limit(5)
+            ->get();
+
+        $approvedPhases = DB::table('loan_phases as lp')
+            ->join('constituencies as c', 'lp.constituency_code', '=', 'c.constituency_code')
+            ->join('counties as co', 'c.county_code', '=', 'co.county_code')
+            ->whereIn('status', ['approved', 'in_training', 'disbursed'])
+            ->when(!empty($filters['county_code']), fn($q) => $q->where('co.county_code', $filters['county_code']))
+            ->when(!empty($filters['constituency_code']), fn($q) => $q->where('lp.constituency_code', $filters['constituency_code']))
+            ->select(
+                'lp.id',
+                'lp.phase_ref',
+                'lp.slug',
+                'lp.constituency_code',
+                'lp.phase',
+                'lp.total_amount_approved'
+            )
+            ->latest('hq_approved_at')
+            ->limit(5)
+            ->get();
+
+        $topConstituencies = [];
+        $bottomConstituencies = [];
+
+        if (empty($filters['constituency_code'])) {
+            $rankingQuery = DB::table('group_loans as gl')
+                ->join('loan_phases as lp', 'gl.loan_phase_id', '=', 'lp.id')
+                ->join('constituencies as c', 'lp.constituency_code', '=', 'c.constituency_code')
+                ->where('gl.loan_status', 'financed');
+
+            if (!empty($filters['county_code'])) {
+                $rankingQuery->where('c.county_code', $filters['county_code']);
+            }
+
+            $topConstituencies = (clone $rankingQuery)
                 ->select(
-                    'category',
-                    DB::raw('count(*) as loan_count'),
-                    DB::raw('SUM(amount_issued) as total_issued')
+                    'c.constituency_name', 'c.constituency_code',
+                    DB::raw('SUM(gl.amount_repaid) as total_repaid'),
+                    DB::raw('SUM(gl.amount_due) as total_due'),
+                    DB::raw('CASE WHEN SUM(gl.amount_due) > 0 THEN ROUND((SUM(gl.amount_repaid) / SUM(gl.amount_due)) * 100, 1) ELSE 0 END as recovery_rate')
                 )
-                ->groupBy('category')
-                ->get()
-                ->keyBy('category');
+                ->groupBy('c.constituency_code', 'c.constituency_name')
+                ->orderByDesc('recovery_rate')->limit(5)->get();
 
-            $sectorData = DB::table('group_loans')
-                ->join('loan_phases', 'group_loans.loan_phase_id', '=', 'loan_phases.id')
-                ->where('loan_phases.constituency_code', $code)
-                ->where('group_loans.loan_status', 'financed')
+            $bottomConstituencies = (clone $rankingQuery)
                 ->select(
-                    'sector',
-                    DB::raw('count(*) as loan_count'),
-                    DB::raw('SUM(amount_issued) as total_issued'))
-                ->groupBy('sector')
-                ->get()
-                ->keyBy('sector');
-
-            $repaid = $totals->repaid ?? 0;
-            $due = $totals->due ?? 0;
-            $issued = $totals->issued ?? 0;
-
-            $newApplications = DB::table('temp_applications')
-                ->where('constituency_code', $code)
-                ->whereIn('status', ['submitted'])
-                ->select(
-                    'application_id',
-                    'group_name',
-                    'loan_amount',
-                    'created_at',
-                    'nature_of_group',
-                    'business_type',
-                    'application_id',
-                    'key_activities'
+                    'c.constituency_name', 'c.constituency_code',
+                    DB::raw('SUM(gl.total_arrears) as total_arrears'),
+                    DB::raw('CASE WHEN SUM(gl.amount_due) > 0 THEN ROUND((SUM(gl.amount_repaid) / SUM(gl.amount_due)) * 100, 1) ELSE 0 END as recovery_rate')
                 )
-                ->latest()
-                ->limit(5)
-                ->get();
+                ->groupBy('c.constituency_code', 'c.constituency_name')
+                ->orderBy('recovery_rate', 'asc')->limit(5)->get();
+        }
 
-            $approvedPhases = DB::table('loan_phases')
-                ->where('constituency_code', $code)
-                ->where('status', 'approved')
-                ->select(
-                    'phase_ref',
-                    'slug',
-                    'constituency_code',
-                    'phase',
-                    'total_amount_approved'
-                )
-                ->latest('hq_approved_at')
-                ->limit(5)
-                ->get();
+        $repaid = $totals->repaid ?? 0;
+        $due = $totals->due ?? 0;
+        $issued = $totals->issued ?? 0;
 
-            return [
-                'totalGroups' => $constituency->groups()->count(),
-                'totalAmountApproved' => $totals->approved ?? 0,
-                'totalAmountIssued' => $totals->issued ?? 0,
-                'totalAmountRepaid' => $totals->repaid ?? 0,
-                'totalAmountDue' => $totals->due ?? 0,
-                'totalArrears' => $totals->arrears ?? 0,
-                'activeLoansCount' => $totals->active_count ?? 0,
-                'defaultedLoansCount' => $totals->default_count ?? 0,
-                'averageDefaultMonths' => round($totals->avg_months_defaulted ?? 0, 1),
+        return [
+            'totalGroups' => (clone $baseQuery)->distinct('group_id')->count(),
+            'totalAmountApproved' => $totals->approved ?? 0,
+            'totalAmountIssued' => $totals->issued ?? 0,
+            'totalAmountRepaid' => $totals->repaid ?? 0,
+            'totalAmountDue' => $totals->due ?? 0,
+            'totalArrears' => $totals->arrears ?? 0,
+            'activeLoansCount' => $totals->active_count ?? 0,
+            'defaultedLoansCount' => $totals->default_count ?? 0,
+            'averageDefaultMonths' => round($totals->avg_months_defaulted ?? 0, 1),
 
-                'recoveryRate' => $due > 0 ? round(($repaid / $due) * 100, 1) : 0,
+            'recoveryRate' => $due > 0 ? round(($repaid / $due) * 100, 1) : 0,
 
-                'repaymentProgressRate' => $issued > 0 ? round(($repaid / $issued) * 100, 1) : 0,
+            'repaymentProgressRate' => $issued > 0 ? round(($repaid / $issued) * 100, 1) : 0,
 
-                'defaultRate' => ($totals->active_count ?? 0) > 0
-                    ? round(($totals->default_count / $totals->active_count) * 100, 1)
-                    : 0,
+            'defaultRate' => ($totals->active_count ?? 0) > 0
+                ? round(($totals->default_count / $totals->active_count) * 100, 1)
+                : 0,
 
-                'financialDefaultRate' => $totals->due > 0
-                    ? round((max($totals->due - $totals->repaid, 0) / $totals->due) * 100, 1)
-                    : 0,
+            'financialDefaultRate' => $totals->due > 0
+                ? round((max($totals->due - $totals->repaid, 0) / $totals->due) * 100, 1)
+                : 0,
 
-                'averageArrearsPerDefaultedLoan' => $totals->default_count > 0
-                    ? round($totals->arrears / $totals->default_count, 0)
-                    : 0,
+            'averageArrearsPerDefaultedLoan' => $totals->default_count > 0
+                ? round($totals->arrears / $totals->default_count, 0)
+                : 0,
 
-                'sector_breakdown' => $sectorData,
+            'sector_breakdown' => $sectorData,
 
-                'womenGroups' => $categoryData['Women']->loan_count ?? 0,
-                'womenAmount' => $categoryData['Women']->total_issued ?? 0,
+            'womenGroups' => $categoryData['women']->loan_count ?? 0,
+            'womenAmount' => $categoryData['women']->total_issued ?? 0,
 
-                'youthGroups' => $categoryData['Youth']->loan_count ?? 0,
-                'youthAmount' => $categoryData['Youth']->total_issued ?? 0,
+            'youthGroups' => $categoryData['youth']->loan_count ?? 0,
+            'youthAmount' => $categoryData['youth']->total_issued ?? 0,
 
-                'pwdGroups'   => $categoryData['PWD']->loan_count ?? 0,
-                'pwdAmount'   => $categoryData['PWD']->total_issued ?? 0,
+            'pwdGroups'   => $categoryData['pwd']->loan_count ?? 0,
+            'pwdAmount'   => $categoryData['pwd']->total_issued ?? 0,
 
-                'newApplications' => $newApplications,
+            'newApplications' => $newApplications,
 
-                'approvedPhases' => $approvedPhases,
-            ];
-        });
+            'approvedPhases' => $approvedPhases,
+
+            'topPerformingConstituencies' => $topConstituencies,
+
+            'bottomPerformingConstituencies' => $bottomConstituencies,
+        ];
+    }
+
+    public function countPhaseDuplicates(int $phaseId)
+    {
+        return DB::table('phase_applications')
+            ->join('temp_applications', 'phase_applications.temp_application_id', '=', 'temp_applications.id')
+            ->where('phase_applications.loan_phase_id', $phaseId)
+            ->whereIn('temp_applications.group_registration_number', function($query) use ($phaseId) {
+                $query->select('group_registration_number')
+                    ->from('temp_applications')
+                    ->join('phase_applications', 'temp_applications.id', '=', 'phase_applications.temp_application_id')
+                    ->where('phase_applications.loan_phase_id', '!=', $phaseId)
+                    ->whereIn('phase_applications.status', ['pending_hq_approval', 'approved', 'in_training']);
+            })
+            ->count();
+    }
+
+    public function getPhaseDuplicates(array $regNumbers, $currentPhaseId)
+    {
+        return DB::table('phase_applications')
+            ->join('temp_applications', 'phase_applications.temp_application_id', '=', 'temp_applications.id')
+            ->join('loan_phases', 'phase_applications.loan_phase_id', '=', 'loan_phases.id')
+            ->join('constituencies', 'loan_phases.constituency_code', '=', 'constituencies.constituency_code')
+            ->whereIn('temp_applications.group_registration_number', $regNumbers)
+            ->where('phase_applications.loan_phase_id', '!=', $currentPhaseId)
+            ->whereIn('phase_applications.status', ['pending_hq_approval', 'approved', 'in_training'])
+            ->select('temp_applications.application_id', 'temp_applications.group_name', 'temp_applications.group_registration_number', 'constituencies.constituency_name as constituency_name', 'loan_phases.phase as phase_name')
+            ->get()->groupBy('group_registration_number');
+    }
+
+    public function getIdentityMisMatch(array $regNumbers)
+    {
+        return DB::table('groups')
+            ->select('reg_number', DB::raw('COUNT(DISTINCT name) as name_count'))
+            ->whereIn('reg_number', $regNumbers)
+            ->groupBy('reg_number')
+            ->having('name_count', '>', 1)
+            ->pluck('reg_number')->toArray();
+    }
+
+    public function getLegacyHistory(array $regNumbers)
+    {
+        return DB::table('group_loans')
+            ->join('groups', 'group_loans.group_id', '=', 'groups.id')
+            ->join('wards', 'groups.ward_id', '=', 'wards.id')
+            ->join('constituencies', 'wards.constituency_code', '=', 'constituencies.constituency_code')
+            ->whereIn('groups.reg_number', $regNumbers)
+            ->where('group_loans.loan_status', 'financed')
+            ->where(function($query) {
+                $query->where('group_loans.is_defaulted', true)
+                      ->orWhere('group_loans.total_arrears', '>', 0);
+            })
+            ->select(
+                'groups.reg_number as group_registration_number',
+                'groups.name as group_name',
+                'constituencies.constituency_name as constituency_name',
+                'group_loans.amount_issued',
+                'group_loans.amount_repaid',
+                DB::raw('(group_loans.amount_issued - group_loans.amount_repaid) as outstanding_balance')
+            )
+            ->get()
+            ->groupBy('group_registration_number');
+    }
+
+    public function verifyDataIntegrity(array $regNumbers)
+    {
+        return DB::table('groups')
+            ->select('reg_number', DB::raw('COUNT(DISTINCT name) as name_count'))
+            ->whereIn('reg_number', $regNumbers)
+            ->groupBy('reg_number')
+            ->having('name_count', '>', 1)
+            ->get()
+            ->pluck('reg_number')
+            ->toArray();
+    }
+
+    public function checkLegacyDebt(array $regNumbers)
+    {
+        // Get the actual debt records
+        $debtRecords = DB::table('group_loans')
+            ->join('groups', 'group_loans.group_id', '=', 'groups.id')
+            ->join('wards', 'groups.ward_id', '=', 'wards.id')
+            ->join('constituencies', 'wards.constituency_id', '=', 'constituencies.id')
+            ->whereIn('groups.reg_number', $regNumbers)
+            ->where(function($query) {
+                $query->where('group_loans.is_defaulted', 1)
+                      ->orWhere('group_loans.total_arrears', '>', 0);
+            })
+            ->whereIn('group_loans.loan_status', ['financed'])
+            ->select(
+                'groups.reg_number as application_id',
+                'groups.name as legacy_name',
+                'constituencies.name as constituency_name',
+                'group_loans.amount_issued',
+                'group_loans.amount_repaid',
+                DB::raw('(group_loans.amount_issued - group_loans.amount_repaid) as outstanding_balance')
+            )
+            ->get()
+            ->groupBy('application_id');
+
+        // Identify reg_numbers with naming conflicts
+        $conflictedRegNos = $this->verifyDataIntegrity($regNumbers);
+
+        return [
+            'records' => $debtRecords,
+            'conflicts' => $conflictedRegNos
+        ];
+    }
+
+
+    public function performGlobalCheck(array $regNumbers, $currentPhaseId)
+    {
+        return [
+            'current' => $this->getPhaseDuplicates($regNumbers, $currentPhaseId),
+            'legacy' => $this->getLegacyHistory($regNumbers),
+        ];
     }
 }

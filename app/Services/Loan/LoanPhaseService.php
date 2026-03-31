@@ -6,6 +6,10 @@ use App\Models\ActivityLog;
 use App\Models\LoanPhase;
 use App\Models\PhaseApplication;
 use App\Models\TempApplication;
+use App\Models\Group;
+use App\Models\GroupLoan;
+use App\Jobs\SyncApplicationStatusToDrupal;
+use App\Services\IdempotencyService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -13,9 +17,27 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Builder;
+use App\Models\Member;
+
 
 class LoanPhaseService
 {
+    protected $applicationService;
+    protected $analysisService;
+    protected $idempotencyService;
+
+    // Laravel automatically resolves this for you
+    public function __construct(
+        TempApplicationService $applicationService,
+        LoanAnalysisService $analysisService,
+        IdempotencyService $idempotencyService
+        )
+    {
+        $this->applicationService = $applicationService;
+        $this->analysisService =  $analysisService;
+        $this->idempotencyService = $idempotencyService;
+    }
     /**
      * Create a new loan review phase
      *
@@ -95,7 +117,7 @@ class LoanPhaseService
 
         DB::transaction(function () use ($phase, $applicationIds, &$errors) {
             $newApps = TempApplication::whereIn('id', $applicationIds)
-                ->select(['id', 'group_name', 'loan_amount', 'group_registration_number'])
+                ->select(['id', 'group_name', 'loan_amount', 'group_registration_number', 'application_id'])
                 ->get();
 
             $existingRegNumbers = TempApplication::whereHas('phaseApplication', function ($query) use ($phase) {
@@ -129,7 +151,13 @@ class LoanPhaseService
             }
 
             if (!empty($dataToInsert)) {
+
+
                 PhaseApplication::insert($dataToInsert);
+
+                $insertedIds = collect($newApps)->pluck('application_id')->toArray();
+
+                $this->invalidateMultipleApplicationsCache($insertedIds);
 
                 activity('phase-assignment')
                     ->performedOn($phase)
@@ -168,7 +196,7 @@ class LoanPhaseService
             return; // already not assigned
         }
 
-        DB::transaction(function () use ($phaseApplication, $phase) {
+        $app = DB::transaction(function () use ($phaseApplication, $phase) {
             $phaseApplication->delete();
             $phase->calculateStats();
 
@@ -178,8 +206,14 @@ class LoanPhaseService
                 $app->update([
                     'link_status' => 'not_attempted',
                 ]);
+
+                return $app;
             }
+
+
         });
+
+        if ($app) $this->applicationService->invalidateApplicationCache($app->application_id);
 
 
     }
@@ -224,6 +258,23 @@ class LoanPhaseService
             ->get();
     }
 
+    public function getPhasesForConstituencyByStatus(string $constituencyCode, $status)
+    {
+        return LoanPhase::where('constituency_code', $constituencyCode)
+            ->where('status', $status)
+            ->select('id', 'phase', 'status', 'slug')
+            ->orderBy('phase')
+            ->get();
+    }
+
+    public function getAllPhasesByStatus(string $status)
+    {
+        return LoanPhase::where('status', $status)
+            ->select('id', 'phase', 'status', 'slug')
+            ->orderBy('phase')
+            ->get();
+    }
+
     public function getAllPhasesForConstituency(string $constituencyCode)
     {
         return LoanPhase::where('constituency_code', $constituencyCode)
@@ -233,9 +284,30 @@ class LoanPhaseService
     }
 
 
-    public function getDetailedPhases(string $constituencyCode, ?string $search = null, int $perPage = 15, ?string $status = 'draft', int $page = 1)
+    public function getDetailedPhases(string $constituencyCode = '', ?string $search = null, int $perPage = 15, ?string $status = 'draft', int $page = 1)
     {
         $phasesTag = config('cache.tags.phases.constituency_detailed') . $constituencyCode;
+
+        if ($constituencyCode === ''){
+           $query = LoanPhase::where('status', $status)
+            ->withCount([
+                'phaseApplications as total_apps',
+                'phaseApplications as pending_apps' => fn($q) => $q->where('status', 'pending'),
+                'phaseApplications as approved_apps' => fn($q) => $q->where('status', 'approved'),
+                'phaseApplications as rejected_apps' => fn($q) => $q->where('status', 'rejected'),
+            ])
+            // Replace DB::raw with these for better readability and performance
+            ->withSum('phaseApplications as total_requested', 'amount_applied')
+            ->withSum(['phaseApplications as total_approved' => fn($q) => $q->where('status', '!=', 'pending')], 'amount_approved')
+            ->when(filled($search), function($q) use ($search) {
+                    $searchTerm = '%' . $search . '%';
+                    $q->where(function($sub) use ($searchTerm) {
+                        $sub->where('phase', 'like', $searchTerm)
+                            ->orWhere('id', 'like', $searchTerm);
+                    });
+                })
+            ->orderBy('created_at', 'desc');
+        } else {
         $query = LoanPhase::where('constituency_code', $constituencyCode)
             ->where('status', $status)
             ->withCount([
@@ -255,7 +327,7 @@ class LoanPhaseService
                     });
                 })
             ->orderBy('created_at', 'desc');
-
+        }
         // if (!filled($search)) {
         //
         //     Log::info($query->toSql(), $query->getBindings());
@@ -273,128 +345,290 @@ class LoanPhaseService
         return $query->paginate($perPage);
     }
 
-    public function getDetailedPhase($phase, int $perPage = 15, array $filters = [], int $page = 1): array
+    public function getDetailedPhasesQuery(?string $constituencyCode = '', array $statuses, array $filters = [], ?string $sortField, ?string $sortDirection): Builder
     {
-        $phaseId = ($phase instanceof LoanPhase) ? $phase->id : $phase;
+        $query = LoanPhase::query()
+            ->select([
+                'loan_phases.id',
+                'loan_phases.constituency_code',
+                'loan_phases.phase',
+                'loan_phases.status',
+                'loan_phases.submitted_to_hq_at',
+                'loan_phases.slug',
+                'loan_phases.review_date',
+                'loan_phases.hq_approved_at',
+                'constituencies.constituency_name',
+                'counties.county_name',
+                'counties.county_code',
+                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id) as total_apps'),
+                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "pending") as pending_apps'),
+                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "approved") as approved_apps'),
+                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "rejected") as rejected_apps'),
+                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "disbursed") as disbursed_apps'),
+                DB::raw('(SELECT COALESCE(SUM(amount_applied), 0) FROM phase_applications WHERE loan_phase_id = loan_phases.id) as total_requested'),
+                DB::raw('(SELECT COALESCE(SUM(amount_approved), 0) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status != "pending") as total_approved'),
+                DB::raw('(SELECT COALESCE(SUM(amount_approved), 0) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "disbursed") as total_issued'),
+            ])
+            ->leftJoin('constituencies', 'loan_phases.constituency_code', '=', 'constituencies.constituency_code')
+            ->leftJoin('counties', 'constituencies.county_code', '=', 'counties.county_code')
+            ->with(['constituency.county'])
+            ->whereIn('loan_phases.status', $statuses);
 
-        $phaseTag = config('cache.tags.phases.individual_detailed');
+        if(!empty($constituencyCode)) $query->where('loan_phases.constituency_code', $constituencyCode);
 
-        if (empty($filters)) {
-            $cacheKey = "phase_details_{$phaseId}_page_{$page}";
-            return Cache::tags([$phaseTag])->remember($cacheKey, now()->addMinutes(15), function () use ($phase, $perPage) {
-                return $this->fetchPhaseFromDb($phase, $perPage);
+        if ($search = $filters['search'] ?? null) {
+            $searchTerm = '%' . $search . '%';
+            $query->where(function($sub) use ($searchTerm) {
+                $sub->where('loan_phases.phase', 'like', $searchTerm)
+                    ->orWhere('loan_phases.id', 'like', $searchTerm);
             });
         }
 
-        return $this->fetchPhaseFromDb($phase, $perPage, $filters);
+        if ($status = $filters['status'] ?? null) {
+            $query->where('loan_phases.status', $status);
+        }
+
+        if ($constituencyCode = $filters['constituency_code'] ?? null) {
+            $query->where('loan_phases.constituency_code', $constituencyCode);
+        }
+
+        if ($countyCode = $filters['county_code'] ?? null) {
+            $query->where('counties.county_code', $countyCode);
+        }
+
+        if ($sortField && $sortDirection) {
+            $this->applyOptimizedSorting($constituencyCode, $query, $sortField, $sortDirection);
+        } else {
+            $query->orderBy('loan_phases.submitted_to_hq_at', 'desc');
+        }
+
+        return $query;
     }
 
-    public function fetchPhaseFromDb($phase, int $perPage = 15, array $filters = [], ) : array
+    protected function applyOptimizedSorting(?string $constituencyCode, Builder $query, ?string $sortField, ?string $sortDirection): void
     {
+        if ($sortField && $sortDirection) {
+            $sortMap = [
+                'county_code' => 'counties.county_name',
+                'status' => 'loan_phases.status',
+                'phase' => 'loan_phases.phase',
+                'submission' => 'loan_phases.submitted_to_hq_at',
+                'applied' => 'total_requested',
+                'approved' => 'total_approved',
+                'review_date' => 'loan_phases.review_date',
+                'approved_date' => 'loan_phases.hq_approved_at',
+            ];
+
+            if (array_key_exists($sortField, $sortMap)) {
+                $column = $sortMap[$sortField];
+
+                if (in_array($sortField, ['applied', 'approved', 'issued'])) {
+                    $query->orderBy(DB::raw($column), $sortDirection);
+                } else {
+                    $query->orderBy($column, $sortDirection);
+                }
+                return;
+            }
+        }
+
+        $this->applyDefaultSorting($constituencyCode, $query);
+    }
+
+    protected function applyDefaultSorting(?string $constituencyCode, Builder $query): void
+    {
+        if (!empty($constituencyCode)) {
+            $query->orderBy('loan_phases.updated_at', 'desc');
+        } else {
+            $query->orderBy('loan_phases.submitted_to_hq_at', 'desc');
+        }
+
+        $query->orderBy('loan_phases.id', 'desc');
+    }
+
+    public function getDetailedPhase($phase, int $perPage = 15, array $filters = [], int $page = 1, ?string $sortField, ?string $sortDirection): array
+    {
+        $phaseId = ($phase instanceof LoanPhase) ? $phase->id : $phase;
+
+        $phaseTag = config('cache.tags.phases.individual_detailed') . $phaseId;
+
+        // if (collect($filters)->filter()->isEmpty()) {
+        //     $cacheKey = "phase_details_page_{$page}_{$sortField}_{$sortDirection}";
+        //     return Cache::tags([$phaseTag])->remember($cacheKey, now()->addMinutes(15), function () use ($phase, $perPage, $filters, $sortField, $sortDirection) {
+        //         return $this->fetchPhaseFromDb($phase, $perPage, $filters, $sortField, $sortDirection);
+        //     });
+        // }
+
+        return $this->fetchPhaseFromDb($phase, $perPage, $filters, $sortField, $sortDirection);
+    }
+
+    public function fetchPhaseFromDb($phase, int $perPage = 15, array $filters = [], ?string $sortField, ?string $sortDirection) : array
+    {
+        $approvedStatuses = ['pending_submission_to_hq', 'pending_hq_approval', 'in_training', 'approved'];
         if (!$phase instanceof LoanPhase) {
             $phase = LoanPhase::findOrFail($phase);
         }
 
-        $phase->loadExists(['phaseApplicationDocuments as has_minutes' => function ($query) {
-            $query->where('document_type', 'minutes');
-        }]);
+        $stats = $phase->phaseApplications()
+            ->join('temp_applications', 'phase_applications.temp_application_id', '=', 'temp_applications.id')
+            ->selectRaw("
+                COUNT(*) as total_applications,
+                SUM(CASE WHEN phase_applications.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+                SUM(CASE WHEN phase_applications.status = 'pending_submission_to_hq' THEN 1 ELSE 0 END) as pending_submission_to_hq_count,
+                SUM(CASE WHEN phase_applications.status = 'pending_hq_approval' THEN 1 ELSE 0 END) as pending_hq_approval_count,
+                SUM(CASE WHEN phase_applications.status = 'rejected' THEN 1 ELSE 0 END) as rejected_count,
+                SUM(CASE WHEN phase_applications.status = 'approved' THEN 1 ELSE 0 END) as approved_count,
+                SUM(CASE WHEN phase_applications.status = 'disbursed' THEN 1 ELSE 0 END) as disbursed_count,
 
-        $phase->loadCount([
-            'phaseApplications as total_applications',
-            'phaseApplications as pending_count'   => fn($q) => $q->where('status', 'pending'),
-            'phaseApplications as pending_submission_to_hq_count'  => fn($q) => $q->where('status', 'pending_submission_to_hq'),
-            'phaseApplications as pending_hq_approval_count'  => fn($q) => $q->where('status', 'pending_hq_approval'),
-            'phaseApplications as rejected_count'  => fn($q) => $q->where('status', 'rejected'),
-            'phaseApplications as approved_count'   => fn($q) => $q->where('status', 'approved'),
-            'phaseApplications as disbursed_count'  => fn($q) => $q->where('status', 'disbursed'),
+                /* Nature of group counts - using single pass check */
+                SUM(CASE WHEN temp_applications.nature_of_group LIKE '%youth%' THEN 1 ELSE 0 END) as youth_count,
+                SUM(CASE WHEN temp_applications.nature_of_group LIKE '%women%' THEN 1 ELSE 0 END) as women_count,
+                SUM(CASE WHEN temp_applications.nature_of_group LIKE '%pwd%' THEN 1 ELSE 0 END) as pwd_count,
+
+                /* Combined Status + Nature counts */
+                SUM(CASE WHEN phase_applications.status IN ('" . implode("','", $approvedStatuses) . "') AND temp_applications.nature_of_group LIKE '%youth%' THEN 1 ELSE 0 END) as approved_youth_count,
+                SUM(CASE WHEN phase_applications.status IN ('" . implode("','", $approvedStatuses) . "') AND temp_applications.nature_of_group LIKE '%women%' THEN 1 ELSE 0 END) as approved_women_count,
+                SUM(CASE WHEN phase_applications.status IN ('" . implode("','", $approvedStatuses) . "') AND temp_applications.nature_of_group LIKE '%pwd%' THEN 1 ELSE 0 END) as approved_pwd_count,
+
+                /* Disbursed Status + Nature counts */
+                SUM(CASE WHEN phase_applications.status = 'disbursed' AND temp_applications.nature_of_group LIKE '%youth%' THEN 1 ELSE 0 END) as disbursed_youth_count,
+                SUM(CASE WHEN phase_applications.status = 'disbursed' AND temp_applications.nature_of_group LIKE '%women%' THEN 1 ELSE 0 END) as disbursed_women_count,
+                SUM(CASE WHEN phase_applications.status = 'disbursed' AND temp_applications.nature_of_group LIKE '%pwd%' THEN 1 ELSE 0 END) as disbursed_pwd_count,
+
+                /* Financial Totals */
+                SUM(temp_applications.loan_amount) as total_requested,
+                SUM(CASE WHEN phase_applications.status IN ('" . implode("','", $approvedStatuses) . "') THEN phase_applications.amount_approved ELSE 0 END) as total_approved,
+                SUM(CASE WHEN phase_applications.status = 'disbursed' THEN phase_applications.amount_issued ELSE 0 END) as total_issued
+            ")
+            ->first();
+
+        $phase->forceFill($stats->toArray());
+
+        $phase->load([
+            'phaseApplicationDocuments' => fn($q) => $q->select('id', 'loan_phase_id', 'title', 'document_type', 'path', 'uploaded_by', 'created_at')->latest(),
+            'constituencyOfficer:id,name,email,phone_number',
+            'hqOfficer:id,name,email,phone_number'
         ]);
 
-        $phase->loadSum([
-            'phaseApplications as total_requested' => fn($q) => $q
-        ], 'amount_applied');
-
-        // Summing the 'Approved' column (different column name)
-        $phase->loadSum([
-            'phaseApplications as total_approved' => fn($q) => $q->where('status', '!=', 'pending')
-        ], 'amount_approved');
-
-        $phase->load(['phaseApplicationDocuments' => fn($q) => $q->select(
-            'id',
-            'loan_phase_id',
-            'title',
-            'document_type',
-            'original_filename',
-            'filename',
-            'path',
-            'size',
-            'mime_type',
-            'created_at')
-            ->latest()]);
+        $phase->has_minutes = $phase->phaseApplicationDocuments->contains('document_type', 'minutes');
+        $phase->has_approved_code_list = $phase->phaseApplicationDocuments->contains('document_type', 'approved_code_list');
 
         $applicationsQuery = $phase->phaseApplications()
             ->select([
                 'phase_applications.id',
+                'phase_applications.loan_phase_id',
                 'phase_applications.temp_application_id',
                 'phase_applications.status',
-                'phase_applications.status',
                 'phase_applications.gfs_code',
+                'phase_applications.loan_level',
                 'phase_applications.amount_approved',
+                'phase_applications.amount_issued',
                 'phase_applications.updated_at',
+                'phase_applications.is_trained',
             ])
             ->join('temp_applications', 'phase_applications.temp_application_id', '=', 'temp_applications.id')
-            ->with([
-                'tempApplication' => function ($q) {
-                    $q->select([
-                        'temp_applications.id',
-                        'temp_applications.application_id',
-                        'temp_applications.group_name',
-                        'temp_applications.ward_id',
-                        'temp_applications.loan_amount',
-                        'temp_applications.risk_level',
-                        'temp_applications.status',
-                        'temp_applications.loan_type',
-                        'temp_applications.nature_of_group',
-                        'temp_applications.business_type'
-                    ]);
-                }
-            ])
-            ->latest('phase_applications.updated_at');
+            ->with(['tempApplication' => function($q) {
+                $q->select(
+                    'id',
+                    'application_id',
+                    'group_name',
+                    'group_registration_number',
+                    'ward_id',
+                    'loan_amount',
+                    'risk_level',
+                    'nature_of_group',
+                    'business_type',
+                    'loan_type'
+                )
+                ->with('ward:id,ward_name');
+            }]);
 
-        // filters
-        if (!empty($filters['status'])) {
-            $applicationsQuery->where('phase_applications.status', $filters['status']);
-        }
+        $applicationsQuery->when($filters['integrity'] ?? null, function($q, $integrity) use ($phase){
+            if($integrity === 'is_duplicate') {
+                return $q->whereIn('temp_applications.group_registration_number', function($sub) use ($phase) {
+                    $sub->select('ta.group_registration_number')
+                        ->from('temp_applications as ta')
+                        ->join('phase_applications as pa', 'pa.temp_application_id', '=', 'ta.id')
+                        ->where('pa.loan_phase_id', '!=', $phase->id)
+                        ->whereIn('pa.status', ['pending_hq_approval', 'approved', 'in_training'])
+                        ->groupBy('ta.group_registration_number');
+                    });
+            }
 
-        if (!empty($filters['search'])) {
-            $applicationsQuery->where(function($q) use ($filters) {
-                $q->where('temp_applications.group_name', 'like', "%{$filters['search']}%")
-                ->orWhere('temp_applications.application_id', 'like', "%{$filters['search']}%");
-            });
-        }
+            if ($integrity === 'is_defaulter') {
+                return $q->whereIn('temp_applications.group_registration_number', function($sub) {
+                    $sub->select('groups.reg_number')
+                        ->from('group_loans')
+                        ->join('groups', 'group_loans.group_id', '=', 'groups.id')
+                        ->whereIn('group_loans.loan_status', ['financed'])
+                        ->where(function($query) {
+                            $query->where('group_loans.is_defaulted', 1)
+                                ->orWhere('group_loans.total_arrears', '>', 0)
+                                ->orWhereRaw('(group_loans.amount_issued - group_loans.amount_repaid) > 0');
+                        });
+                });
+            }
+        })
+        ->when($filters['search'] ?? null, function($q, $search) {
+            $q->where(fn($sub) => $sub->where('temp_applications.group_name', 'like', "%{$search}%")
+                ->orWhere('temp_applications.application_id', 'like', "%{$search}%"));
+        })
+        ->when($filters['risk'] ?? null, fn($q, $risk) => $q->where('temp_applications.risk_level', 'like', "%{$risk}%"))
+        ->when($filters['status'] ?? null, fn($q, $status) => $q->where('phase_applications.status', $status));
 
-        if (!empty($filters['risk'])) {
-            $applicationsQuery->where('temp_applications.risk_level', 'like', "%{$filters['risk']}%");
-        }
+        $sortMap = [
+            'applicationId'   => 'temp_applications.application_id',
+            'group_name'      => 'temp_applications.group_name',
+            'category'        => 'temp_applications.nature_of_group',
+            'amount_applied'  => 'temp_applications.loan_amount',
+            'amount_approved' => 'phase_applications.amount_approved',
+            'status'          => 'phase_applications.status',
+        ];
 
-        $applications = $applicationsQuery->latest('phase_applications.updated_at')->paginate($perPage);
+        $orderBy = $sortMap[$sortField] ?? 'phase_applications.updated_at';
+        $applications = $applicationsQuery->orderBy($orderBy, $sortDirection ?? 'desc')->paginate($perPage);
+
+        $regNumbers = $applications->getCollection()->pluck('tempApplication.group_registration_number')->filter()->toArray();
+        $validation = $this->analysisService->performGlobalCheck($regNumbers, $phase->id);
+
+        // dd($validation);
+        $applications->getCollection()->transform(function ($app) use ($validation) {
+            $regNo = $app->tempApplication->group_registration_number;
+            $app->is_duplicate = $validation['current']->has($regNo);
+
+            $app->duplicate_info = $app->is_duplicate ? $validation['current']->get($regNo)->first() : null;
+
+            if ($validation['legacy']->has($regNo)) {
+                $loans = $validation['legacy']->get($regNo);
+
+                $app->legacy_debt_balance = $loans->sum('outstanding_balance');
+
+                // 2. Get a list of all constituencies involved (if they owe in multiple places)
+                // $app->legacy_debt_constituency = $loans->pluck('constituency_name')->unique()->implode(', ');
+
+                // 3. Keep the most recent group name for reference
+                // $app->legacy_group_name = $loans->first()->group_name;
+
+                // 4. Mark as defaulter if ANY loan has a balance > 0
+                $app->is_defaulter = ($app->legacy_debt_balance > 0);
+
+                // 5. Total count of loans they have had in the past
+                // $app->legacy_loan_count = $loans->count();
+            }
+
+            return $app;
+        });
 
         return [
             'phase' => $phase,
             'applications' => $applications,
         ];
 
+        // return [
+        //     'phase' => $phase,
+        //     'applications' => $applications,
+        // ];
+
     }
-
-
-
-    /**
-     * Get detailed phases for a constituency with pre-calculated aggregates.
-     *
-     * @param string $constituencyCode
-     * @param string|null $search Optional search term
-     * @param int $perPage Pagination size (default 15)
-     * @return \Illuminate\Pagination\LengthAwarePaginator
-    */
 
     public function getPhasesByStatus(string $constituencyCode, ?string $search = null, int $perPage = 15)
     {
@@ -417,32 +651,68 @@ class LoanPhaseService
             ->groupBy('status');
     }
 
-    /**
-     * Get summary statistics for a constituency
-     *
-     * @param string $constituencyCode
-     * @return array
-    */
-    public function getPhasesSummary(string $constituencyCode): array
+    public function getPhasesSummary(string $constituencyCode = ''): array
     {
-        $summaryTag = config('cache.tags.phases.constituency_summary') . $constituencyCode;
-        $cacheKey = "phases_summary_{$constituencyCode}";
+        if (empty($constituencyCode)) {
+            $summaryTag = config('cache.tags.phases.national', 'hq_');
+            $cacheKey = "phases_summary_national";
+        } else {
+            $summaryTag = config('cache.tags.phases.constituency_summary', 'constituency_summary_') . $constituencyCode;
+            $cacheKey = "phases_summary_{$constituencyCode}";
+        }
 
-        return Cache::tags([$summaryTag])->remember($cacheKey, now()->addMinutes(10), function () use ($constituencyCode) {
-            $phases = LoanPhase::where('constituency_code', $constituencyCode)->get();
+        $query = LoanPhase::query()
+                ->select([
+                    DB::raw('COUNT(*) as total_phases'),
+                    DB::raw("SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as pending_submission"),
+                    DB::raw("SUM(CASE WHEN status = 'submitted_to_hq' THEN 1 ELSE 0 END) as processing_hq"),
+                    DB::raw("SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_ready"),
+                    DB::raw("SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as declined"),
+                    DB::raw("SUM(CASE WHEN status = 'disbursed' THEN 1 ELSE 0 END) as disbursed"),
+                ]);
+
+            if (!empty($constituencyCode)) {
+                $query->where('constituency_code', $constituencyCode);
+            }
+
+            $result = $query->first();
 
             return [
-                'total_phases' => $phases->count(),
-                'pending_submission' => $phases->where('status', 'draft')->count(),
-                'processing_hq' => $phases->where('status', 'submitted_to_hq')->count(),
-                'approved_ready' => $phases->where('status', 'approved')->count(),
-                'declined' => $phases->where('status', 'rejected')->count(),
-                'disbursed' => $phases->where('status', 'disbursed')->count(),
+                'total_phases' => $result->total_phases,
+                'pending_submission' => $result->pending_submission,
+                'processing_hq' => $result->processing_hq,
+                'approved_ready' => $result->approved_ready,
+                'declined' => $result->declined,
+                'disbursed' => $result->disbursed,
             ];
-        });
+
+        // return Cache::tags([$summaryTag])->remember($cacheKey, now()->addMinutes(10), function () use ($constituencyCode) {
+        //     $query = LoanPhase::query()
+        //         ->select([
+        //             DB::raw('COUNT(*) as total_phases'),
+        //             DB::raw("SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as pending_submission"),
+        //             DB::raw("SUM(CASE WHEN status = 'submitted_to_hq' THEN 1 ELSE 0 END) as processing_hq"),
+        //             DB::raw("SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_ready"),
+        //             DB::raw("SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as declined"),
+        //             DB::raw("SUM(CASE WHEN status = 'disbursed' THEN 1 ELSE 0 END) as disbursed"),
+        //         ]);
+
+        //     if (!empty($constituencyCode)) {
+        //         $query->where('constituency_code', $constituencyCode);
+        //     }
+
+        //     $result = $query->first();
+
+        //     return [
+        //         'total_phases' => $result->total_phases,
+        //         'pending_submission' => $result->pending_submission,
+        //         'processing_hq' => $result->processing_hq,
+        //         'approved_ready' => $result->approved_ready,
+        //         'declined' => $result->declined,
+        //         'disbursed' => $result->disbursed,
+        //     ];
+        // });
     }
-
-
 
     // get phase by id
     public function getPhase($id) : LoanPhase
@@ -473,44 +743,49 @@ class LoanPhaseService
         Cache::tags([$phases_summary])->flush();
     }
 
-    public function uploadPhaseMinutes($phase, $minutesFile) : void
+    public function uploadPhaseTypedDocument($phase, $uploadDocumentFile, $filePayload) : void
     {
         if (!$phase instanceof LoanPhase) {
             $phase = LoanPhase::with(['phaseApplicationDocuments'])->findOrFail($phase);
         }
 
-        // if the file size is greater than 2MB, throw error
-        if ($minutesFile->getSize() > 2 * 1024 * 1024) {
+        if (empty($filePayload)){
             throw ValidationException::withMessages([
-                'minutesFile' => 'The minutes file must not exceed 2MB in size.',
+                $filePayload['modal'] => 'The file payload is empty.',
+            ]);
+        }
+
+        if ($uploadDocumentFile->getSize() > 2 * 1024 * 1024) {
+            throw ValidationException::withMessages([
+                $filePayload['modal'] => 'The file must not exceed 2MB in size.',
             ]);
         }
 
         $directory = "phases/{$phase->slug}";
-        $filename = "vetting-minutes-" . time() . "." . $minutesFile->getClientOriginalExtension();
+        $filename = $filePayload['fileName'] ?? 'title'. time() . "." . $uploadDocumentFile->getClientOriginalExtension();
 
-        $path = $minutesFile->storeAs($directory, $filename, 'public');
-
-        DB::beginTransaction();
+        $path = $uploadDocumentFile->storeAs($directory, $filename, 'local');
 
         try {
+            DB::beginTransaction();
+
             $existingMinutes = $phase->phaseApplicationDocuments()
-                ->where('document_type', 'minutes')
+                ->where('document_type', $filePayload['documentType'])
                 ->first();
 
             if ($existingMinutes) {
-                Storage::disk('public')->delete($existingMinutes->path);
+                Storage::disk('local')->delete($existingMinutes->path);
                 $existingMinutes->delete();
             }
             $phase->phaseApplicationDocuments()->create([
-                'loan_phase_id'          => $phase->id, // Added based on our new migration
-                'title'             => 'Signed Committee Minutes',
-                'document_type'     => 'minutes',
-                'original_filename' => $minutesFile->getClientOriginalName(),
+                'loan_phase_id'     => $phase->id,
+                'title'             => $filePayload['title'] ?? 'Added File',
+                'document_type'     => $filePayload['documentType'] ?? 'added',
+                'original_filename' => $uploadDocumentFile->getClientOriginalName(),
                 'filename'          => $filename,
                 'path'              => $path,
-                'mime_type'         => $minutesFile->getMimeType(),
-                'size'              => $minutesFile->getSize(),
+                'mime_type'         => $uploadDocumentFile->getMimeType(),
+                'size'              => $uploadDocumentFile->getSize(),
                 'uploaded_by'       => auth()->id(),
             ]);
 
@@ -520,8 +795,8 @@ class LoanPhaseService
             DB::rollBack();
             Log::error("Failed to upload phase minutes: " . $th->getMessage());
 
-            if (Storage::disk('public')->exists($path)) {
-                Storage::disk('public')->delete($path);
+            if (Storage::disk('local')->exists($path)) {
+                Storage::disk('local')->delete($path);
             }
 
             throw $th;
@@ -543,13 +818,13 @@ class LoanPhaseService
         $directory = "phases/{$phase->slug}";
         $filename = Str::slug($title) . '-' . time() . '.' . $file->getClientOriginalExtension();
 
-        $path = $file->storeAs($directory, $filename, 'public');
+        $path = $file->storeAs($directory, $filename, 'local');
 
         DB::beginTransaction();
 
         try {
             $phase->phaseApplicationDocuments()->create([
-                'loan_phase_id'          => $phase->id, // Added based on our new migration
+                'loan_phase_id'     => $phase->id,
                 'title'             => $title,
                 'document_type'     => $documentType,
                 'original_filename' => $file->getClientOriginalName(),
@@ -567,22 +842,23 @@ class LoanPhaseService
             DB::rollBack();
             Log::error("Failed to upload phase document: " . $th->getMessage());
 
-            if (Storage::disk('public')->exists($path)) {
-                Storage::disk('public')->delete($path);
+            if (Storage::disk('local')->exists($path)) {
+                Storage::disk('local')->delete($path);
             }
 
             throw $th;
         }
     }
 
-    public function deleteApplicationPhaseDocument($documentId) : void
+    public function deleteApplicationPhaseDocument($document) : void
     {
-        $document = \App\Models\PhaseApplicationDocument::findOrFail($documentId);
-
-        DB::beginTransaction();
-
         try {
-            Storage::disk('public')->delete($document->path);
+            DB::beginTransaction();
+
+            if (Storage::disk('local')->exists($document->path)) {
+                Storage::disk('local')->delete($document->path);
+            }
+
             $document->delete();
 
             DB::commit();
@@ -608,54 +884,465 @@ class LoanPhaseService
             ->findOrFail($id);
     }
 
-    public function submitToHq($phase, $remarks, $code)
+    public function submitToHq($phase, $remarks, $idempotencyKey)
     {
+        $pendingApplications = $phase->phaseApplications()
+            ->where('status', 'pending_submission_to_hq')
+            ->with(['tempApplication' => function($query) {
+                $query->select([
+                    'id',
+                    'group_name',
+                    'application_id',
+                    'group_registration_number',
+                ]);
+            }])
+            ->get();
+
         $randomHex = strtoupper(bin2hex(random_bytes(2)));
-        $phase = LoanPhase::with([
-            'phaseApplications' => fn($q) => $q->where('status', 'pending_submission_to_hq')
-        ])->findOrFail($phase);
-        $phaseName = Str::slug($phase->phase);
 
-        $ref = "UWEZO/HQ/{$code}/{$phaseName}/" . now()->format('Ymd') . "/" . $randomHex;
+        if ($pendingApplications->isEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'phase' => 'No approved applications found in this phase ready for HQ submission.'
+            ]);
+        }
 
-        DB::transaction(function () use ($phase, $remarks, $ref) {
-            $phase->update([
-                'status'         => 'submitted_to_hq',
-                'submitted_to_hq_at'   => now(),
-                'constituency_officer_id'   => auth()->id(),
-                'phase_ref' => $ref,
-                'committee_remarks'  => $remarks ?? null,
-                'locked_by' => auth()->id(),
-                'is_locked'      => true,
-                'locked_at' => now(),
+        $ref = "UWEZO/HQ/{$phase->constituency_code}/{$phase->slug}/" . now()->format('Ymd') . "/" . $randomHex;
+
+        $stats = [
+            'count' => $pendingApplications->count(),
+            'total_approved' => $phase->total_approved, // This is a computed/ghost column
+        ];
+
+        $phase->refresh();
+
+        DB::transaction(function () use ($phase, $pendingApplications, $remarks, $ref, $idempotencyKey, $stats) {
+
+
+            $tempAppIds = $pendingApplications->pluck('temp_application_id')->toArray();
+            TempApplication::whereIn('id', $tempAppIds)->update([
+                'status' => 'under_hq_review',
+                'lms_to_loan_app_sync_status' => 'pending',
+                'updated_at' => now()
             ]);
 
-            $phase->phaseApplications()->update([
-                'level' => 'hq',
-                'action' => 'processing_at_hq',
-                'status' => 'pending_hq_approval',
+            $phase->phaseApplications()
+                ->where('status', 'pending_submission_to_hq')
+                ->update([
+                    'status' => 'pending_hq_approval',
+                    'level' => 'hq',
+                    'action' => 'processing_at_hq',
+                    'updated_at' => now()
+                ]);
+
+            foreach ($pendingApplications as $app) {
+                activity()
+                    ->performedOn($app)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'application_id' => $app->tempApplication->application_id,
+                        'group_name' => $app->tempApplication->group_name,
+                        'reg_number' => $app->tempApplication->group_registration_number,
+                        'previous_status' => 'pending_submission_to_hq',
+                        'new_status' => 'pending_hq_approval',
+                        'constituency_code' => $phase->constituency_code
+                    ])
+                    ->log("Application #{$app->tempApplication->application_id} for {$app->tempApplication->group_name} was submitted to HQ.");
+
+                SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
+            }
+
+            $phase->update([
+                'status' => 'submitted_to_hq',
+                'submitted_to_hq_at' => now(),
+                'constituency_officer_id' => auth()->id(),
+                'phase_ref' => $ref,
+                'committee_remarks' => $remarks ?? null
             ]);
 
             activity()
                 ->performedOn($phase)
                 ->causedBy(auth()->user())
                 ->withProperties([
+                    'phase' => $phase->phase,
                     'reference' => $ref,
-                    'remarks' => $remarks ?? null,
+                    'batch_count' => $stats['count'],
+                    'total_amount_approved' => $stats['total_approved'],
+                    'committee_remarks' => $remarks ?? null,
                     'status' => 'submitted_to_hq',
-                    'stats' => [
-                        'total_approved' => $phase->phaseApplications->sum('amount_approved'),
-                        'count' => $phase->phaseApplications->count()
-                    ]
+                    'affected_applications' => $pendingApplications->map(function($app) {
+                        return [
+                            'app_id' => $app->tempApplication->application_id,
+                            'group_name' => $app->tempApplication->group_name,
+                        ];
+                    })->toArray(),
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent()
                 ])
                 ->log("Phase finalized and submitted to HQ with Ref: {$ref}");
+
+            $this->idempotencyService->release($idempotencyKey);
+        });
+    }
+
+    public function approvePhaseApplications($phase, $remarks, $idempotencyKey)
+    {
+        $pendingApplications = $phase->phaseApplications()
+            ->where('status', 'pending_hq_approval')
+            ->with([
+                    'tempApplication' => function($query) {
+                        $query->select([
+                            'id',
+                            'application_id',
+                            'group_name',
+                            'group_registration_number',
+                            'ward_id',
+                            'nature_of_group',
+                            'business_type',
+                            'date_registered',
+                            'bank_name',
+                            'bank_branch',
+                            'bank_account_number',
+                            'nearest_landmark',
+                            'created_at',
+                        ]);
+                    },
+                    'tempApplication.groupMembers:id,temp_application_id,name,id_number,gender,phone_number,position,person_with_disability'
+                ])
+            ->get();
+
+        if ($pendingApplications->isEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'phase' => 'No approved applications found in this phase ready for HQ Approval.'
+            ]);
+        }
+
+        $capturedStats = [
+            'total_requested' => $phase->total_requested,
+            'total_approved' => $phase->total_approved,
+            'batch_count' => $pendingApplications->count(),
+        ];
+
+        $phase->refresh();
+
+        DB::transaction(function () use ($phase, $pendingApplications, $remarks, $idempotencyKey, $capturedStats) {
+            $phase->phaseApplications()
+                ->where('status', 'pending_hq_approval')
+                ->update([
+                    'status' => 'approved',
+                    'level' => 'constituency',
+                    'action' => 'approved_at_hq',
+                    'updated_at' => now()
+                ]);
+
+            $tempAppIds = $pendingApplications->pluck('temp_application_id')->toArray();
+            TempApplication::whereIn('id', $tempAppIds)->update([
+                'status' => 'approved',
+                'lms_to_loan_app_sync_status' => 'pending',
+                'updated_at' => now()
+            ]);
+
+            foreach ($pendingApplications as $app) {
+
+                if (!$app->tempApplication) continue;
+
+                $group = null;
+                $loanType = 'New';
+
+                if ($app->group_id) {
+                    $group = Group::where('id', $app->group_id)
+                        ->whereHas('ward', function ($q) use ($phase) {
+                        $q->where('constituency_code', $phase->constituency_code);
+                    })
+                    ->with('currentLoan')
+                    ->first();
+
+                    if ($group) {
+                        if($group->currentLoan) $loanType = 'Refinancing';
+
+                        $group->update([
+                            'name' => trim($app->tempApplication->group_name),
+                            'ward_id' => $app->tempApplication->ward_id,
+                            'reg_number' => trim($app->tempApplication->group_registration_number),
+                            'date_registered' => $app->tempApplication->date_registered,
+                            'bank' => trim($app->tempApplication->bank_name) . ', ' . trim($app->tempApplication->bank_branch),
+                            'account' => $app->tempApplication->bank_account_number,
+                            'location' => $app->tempApplication->nearest_landmark,
+                        ]);
+                    }
+                }
+
+                if (!$group) {
+                    $group = Group::create([
+                            'ward_id' => $app->tempApplication->ward_id,
+                            'name' => trim($app->tempApplication->group_name),
+                            'code' => $app->group_code,
+                            'reg_number' => trim($app->tempApplication->group_registration_number),
+                            'date_registered' => $app->tempApplication->date_registered,
+                            'bank' => trim($app->tempApplication->bank_name) . ', ' . trim($app->tempApplication->bank_branch),
+                            'account' => $app->tempApplication->bank_account_number,
+                            'location' => $app->tempApplication->nearest_landmark,
+                        ]
+                    );
+
+                    $app->update(['group_id' => $group->id]);
+                }
+
+                $groupLoan = GroupLoan::create([
+                    'loan_phase_id' => $app->loan_phase_id,
+                    'group_id' => $group->id,
+                    'gfs_code' => $app->gfs_code,
+                    'category' => $app->tempApplication->nature_of_group,
+                    'sector' => is_array($app->tempApplication->business_type) ? ($app->tempApplication->business_type[0] ?? 'other') : $app->tempApplication->business_type,
+                    'loan_type' => $loanType,
+                    'status' => 'pending',
+                    'application_date' => $app->tempApplication->created_at,
+                    'loan_status' => 'pending',
+                    'loan_level' => $app->loan_level,
+                    'amount_applied' => $app->amount_applied,
+                    'amount_approved' => $app->amount_approved
+                ]);
+
+                if ($app->tempApplication->groupMembers) {
+                    foreach ($app->tempApplication->groupMembers as $tempMember) {
+
+                        $member = Member::updateOrCreate(
+                            ['member_Id' => $tempMember->id_number],
+                            [
+                                'name'     => trim($tempMember->name),
+                                'number'   => $tempMember->phone_number,
+                                'gender'   => ucfirst(strtolower($tempMember->gender)),
+                                'disabled' => (bool)$tempMember->person_with_disability,
+                            ]
+                        );
+
+                        DB::table('group_members')->updateOrInsert(
+                            [
+                                'member_Id'      => $member->member_Id,
+                                'group_loans_id' => $groupLoan->id
+                            ],
+                            [
+                                'role'       => $tempMember->position ?? 'Member',
+                                'updated_at' => now(),
+                                'created_at' => now()
+                            ]
+                        );
+                    }
+                }
+
+                $app->update([
+                    'group_loan_id' => $groupLoan->id,
+                ]);
+
+                activity()
+                    ->performedOn($app)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'group_id' => $group->id,
+                        'group_name' => $app->tempApplication->group_name,
+                        'amount_approved' => $app->amount_approved,
+                        'loan_type' => $loanType,
+                        'reg_number' => $app->tempApplication->group_registration_number,
+                        'previous_status' => 'pending_hq_approval',
+                        'new_status' => 'approved',
+                        'constituency_code' => $phase->constituency_code
+                    ])
+                    ->log("Application #{$app->tempApplication->application_id} for {$app->tempApplication->group_name} was approved and synced to the main groups table.");
+
+                if ($loanType === 'New') {
+                    activity()
+                        ->performedOn($group)
+                        ->causedBy(auth()->user())
+                        ->log("New group record created in constituency {$phase->constituency_code} during HQ approval.");
+                }
+
+                SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
+            }
+
+            $phase->update([
+                'status' => 'approved',
+                'hq_remarks' => $remarks,
+                'hq_officer_id' => auth()->id(),
+                'hq_approved_at' => now(),
+                'total_amount_applied' => $capturedStats['total_requested'],
+                'total_amount_approved' => $capturedStats['total_approved']
+            ]);
+
+            activity()
+                ->performedOn($phase)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'phase' => $phase->phase,
+                    'reference' =>$phase->phase_ref,
+                    'batch_count' => $capturedStats['total_requested'],
+                    'total_amount_applied' => $capturedStats['total_requested'],
+                    'total_amount_approved' => $capturedStats['total_approved'],
+                    'hq_remarks' => $remarks,
+                    'status' => 'approved',
+                    'affected_groups' => $pendingApplications->map(function($app) {
+                        return [
+                            'app_id' => $app->tempApplication->application_id,
+                            'group_name' => $app->tempApplication->group_name,
+                        ];
+                    })->toArray(),
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent()
+                ])
+                ->log("HQ Approval Processed: {$phase->phase} approved with " . $capturedStats['batch_count'] . " applications.");
+
+                $this->idempotencyService->release($idempotencyKey);
         });
 
     }
 
-    public function invalidatePhaseCache(): void
+    public function saveTrainingSchedule($phase, $idempotencyKey, array $payload)
     {
-        $phase_detaileds = config('cache.tags.phases.individual_detailed');
+        $pendingApplications = $phase->phaseApplications()
+            ->where('status', 'approved')
+            ->with(['tempApplication' => function($query) {
+                $query->select([
+                    'id',
+                    'group_name',
+                    'application_id',
+                ]);
+            }])
+            ->get();
+
+        if ($pendingApplications->isEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'phase' => 'No approved applications found in this phase ready for training.'
+            ]);
+        }
+
+        $apps_count = $pendingApplications->count();
+
+        $phase->refresh();
+
+        DB::transaction(function () use ($phase, $idempotencyKey, $pendingApplications, $payload, $apps_count) {
+            $tempAppIds = $pendingApplications->pluck('temp_application_id')->toArray();
+            TempApplication::whereIn('id', $tempAppIds)->update([
+                'status' => 'under_hq_review',
+                'lms_to_loan_app_sync_status' => 'pending',
+                'updated_at' => now()
+            ]);
+
+            $phase->phaseApplications()
+                ->where('status', 'approved')
+                ->update([
+                    'status' => 'in_training',
+                    'level' => 'constituency',
+                    'action' => 'set_for_traning',
+                    'updated_at' => now()
+                ]);
+
+            foreach ($pendingApplications as $app) {
+                if (!$app->tempApplication) continue;
+
+                activity()
+                    ->performedOn($app)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'application_id' => $app->tempApplication->application_id,
+                        'group_name' => $app->tempApplication->group_name,
+                        'previous_status' => 'approved',
+                        'new_status' => 'in_training',
+                        'constituency_code' => $phase->constituency_code
+                    ])
+                    ->log("Application #{$app->tempApplication->application_id} for {$app->tempApplication->group_name} was set for training.");
+
+                SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
+            }
+
+            $phase->update([
+                'training_start_date' => $payload['trainingStartDate'],
+                'training_end_date'   => $payload['trainingEndDate'],
+                'training_venue'      => $payload['trainingVenue'],
+                'status'              => 'in_training',
+            ]);
+
+            activity()
+                ->performedOn($phase)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'phase' => $phase->phase,
+                    'reference' =>$phase->phase_ref,
+                    'batch_count' => $apps_count,
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent()
+                ])
+                ->log("Training scheduled at {$payload['trainingVenue']} from {$payload['trainingStartDate']} to {$payload['trainingEndDate']}");
+
+            $this->idempotencyService->release($idempotencyKey);
+        });
+    }
+
+    public function finalizePhase($phase)
+    {
+        $total_issued = $phase->total_issued;
+
+        $phase->refresh();
+
+        DB::transaction(function () use ($phase, $total_issued){
+            $phase->update([
+                'status' => 'disbursed',
+                'is_locked' => true,
+                'locked_at' => now(),
+                'locked_by' => auth()->id(),
+                'amount_disbursed' => $total_issued,
+                'disbursed_at' => now()
+            ]);
+
+            activity()
+                ->performedOn($phase)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'old_status' => 'in_intraining',
+                    'new_values' => $phase->fresh()->only(['status', 'is_locked', 'locked_at', 'locked_by', 'amount_disbursed', 'disbursed_at']),
+                    'total_disbursed' => $total_issued,
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                ])
+                ->event('phase_disbursed')
+                ->log("#{$phase->phase} has been disbursed with total amount of {$total_issued}");
+        });
+
+    }
+
+    public function invalidatePhaseCache($phaseId): void
+    {
+        $phase_detaileds = config('cache.tags.phases.individual_detailed') . $phaseId;
         Cache::tags([$phase_detaileds])->flush();
+    }
+
+    public function invalidateMultipleApplicationsCache(array $applicationIds): void
+    {
+        foreach ($applicationIds as $id) {
+            $this->applicationService->invalidateApplicationCache($id);
+        }
+    }
+
+    public function getFileMetadata($file)
+    {
+        if (!$file) return null;
+
+        if (!is_string($file)) {
+            $name = $file->getClientOriginalName();
+            $ext = strtolower($file->getClientOriginalExtension());
+        } else {
+            $name = basename($file);
+            $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+        }
+
+        $icons = [
+            'pdf'  => 'fa-file-pdf text-danger',
+            'doc'  => 'fa-file-word text-primary',
+            'docx' => 'fa-file-word text-primary',
+            'xls'  => 'fa-file-excel text-success',
+            'xlsx' => 'fa-file-excel text-success',
+        ];
+
+        return [
+            'name' => $name,
+            'icon' => $icons[$ext] ?? 'fa-file-alt text-muted',
+        ];
     }
 }

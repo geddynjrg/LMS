@@ -14,10 +14,10 @@ class FileUploadHelper
      *
      * @param array $fileData Array containing 'filename' and 'data' (base64)
      * @param string $directory Directory to store the file (e.g., 'applications')
-     * @param string|null $disk Storage disk (default: 'public')
+     * @param string|null $disk Storage disk (default: 'local')
      * @return array|null Array with path and url, or null if failed
      */
-    public static function saveBase64File(array $fileData, string $directory, ?string $disk = 'public', bool $cleanupDirectory = false): ?array
+    public static function saveBase64File(array $fileData, string $directory, ?string $disk = 'local', bool $cleanupDirectory = false): ?array
     {
         if (!isset($fileData['data']) || empty($fileData['data'])) {
             return null;
@@ -86,7 +86,7 @@ class FileUploadHelper
     /**
      * Save multiple base64 files
      */
-    public static function saveBase64Files(array $filesData, string $directory, ?string $disk = 'public', bool $cleanupDirectory = false): array
+    public static function saveBase64Files(array $filesData, string $directory, ?string $disk = 'local', bool $cleanupDirectory = false): array
     {
         $savedFiles = [];
 
@@ -194,7 +194,7 @@ class FileUploadHelper
     /**
      * Delete directory and all its contents
     */
-    public static function deleteDirectory(string $directory, ?string $disk = 'public'): bool
+    public static function deleteDirectory(string $directory, ?string $disk = 'local'): bool
     {
         try {
             if (Storage::disk($disk)->exists($directory)) {

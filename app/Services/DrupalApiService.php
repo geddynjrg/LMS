@@ -13,8 +13,8 @@ class DrupalApiService
 
     public function __construct()
     {
-        // $this->baseUrl = config('services.drupal.base_url', 'http://uwezo.ddev.site');
-        $this->baseUrl = 'http://ddev-uwezo-web';
+        $this->baseUrl = config('services.drupal.base_url', 'https://loans-staging-admin.uwezo.go.ke');
+        // $this->baseUrl = 'http://ddev-uwezo-web';
         $this->apiKey  = config('services.drupal.api_key', env('DRUPAL_API_KEY'));
 
         if (empty($this->baseUrl)) {
