@@ -213,30 +213,71 @@ return [
             'timeout' => 60,
             'nice' => 0,
         ],
+        'supervisor-financial' => [ // supervisor for financial updates
+            'connection' => 'redis',
+            'queue' => ['financial-updates'],
+            'balance' => 'simple',
+            'processes' => 2,
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256, // More memory for financial calculations
+            'tries' => 3,
+            'timeout' => 3600, // 1 hour timeout for large constituency processing
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
         'production' => [
             'supervisor-1' => [
                 'connection' => 'redis',
-                'queue' => ['default', 'loan-applications'],
-                'balance' => 'simple',
+                'queue' => ['loan-applications', 'default'],
+                'balance' => 'auto',
+                'minProcesses' => 1,
+                'maxProcesses' => 10,
                 'processes' => 10,
-                'tries' => 3,
-                'timeout' => 60,
+                'tries' => 5,
+                'timeout' => 120,
                 'memory' => 128,
+            ],
+
+            'supervisor-financial' => [
+                'connection' => 'redis',
+                'queue' => ['financial-updates'],
+                'balance' => 'simple',
+                'minProcesses' => 1,
+                'maxProcesses' => 10,
+                'processes' => 10,
+                'tries' => 5,
+                'timeout' => 3600, // 1 hour timeout
+                'memory' => 256, // More memory
             ],
         ],
 
         'staging' => [
             'supervisor-1' => [
                 'connection' => 'redis',
-                'queue' => ['default', 'loan-applications'],
-                'balance' => 'simple',
+                'queue' => ['loan-applications', 'default'],
+                'balance' => 'auto',
+                'minProcesses' => 1,
+                'maxProcesses' => 5,
                 'processes' => 5,      // Adjust as needed (3-10 is fine for staging)
                 'tries' => 3,
-                'timeout' => 60,
+                'timeout' => 120,
                 'memory' => 128,
+            ],
+            'supervisor-financial' => [
+                'connection' => 'redis',
+                'queue' => ['financial-updates'],
+                'balance' => 'simple',
+                'minProcesses' => 1,
+                'maxProcesses' => 5,
+                'processes' => 5,
+                'tries' => 3,
+                'timeout' => 3600,
+                'memory' => 256,
             ],
         ],
 
@@ -249,6 +290,15 @@ return [
                 'tries' => 3,
                 'timeout' => 60,
                 'memory' => 128,
+            ],
+            'supervisor-financial' => [
+                'connection' => 'redis',
+                'queue' => ['financial-updates'],
+                'balance' => 'simple',
+                'processes' => 1, // Just 1 for local
+                'tries' => 3,
+                'timeout' => 3600,
+                'memory' => 256,
             ],
         ],
     ],

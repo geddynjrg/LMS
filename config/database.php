@@ -60,7 +60,23 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                PDO::ATTR_PERSISTENT => false,
+                PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => false,
             ]) : [],
+            'dump' => [
+                'dump_binary_path' => '/usr/bin', // Path to mysqldump
+                'use_single_transaction' => true,
+                'timeout' => 60 * 60, // 1 hour timeout for large tables
+                'add_extra_option' => '--max-allowed-packet=1G --net-buffer-length=1048576 --quick --skip-comments',
+                'exclude_tables' => [
+                    // Consider excluding if they're large and not critical
+                    // 'temp_applications',
+                    'sessions',
+                    'cache',
+                    // 'job_batches',
+                ],
+                'default_character_set' => 'utf8mb4',
+            ],
         ],
 
         'pgsql' => [

@@ -32,7 +32,7 @@ return [
     ],
 
     'drupal' => [
-        'base_url' => env('DRUPAL_API_URL', 'http://uwezo.ddev.site'),
+        'base_url' => env('DRUPAL_API_URL', 'http://admin'),
         'api_key'  => env('DRUPAL_API_KEY', '0eb29f8d-7dcc-48b2-aae9-1d21eeae3f4a'),
     ],
 

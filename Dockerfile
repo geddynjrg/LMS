@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     curl \
     gnupg \
+    redis-tools \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
         pdo_mysql \

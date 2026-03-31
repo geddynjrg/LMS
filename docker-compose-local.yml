@@ -1,0 +1,147 @@
+name: uwezo-lms
+
+services:
+  # Laravel LMS Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: uwezo-lms-app
+    container_name: uwezo-lms-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - .:/var/www/html
+    ports:
+      - "8082:80"  # Access app at http://localhost:8082
+      - "5173:5173" # vite
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - .env  # Loads your entire .env file
+    environment:
+      # Core Laravel (fallback if missing in .env)
+      - APP_ENV=${APP_ENV:-local}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_URL=${APP_URL:-http://localhost:8000}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    extra_hosts:
+      - "uwezo.ddev.site:host-gateway"
+      - "ddev-drupal.ddev.site:host-gateway"
+    networks:
+      - uwezo-network
+      - ddev_bridge
+
+#   MariaDB 11.4
+  db:
+    image: mariadb:11.4
+    container_name: uwezo-lms-db
+    command: [
+      "mariadbd",
+      "--max-allowed-packet=1G",
+      "--wait-timeout=28800",
+      "--skip-name-resolve",
+      "--skip-host-cache",
+      "--bind-address=0.0.0.0"
+    ]
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE:-uwezo_fund03}
+      MYSQL_USER: ${DB_USERNAME:-uwezo_admin}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    ports:
+      - "3308:3306"  # maps Host 3308 to Container 3306
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "--protocol=tcp", "ping", "-pENj7uhXIxjG7BDHjCqM0bGDSN"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - uwezo-network
+
+  # phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: uwezo-lms-phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "8081:80" # 127.0.0.1:8081:80
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 300M
+    networks:
+      - uwezo-network
+
+  # Redis
+  redis:
+    image: redis:alpine
+    container_name: uwezo-lms-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - uwezo-network
+
+  # Laravel Horizon
+  horizon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uwezo-lms-horizon
+    command: php artisan horizon
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+      - redis
+      - app
+    env_file:
+      - .env
+    networks:
+      - uwezo-network
+      - ddev_bridge
+
+  scheduler:
+    build: .
+    container_name: uwezo-lms-scheduler
+    command: php artisan schedule:work
+    restart: unless-stopped
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - db
+      - redis
+      - app
+    networks:
+      - uwezo-network
+
+volumes:
+  dbdata:
+
+networks:
+  uwezo-network:
+    driver: bridge
+    name: uwezo-network
+  ddev_bridge:
+    external: true
+    name: ddev-uwezo_default

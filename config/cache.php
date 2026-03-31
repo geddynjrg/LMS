@@ -133,24 +133,60 @@ return [
     ],
 
     'tags' => [
-        // Phase Management Tags
+        'dashboard' => [
+            'constituency_stats'  => 'const_',
+            'national_stats'      => 'hq_',
+        ],
         'phases' => [
-            'constituency_summary'  => 'phases_summary_',
+            'constituency_summary'  => 'const_phases_summary_',
             'constituency_detailed' => 'phases_detailed_',
             'individual_summary'    => 'phase_summary_',
             'individual_detailed'   => 'phase_detailed_',
+            'national'              => 'hq_',
         ],
-        'application' => [
-            'per_application' => 'application_data',
-            'constituency'    => 'application_constituency_',
+        'applications' => [
+            'constituency_apps'    => 'cons_apps_',
+            'national_apps'        => 'hq_apps_',
+            'constituency_stats'   => 'cons_app_stats_',
+            'national_stats'       => 'hq_app_stats_',
         ],
+
         'groups' => [
-            'constituency' => 'groups_constituency_',
-            'group' => 'group_'
+            'constituency_stats' => 'groups_constituency_',
+            'groups' => 'groups_',
+            'group' => 'group_',
+            'national'        => 'hq_',
         ],
-        // User
+
+        'groups_loans' => [
+            'constituency_loans' => 'group_loans_constituency_',
+            'group_loan' => 'group_loan_',
+            'national'        => 'hq_',
+        ],
+
         'users' => [
             'per_role' => 'user_role_scope_',
+            'national'        => 'hq_',
+        ],
+
+        'location' => [
+            'counties' => 'location_counties',
+            'constituencies' => 'location_constituencies',
+            'wards' => 'location_wards',
+        ],
+        'receipts' => [
+            'constituency_stats' => 'const_receipts_stats_',
+            'national_stats'     => 'hq_receipts_stats_',
+            'constituency_trends'=> 'const_receipts_trends_',
+            'national_trends'    => 'hq_receipts_trends_',
+            'constituency_groups'=> 'const_receipt_groups_',
+            'daily_stats'        => 'receipts_daily_',
+            'weekly_stats'       => 'receipts_weekly_',
+            'monthly_stats'      => 'receipts_monthly_',
+            'top_groups'         => 'receipts_top_groups_',
+            'payment_methods'    => 'receipts_payment_methods_',
+            'recent'             => 'receipts_recent_',
+            'date_range'         => 'receipts_date_range_',
         ],
     ],
 ];

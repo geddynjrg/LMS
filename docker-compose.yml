@@ -14,6 +14,7 @@ services:
       - .:/var/www/html
     ports:
       - "8082:80"  # Access app at http://localhost:8082
+      - "5173:5173" # vite
     depends_on:
       db:
         condition: service_healthy
@@ -25,39 +26,7 @@ services:
       # Core Laravel (fallback if missing in .env)
       - APP_ENV=${APP_ENV:-local}
       - APP_DEBUG=${APP_DEBUG:-true}
-      - APP_KEY=${APP_KEY:-base64:uZEwiJkVnnogVUCGg2gqC/WgCGDf1OX1wolSE3lRj2c=}
       - APP_URL=${APP_URL:-http://localhost:8000}
-
-      # Database (use Docker service name)
-      - DB_CONNECTION=${DB_CONNECTION:-mysql}
-      - DB_HOST=${DB_HOST:-db}
-      - DB_PORT=3306  # Internal container port
-      - DB_DATABASE=${DB_DATABASE:-uwezo_fund03}
-      - DB_USERNAME=${DB_USERNAME:-root}
-      - DB_PASSWORD=${DB_PASSWORD:-secret}
-
-      # Redis & Queue
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-null}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - CACHE_DRIVER=${CACHE_DRIVER:-redis}
-      - QUEUE_CONNECTION=${QUEUE_CONNECTION:-redis}
-      - SESSION_DRIVER=${SESSION_DRIVER:-redis}
-
-      # Mail (Mailpit for local testing)
-      - MAIL_MAILER=${MAIL_MAILER:-smtp}
-      - MAIL_HOST=${MAIL_HOST:-mailpit}
-      - MAIL_PORT=${MAIL_PORT:-1025}
-      - MAIL_USERNAME=${MAIL_USERNAME:-null}
-      - MAIL_PASSWORD=${MAIL_PASSWORD:-null}
-      - MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-null}
-      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-hello@example.com}
-      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-${APP_NAME}}
-
-      # Your custom LMS vars
-      - LMS_API_KEY=${LMS_API_KEY:-}
-      - LMS_EXTERNAL_API_URL=${LMS_EXTERNAL_API_URL:-http://host.docker.internal:3000/api/v1/application}
-      - LMS_API_TIMEOUT=${LMS_API_TIMEOUT:-10}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
@@ -79,22 +48,23 @@ services:
       "mariadbd",
       "--max-allowed-packet=1G",
       "--wait-timeout=28800",
-      "--net_read_timeout=600",
-      "--net_write_timeout=600"
+      "--skip-name-resolve",
+      "--skip-host-cache",
+      "--bind-address=0.0.0.0"
     ]
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_DATABASE:-uwezo_fund03}
-      MYSQL_USER: ${DB_USERNAME:-root}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
+      MYSQL_USER: ${DB_USERNAME:-uwezo_admin}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     volumes:
       - dbdata:/var/lib/mysql
       - ./init-db:/docker-entrypoint-initdb.d
     ports:
       - "3308:3306"  # maps Host 3308 to Container 3306
     healthcheck:
-      test: ["CMD", "mariadb-admin", "--protocol=tcp", "ping", "-pHwApaIFbh1yJeUTdYaSwZjXKGneuNQZtivannpQcWho="]
+      test: ["CMD", "mariadb-admin", "--protocol=tcp", "ping", "-pENj7uhXIxjG7BDHjCqM0bGDSN"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -145,10 +115,8 @@ services:
       - db
       - redis
       - app
-    environment:
-      - QUEUE_CONNECTION=redis
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
+    env_file:
+      - .env
     networks:
       - uwezo-network
       - ddev_bridge

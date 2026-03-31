@@ -199,9 +199,9 @@ return [
     'allowed_ips' => [
         env('ALLOWED_IP_1', '127.0.0.1'),
         env('ALLOWED_IP_2', '::1'),
-        env('ALLOWED_IP_3', '172.21.0.1'),
-        'http://172.21.0.1:3000',
-        // Add your production server IPs here
+        env('ALLOWED_IP_3', '172.23.0.1'),
+        env('ALLOWED_IP_4', '41.76.170.249'),
+        env('ALLOWED_IP_5', '172.18.0.0/16'),
     ],
 
     // Allowed User Agents - Requests must contain one of these strings
@@ -211,5 +211,7 @@ return [
         'NextJS',
         'Drupal',
     ],
+
+    'default_county_code' => '047',
 
 ];
