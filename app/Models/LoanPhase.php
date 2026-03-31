@@ -24,7 +24,8 @@ class LoanPhase extends Model
         'review_date',
         'review_venue',
         'status',
-        'training_date',
+        'training_start_date',
+        'training_end_date',
         'training_venue',
         'constituency_officer_id',
         'hq_officer_id',
@@ -41,11 +42,13 @@ class LoanPhase extends Model
     protected $casts = [
         'review_date' => 'date',
         'submitted_to_hq_at' => 'datetime',
+        'hq_approved_at' => 'datetime',
         'hq_reviewed_at' => 'datetime',
         'total_amount_applied' => 'decimal:2',
         'total_amount_approved' => 'decimal:2',
         'is_locked' => 'boolean',
-        'training_date' => 'date',
+        'training_start_date' => 'date',
+        'training_end_date'   => 'date',
         'disbursed_at' => 'datetime',
         'locked_at' => 'datetime',
     ];
@@ -82,12 +85,12 @@ class LoanPhase extends Model
             return false;
         }
 
-        if ($user->hasRole('hq_officer')) {
+        if ($user->hasRole('hq_officer') && $user->can('approve application')) {
             return $this->status === 'submitted_to_hq';
         }
 
-        if ($user->hasRole('constituency_officer')) {
-            return in_array($this->status, ['draft', 'in_review', 'approved', 'rejected']);
+        if ($user->hasRole('constituency_officer') && $user->can('submit application')) {
+            return in_array($this->status, ['draft', 'in_review', 'approved', 'in_training']);
         }
 
         return false;

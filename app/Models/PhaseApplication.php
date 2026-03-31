@@ -16,16 +16,19 @@ class PhaseApplication extends Model
         'loan_phase_id',
         'temp_application_id',
         'group_id',
+        'group_loan_id',
         'group_code',
         'gfs_code',
         'amount_applied',
         'amount_approved',
         'amount_issued',
         'status',
+        'is_trained',
         'cheque_number',
         'disbusement_date',
         'comments',
         'rejection_reason',
+        'rejection_message',
         'is_priority',
         'recommendation',
         'user_id',
@@ -39,7 +42,13 @@ class PhaseApplication extends Model
         'amount_approved' => 'decimal:2',
         'amount_issued' => 'decimal:2',
         'is_priority' => 'boolean',
+        'is_trained' => 'boolean',
     ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
 
     public function getActivitylogOptions(): LogOptions
     {
@@ -72,6 +81,11 @@ class PhaseApplication extends Model
     public function linkedGroup(): BelongsTo
     {
         return $this->belongsTo(Group::class, 'group_id');
+    }
+
+    public function groupLoan()
+    {
+        return $this->belongsTo(GroupLoan::class, 'group_loan_id');
     }
 
     public function comments(): HasMany

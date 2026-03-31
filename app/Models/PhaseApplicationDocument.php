@@ -57,4 +57,29 @@ class PhaseApplicationDocument extends Model
     {
         return $this->document_type === 'minutes';
     }
+
+    public function getIconAttribute()
+    {
+        $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
+
+        return match($extension) {
+            'pdf'          => 'fa-file-pdf',
+            'doc', 'docx'  => 'fa-file-word',
+            'xls', 'xlsx'  => 'fa-file-excel',
+            'jpg', 'jpeg',
+            'png', 'gif'   => 'fa-file-image',
+            default        => 'fa-file-alt text-muted'
+        };
+    }
+
+    public function getFormattedSizeAttribute()
+    {
+        return number_format($this->size / 1024, 1) . ' KB';
+    }
+
+    public function getCanViewInlineAttribute()
+    {
+        $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
+        return in_array($extension, ['pdf', 'jpg', 'jpeg', 'png', 'gif']);
+    }
 }

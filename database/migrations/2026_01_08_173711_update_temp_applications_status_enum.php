@@ -16,6 +16,7 @@ return new class extends Migration
                 'draft',
                 'submitted',
                 'under_constituency_review',
+                'in_training',
                 'under_hq_review',
                 'pending_hq_approval',
                 'approved',

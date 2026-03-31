@@ -22,6 +22,7 @@ class GroupLoan extends Model
                 'group_id',
                 'application_date',
                 'disbursement_date',
+                'gfs_code',
                 'amount_applied',
                 'loan_status',
                 'cheque_no',
@@ -43,7 +44,12 @@ class GroupLoan extends Model
         'disbursement_date',
         'amount_applied',
         'loan_status',
+        'loan_type',
         'cheque_no',
+        'gfs_code',
+        'category',
+        'sector',
+        'sector_desc',
         'amount_approved',
         'amount_issued',
         'amount_repaid',
@@ -74,6 +80,11 @@ class GroupLoan extends Model
     public function group(): BelongsTo
     {
         return $this->belongsTo(Group::class);
+    }
+
+    public function phaseApplication()
+    {
+        return $this->hasOne(PhaseApplication::class, 'group_loan_id');
     }
 
     /**

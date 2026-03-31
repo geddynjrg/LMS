@@ -15,10 +15,18 @@ class LoanReceipts extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->useLogName('receipt')
-            ->logOnly(['receipt_number', 'transaction_date', 'amount', 'payment', 'reference_number']) // log only these fields
-            ->logOnlyDirty() // only log changes
-            ->dontSubmitEmptyLogs(); // skip logs if no changes
+            ->useLogName('receipt_audit')
+            ->logOnly([
+                'receipt_number',
+                'transaction_date',
+                'amount',
+                'payment',
+                'reference_number',
+                'status' // Crucial to log when a receipt is voided
+            ])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Receipt has been {$eventName}");
     }
 
     protected $fillable = [
@@ -28,10 +36,13 @@ class LoanReceipts extends Model
         'amount',
         'payment',
         'reference_number',
+        'status',
+        'void_reason',
+        'voided_by'
     ];
 
     protected $casts = [
-        'transaction_date' => 'datetime',
+        'transaction_date' => 'date',
     ];
 
     public function groupLoan(): BelongsTo
