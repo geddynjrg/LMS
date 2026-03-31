@@ -2,11 +2,14 @@
     'route',
     'params' => [],
     'type' => 'view',
-    'title' => null
+    'title' => null,
+    'inline' => 'd-inline-flex',
+    'size' => 'sm',
 ])
 
 @php
     $config = [
+        'back' => ['class' => 'btn-outline-primary', 'icon' => 'fas fa-arrow-left mr-1', 'title' => 'Go Back'],
         'view' => ['class' => 'btn-outline-info', 'icon' => 'fas fa-eye', 'title' => 'View Details'],
         'edit' => ['class' => 'btn-outline-primary', 'icon' => 'fas fa-edit', 'title' => 'Edit Record'],
         'delete' => ['class' => 'btn-outline-danger', 'icon' => 'fas fa-trash', 'title' => 'Delete Record'],
@@ -14,9 +17,8 @@
 @endphp
 
 <a href="{{ route($route, $params) }}"
-   wire:navigate
    {{ $attributes->merge([
-       'class' => 'btn btn-sm ' . $config['class'] . ' d-inline-flex align-items-center',
+       'class' => 'btn btn-' . $size . ' ' . $config['class'] . ' ' . $inline . ' align-items-center rounded-lg mr-1',
        'title' => $title ?? $config['title']
    ]) }}
 >

@@ -1,7 +1,7 @@
 @props([
     'target',
-    'modalId',
-    'variant' => 'primary',
+    'modalId' => null,
+    'variant' => 'outline-primary',
     'size' => 'sm',
     'icon' => 'fas fa-link',
     'label' => 'Click Me',
@@ -13,12 +13,21 @@
 <button
     wire:click="{{ $target }}"
     wire:loading.attr="disabled"
+    type="button"
     {{ $disabled ? 'disabled' : '' }}
-    {{ $attributes->merge(['class' => "btn btn-{$variant} btn-{$size} " . ($block ? 'btn-block' : '')]) }}
+    {{ $attributes->class([
+        'btn',
+        'rounded-lg',
+        "btn-{$variant}",
+        "btn-{$size}",
+        'btn-block' => $block,
+    ]) }}
 >
     {{-- Normal State --}}
     <span wire:loading.remove wire:target="{{ $target }}">
-        @if($icon) <i class="{{ $icon }} mr-2"></i> @endif
+        @if($icon)
+            <i class="{{ $icon }} {{ $label ? 'mr-2' : '' }}"></i>
+        @endif
         {{ $label }}
     </span>
 

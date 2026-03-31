@@ -1,0 +1,13 @@
+
+
+.const:hover {
+    background-color: #0000ff12;
+    
+    translate: 2px;
+    box-shadow: 0 0 4px rgba(0,0,0,.125),0 1px 6px rgba(0,0,0,.2);
+}
+
+.nav-active {
+    background-color: rgba(255,255,255,.9);
+    color: #343a40;
+}

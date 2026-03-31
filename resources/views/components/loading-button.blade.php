@@ -1,7 +1,6 @@
 @props([
     'target' => '',      // The Livewire method name
     'type' => 'button',  // submit or button
-    'class' => 'btn-primary',
     'icon' => '',        // font-awesome icon class
     'label' => '',       // button text
     'loadingLabel' => '',// text to show while loading
@@ -16,7 +15,7 @@
     wire:loading.attr="disabled"
     wire:target="{{ $target }}"
     {{ $disabled ? 'disabled' : '' }}
-    {{ $attributes->merge(['class' => "btn $class " . ($size ? "btn-$size" : "") . ($block ? " btn-block" : "")]) }}
+    {{ $attributes->merge(['class' => "btn " . ($size ? "btn-$size" : "") . ($block ? " btn-block" : "")]) }}
 >
     <span wire:loading.remove wire:target="{{ $target }}">
         @if($icon) <i class="{{ $icon }} {{ $label ? 'mr-1' : '' }}"></i> @endif

@@ -13,7 +13,7 @@
     ]) }}
     wire:click="{{ $target }}"
     wire:loading.attr="disabled"
-    wire:navigate
+
     @if($target) wire:target="{{ $target }}" @endif
 >
     <span wire:loading.remove @if($target) wire:target="{{ $target }}" @endif>
