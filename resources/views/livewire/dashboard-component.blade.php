@@ -36,7 +36,6 @@
           @endforeach
         @endif
 
-        <!-- fix for small devices only -->
         <div class="clearfix hidden-md-up"></div>
       </div>
      </div>

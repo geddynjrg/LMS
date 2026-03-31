@@ -21,7 +21,7 @@
     <section class="content">
         <div class="container-fluid">
           <div class="row">
-            
+
             <!-- /.col -->
             <div class="col">
               <div class="card">
@@ -30,12 +30,13 @@
                     <li class="nav-item"><a class="nav-link active" href="#activity" data-toggle="tab">Profile Information</a></li>
                     <li class="nav-item"><a class="nav-link" href="#password" data-toggle="tab">Password</a></li>
                     <li class="nav-item"><a class="nav-link" href="#sessions" data-toggle="tab">Browser Sessions</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#two-factor" data-toggle="tab">2FA</a></li>
                     <li class="nav-item"><a class="nav-link" href="#delete" data-toggle="tab">Delete Account</a></li>
                   </ul>
                 </div><!-- /.card-header -->
                 <div class="card-body">
                   <div class="tab-content">
-                    
+
                     <div class="active tab-pane" id="activity">
                         @if (Laravel\Fortify\Features::canUpdateProfileInformation())
                             <p>Update your account's profile information and email address.</p>
@@ -51,7 +52,15 @@
                         @endif
                     </div>
                     <!-- /.tab-pane -->
-  
+
+                    <div class="tab-pane" id="two-factor">
+                        @if (Laravel\Fortify\Features::enabled(Laravel\Fortify\Features::twoFactorAuthentication()))
+                            <p>Ensure your account is using a long, random password to stay secure.</p>
+                            @livewire('profile.two-factor-authentication-form')
+                        @endif
+                    </div>
+                    <!-- /.tab-pane -->
+
                     <div class="tab-pane" id="sessions">
                       <p>Manage and log out your active sessions on other browsers and devices.</p>
                       @livewire('profile.logout-other-browser-sessions-form')
@@ -60,9 +69,11 @@
 
                     <div class="tab-pane" id="delete">
                       @if (Laravel\Jetstream\Jetstream::hasAccountDeletionFeatures())
-                        @livewire('profile.delete-user-form')
+                        {{-- @livewire('profile.delete-user-form') --}}
                       @endif
                     </div>
+
+
                   </div>
                   <!-- /.tab-content -->
                 </div><!-- /.card-body -->

@@ -100,6 +100,7 @@ class LoanPhasesImport implements ToCollection
             LoanPhase::create([
                 'constituency_code' => $this->constituencyCode,
                 'phase' => $phaseName,
+                'status' => 'disbursed',
                 'amount_disbursed' => 0,
                 'amount_repaid' => 0,
             ]);
@@ -153,7 +154,7 @@ class LoanPhasesImport implements ToCollection
             return false;
         }
 
-        $expectedHeaders = ['s/no.', 'phase*'];
+        $expectedHeaders = ['s/no.', 'phase name*'];
         $actualHeaders = [
             strtolower(trim($headerRow[0] ?? '')),
             strtolower(trim($headerRow[1] ?? ''))

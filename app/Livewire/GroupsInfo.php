@@ -2,20 +2,21 @@
 
 namespace App\Livewire;
 
-use App\Models\Constituency;
-use App\Models\County;
 use Livewire\Component;
 use Livewire\WithPagination;
-use App\Models\Group;
-use Illuminate\Support\Facades\Cache;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\GroupsListExport;
-use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Url;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Models\Constituency;
+use App\Models\County;
+use App\Models\Group;
 use App\Services\Loan\LoanAnalysisService;
 use App\Services\Group\GroupsService;
+use App\Services\Cache\AppCacheService;
+use App\Exports\GroupsListExport;
 
 class GroupsInfo extends Component
 {
@@ -23,6 +24,8 @@ class GroupsInfo extends Component
 
     protected LoanAnalysisService $analysisService;
     protected GroupsService $groupsService;
+    protected AppCacheService $cacheService;
+
     protected $paginationTheme = 'bootstrap';
 
     public $stats = [];
@@ -42,9 +45,8 @@ class GroupsInfo extends Component
     public $sectorFilter = '';
 
     #[Url(except: '')]
-    public $sortField = 'group_name';
-
-    public $sortDirection = 'asc';
+    public $sortField = 'groupName';
+    public $sortDirection = 'desc';
 
     #[Url(except: 15)]
     public $perPage = 15;
@@ -63,26 +65,27 @@ class GroupsInfo extends Component
     protected $cacheTtl;
     protected $cachePrefix;
 
-    public function boot(LoanAnalysisService $analysisService, GroupsService $groupsService)
+    public function boot(
+        LoanAnalysisService $analysisService,
+        GroupsService $groupsService,
+        AppCacheService $appCacheService
+        )
     {
         $this->analysisService = $analysisService;
         $this->groupsService = $groupsService;
+        $this->cacheService = $appCacheService;
     }
 
     public function mount(County $county, Constituency $constituency)
     {
-        $data = $this->analysisService->getConstituencyStats($this->constituency);
-
-        $this->stats = $data;
-
-        $this->wards = $constituency->wards;
+        $this->constituency = $constituency->load(['wards']);
     }
 
     public function getFilters(): array
     {
         return [
             'search' => $this->search,
-            'ward_name' => $this->wardFilter,
+            'ward' => $this->wardFilter,
             'category'  => $this->categoryFilter,
             'sector' => $this->sectorFilter,
         ];
@@ -92,7 +95,6 @@ class GroupsInfo extends Component
     {
         $this->reset(['search', 'wardFilter', 'categoryFilter', 'sectorFilter']);
         $this->resetPage();
-        $this->dispatch('clear-selects');
     }
 
     public function clearFilter($filterName)
@@ -106,43 +108,71 @@ class GroupsInfo extends Component
     #[Computed]
     public function demographics()
     {
-        $totalGroups = $this->stats['totalGroups'] ?? 0;
-        $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
+        return $this->groupsService->getGroupsDashboardStarts($this->constituency->constituency_code);
+    }
 
+    #[Computed]
+    public function loadGroups()
+    {
+        return $this->fetchGroups();
+        $hasActiveFilters = collect($this->getFilters())->filter()->isNotEmpty();
+
+        if ($hasActiveFilters){
+            return $this->fetchGroups();
+        }
+
+        return $this->cacheService->rememberGroups(
+            fn() => $this->fetchGroups(),
+            $this->constituency->constituency_code,
+            $this->getPage(),
+            (int)$this->perPage,
+            $this->sortField,
+            $this->sortDirection
+        );
+    }
+
+    #[Computed]
+    public function perPageOptions()
+    {
         return [
-            [
-                'label' => 'Women Groups',
-                'val' => $this->stats['womenGroups'] ?? 0,
-                'amount' => $this->stats['womenAmount'],
-                'color' => 'pink',
-                'icon' => 'fa-female',
-                'cat' => 'Women'
-            ],
-            [
-                'label' => 'Youth Groups',
-                'val' => $this->stats['youthGroups'] ?? 0,
-                'amount' => $this->stats['youthAmount'],
-                'color' => 'orange',
-                'icon' => 'fa-child',
-                'cat' => 'Youth'
-            ],
-            [
-                'label' => 'PWD Groups',
-                'val' => $this->stats['pwdGroups'] ?? 0,
-                'amount' => $this->stats['pwdAmount'],
-                'color' => 'purple',
-                'icon' => 'fa-wheelchair',
-                'cat' => 'PWD'
-            ],
-            [
-                'label' => 'Registry Size',
-                'val' => $totalGroups,
-                'amount' => $totalIssued,
-                'color' => 'primary',
-                'icon' => 'fa-users',
-                'cat' => null
-            ]
+            ['id' => 10, 'name' => '10 per page'],
+            ['id' => 15, 'name' => '15 per page'],
+            ['id' => 25, 'name' => '25 per page'],
+            ['id' => 50, 'name' => '50 per page'],
+            ['id' => 100, 'name' => '100 per page'],
         ];
+    }
+
+    #[Computed]
+    public function categoryOptions()
+    {
+        return [
+            ['value' => 'youth', 'name' => 'Youth'],
+            ['value' => 'women', 'name' => 'Women'],
+            ['value' => 'pwd', 'name' => 'PWD'],
+        ];
+    }
+
+    #[Computed]
+    public function sectorOptions()
+    {
+        return [
+            ['value' => 'trade', 'name' => 'Trade'],
+            ['value' => 'service', 'name' => 'Service'],
+            ['value' => 'manufacturing', 'name' => 'Manufacturing'],
+            ['value' => 'agriculture', 'name' => 'Agriculture'],
+            ['value' => 'other', 'name' => 'Other'],
+        ];
+    }
+
+    #[Computed]
+    public function wardsOptions()
+    {
+        return $this->constituency->wards->map(fn($w) => [
+                'id' => $w->id,
+                'name' => ucwords($w->ward_name),
+            ])
+            ->toArray();
     }
 
     public function sortBy($field)
@@ -151,35 +181,40 @@ class GroupsInfo extends Component
             $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
         } else {
             $this->sortField = $field;
-            $this->sortDirection = 'asc'; // Reset to asc for new field
+            $this->sortDirection = 'asc';
         }
 
         $this->resetPage();
     }
+
+    public function updatedPerPage ($value) {if ($value === null) $this->perPage = 15;}
 
     public function refreshData()
     {
-        $groupsTag = config('cache.tags.phases.constituency_summary' . $this->constituency->constituency_code);
-        Cache::tags([$groupsTag])->flush();
+        $this->cacheService->flushGroupsCache($this->constituency->constituency_code);
+        unset($this->loadGroups);
+        unset($this->demographics);
         $this->resetPage();
     }
 
-    public function loadGroups()
+    public function fetchGroups()
     {
-        $groupsTag = config('cache.tags.phases.constituency_summary') . $this->constituency->constituency_code;
-        if (empty($this->getFilters())) {
-            $cacheKey = "groups_list_{$this->constituency->constituency_code}_page_{$this->getPage()}";
-            return Cache::tags([$groupsTag])->remember($cacheKey, now()->addMinutes(15), function () {
-                return $this->groupsService->getGroupsQuery($this->constituency->constituency_code, [],$this->sortField, $this->sortDirection);
-            });
-        }
-
-        return $this->groupsService->getGroupsQuery($this->constituency->constituency_code, $this->getFilters(),$this->sortField, $this->sortDirection);
+        return $this->groupsService->getGroupsQuery(
+            $this->constituency->constituency_code,
+            $this->getFilters(),
+            $this->sortField,
+            $this->sortDirection
+        )->paginate((int)$this->perPage);
     }
 
     public function exportGroupList()
     {
-        $query = $this->loadGroups();
+        $query = $this->groupsService->getGroupsQuery(
+            $this->constituency->constituency_code,
+            $this->getFilters(),
+            $this->sortField,
+            $this->sortDirection
+        );
 
         $filtersUsed = array_filter([
             $this->wardFilter ? str_replace(' ', '-', $this->wardFilter) : null,
@@ -201,8 +236,9 @@ class GroupsInfo extends Component
 
     public function render()
     {
+        // dd($this->loadGroups[0]);
         return view('livewire.group.groups-info', [
-            'groups' => $this->loadGroups()->paginate((int)$this->perPage),
+            'groups' => $this->loadGroups,
         ]);
     }
 }

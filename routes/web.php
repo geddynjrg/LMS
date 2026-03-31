@@ -62,19 +62,22 @@ Route::middleware(['auth'])->group(function () {
 
         // Submissions Management
         Route::prefix('applications')->name('submissions.')->group(function () {
-            // View all phases submitted to HQ
+            // Static routes first
             Route::get('/', [HqApplications::class, 'index'])->name('apps.index');
-
-            // 2. Approval Tasks (The Batches/Phases)
             Route::get('/approval-tasks', [HqApplications::class, 'tasks'])->name('tasks.phases');
 
-            // Approval/Action routes (Likely Livewire methods, but route defined for direct access)
+            // Wildcard routes last
+            Route::get('/{applicationId}', [HqApplications::class, 'appView'])->name('app.view');
             Route::get('/{phase}/review', [HqApplications::class, 'review'])->name('phase.review');
+            Route::get('/{applicationId}/file/{action}', [HqApplications::class, 'app_files_download'])->name('app.file.download');
+            Route::get('/{applicationId}/file/member/{action}', [HqApplications::class, 'app_member_files_download'])->name('app.file.member.download');
+
         });
 
         Route::prefix('groups')->name('groups.')->group(function () {
             Route::get('/dashboard', [HqGroupController::class, 'dashboard'])->name('dashboard');
             Route::get('/list', [HqGroupController::class, 'index'])->name('index');
+            Route::get('/groups/{slug}', [HqGroupController::class, 'group'])->name('group');
         });
 
         // Members
@@ -89,6 +92,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/repayments', [HqLoanController::class, 'repayments'])->name('repayments');
             Route::get('/phases', [HqLoanController::class, 'phases'])->name('phases');
             Route::get('/receipts', [HqLoanController::class, 'receipts'])->name('receipts');
+            Route::get('/group-loans', [HqLoanController::class, 'groupLoans'])->name('group_loans');
         });
 
         // Reports
@@ -166,6 +170,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/loans', [LoansController::class, 'app_loans'])->name('app_loans');
                 Route::get('/{applicationId}', [LoansController::class, 'app_loan'])->name('application-view');
                 Route::get('/{applicationId}/file/{action}', [LoansController::class, 'app_loan_files_download'])->name('application.file.download');
+                Route::get('/{applicationId}/file/member/{action}', [LoansController::class, 'app_member_files_download'])->name('application.file.member.download');
             });
 
 
@@ -173,21 +178,23 @@ Route::middleware(['auth'])->group(function () {
         }
     );
 
-
     Route::get('/phase-document/{id}/{action}', function ($id, $action) {
         $doc = \App\Models\PhaseApplicationDocument::findOrFail($id);
-        $path = storage_path('app/public/' . $doc->path);
 
-        if (!file_exists($path)) {
-            abort(404, "File not found on server disk.");
+        if (!Storage::disk('local')->exists($doc->path)) {
+            abort(404, "File not found: The document exists in the database but the file is missing from storage.");
         }
 
+        $fullPath = Storage::disk('local')->path($doc->path);
+
         if ($action === 'view') {
-            return response()->file($path, [
+            return response()->file($fullPath, [
+                'Content-Type' => $doc->mime_type ?? Storage::disk('local')->mimeType($doc->path),
                 'Content-Disposition' => 'inline; filename="'.$doc->original_filename.'"'
             ]);
         }
 
-        return response()->download($path, $doc->original_filename);
+        return response()->download($fullPath, $doc->original_filename);
     })->name('phase.doc.serve');
 });
+

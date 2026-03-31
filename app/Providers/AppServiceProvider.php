@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,6 +21,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // if (config('app.env') !== 'local' && !str_starts_with(request()->ip(), '172.')) {
+        //     URL::forceScheme('https');
+        // }
+
         // Share the $currentFY variable with EVERY view (*)
         View::composer('*', function ($view) {
             $month = date('n');
@@ -29,7 +34,6 @@ class AppServiceProvider extends ServiceProvider
             $startYear = ($month >= 7) ? $year : $year - 1;
             $endYear = $startYear + 1;
 
-            // Logic: Calculate Quarter based on July start
             // Jul-Sep = Q1, Oct-Dec = Q2, Jan-Mar = Q3, Apr-Jun = Q4
             $quarter = ceil((($month + 5) % 12 + 1) / 3);
 

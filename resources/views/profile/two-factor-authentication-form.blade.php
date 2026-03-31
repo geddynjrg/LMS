@@ -1,4 +1,4 @@
-<x-action-section>=
+<x-action-section>
     <x-slot name="content">
         <h3 class="text-lg font-medium text-bold">
             @if ($this->enabled)
@@ -73,6 +73,9 @@
                 <x-confirms-password wire:then="enableTwoFactorAuthentication">
                     <x-button type="button" data-toggle="modal" data-target="#modal-default" class="btn-danger float-right" wire:loading.attr="disabled">
                         {{ __('Enable') }}
+                    </x-button>
+                    <x-button type="button" x-on:click="$wire.set('showingConfirmation', true)" class="btn-danger float-right" wire:loading.attr="disabled">
+                        {{ __('Enable n') }}
                     </x-button>
                 </x-confirms-password>
             @else

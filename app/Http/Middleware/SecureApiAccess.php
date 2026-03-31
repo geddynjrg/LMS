@@ -35,7 +35,7 @@ class SecureApiAccess
             return $this->unauthorizedResponse('missing_api_key', 'API key is required');
         }
 
-        if ($apiKey !== $validApiKey) {
+        if (!hash_equals($validApiKey, $apiKey)) {
             Log::warning('Invalid API Key', [
                 'ip' => $clientIp,
                 'provided_key' => '***' . substr($apiKey, -8)

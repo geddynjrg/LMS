@@ -1,6 +1,6 @@
 <section class="content">
     <div class="container-fluid">
-        <h5 class="mt-4 mb-2">Multi-Group Members Risk Assessment</h5>
+        <h5 class="mt-4 mb-2">Members Risk Assessment</h5>
 
         <!-- Risk Summary Cards -->
         <div class="row">
@@ -68,7 +68,7 @@
 
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">Multi-Group Members Risk Analysis</h3>
+                <h3 class="card-title">Members Risk Analysis</h3>
                 <div class="card-tools">
                     <!-- Cache Status & Refresh Button -->
                     <div class="d-inline-flex align-items-center mr-2">
@@ -253,7 +253,7 @@
                                             @if(isset($member->groups) && is_array($member->groups))
                                                 @foreach($member->groups as $group)
                                                     <span class="group-badge badge
-                                                        {{ $group->risk_level === 'high' ? 'badge-danger' : ($group->risk_level === 'medium' ? 'badge-warning' : ($group->risk_level === 'low' ? 'badge-info' : 'badge-secondary')) }}
+                                                        {{ $group->risk_level === 'high' ? 'badge-danger' : ($group->risk_level === 'medium' ? '' : ($group->risk_level === 'low' ? 'badge-info' : 'badge-secondary')) }}
                                                         mr-1 mb-1">
                                                         {{ $group->name ?? 'Unknown Group' }}
                                                         @if($group->arrears > 0)
@@ -275,7 +275,7 @@
                                     <td>
                                         @php
                                             $totalGroups = $member->group_count ?? 0;
-                                            $groupBadgeClass = $totalGroups >= 4 ? 'badge-warning' : ($totalGroups == 3 ? 'badge-info' : 'badge-primary');
+                                            $groupBadgeClass = $totalGroups >= 4 ? '' : ($totalGroups == 3 ? 'badge-info' : 'badge-primary');
                                         @endphp
                                         <span class="badge {{ $groupBadgeClass }} p-2">
                                             <i class="fas fa-layer-group mr-1"></i>
@@ -285,7 +285,7 @@
                                     <td>
                                         @php
                                             $activeLoans = $member->active_loans_count ?? 0;
-                                            $loanBadgeClass = $activeLoans > 0 ? 'badge-warning' : 'badge-success';
+                                            $loanBadgeClass = $activeLoans > 0 ? '' : 'badge-success';
                                         @endphp
                                         <span class="badge {{ $loanBadgeClass }} p-2">
                                             <i class="fas fa-file-invoice-dollar mr-1"></i>
@@ -305,9 +305,9 @@
                                             @endif
                                             @if($member->max_default_days > 0)
                                                 <div class="mt-1">
-                                                    <small class="text-warning">
+                                                    <small class="text-info">
                                                         <i class="fas fa-clock mr-1"></i>
-                                                        Max {{ $member->max_default_days }} days default
+                                                        {{ $member->max_default_days }} days default
                                                     </small>
                                                 </div>
                                             @endif

@@ -1,702 +1,524 @@
 <section class="content">
     <div class="container-fluid">
-        <div class="row mb-2">
-            <div class="col-sm-6">
-                <h5 class="m-0 text-dark">
-                    <i class="fas fa-chart-bar mr-2"></i>Custom Report Generator
-                </h5>
+        <div class="card shadow-none border-left-info mb-4" style="border-left: 5px solid #17a2b8;">
+            <div class="card-body py-3">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h3 class="mb-0 font-weight-bold text-dark">
+                            <i class="fas fa-clipboard-list text-info mr-2"></i>
+                            {{ ucwords(strtolower($constituency->constituency_name)) }} Constituency
+                        </h3>
+                        <p class="text-muted mb-0">Generate Dynamic Report.</p>
+                    </div>
+                    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+                            <span class="badge badge-info px-3 py-2 shadow-sm">
+                            <i class="fas fa-calendar-alt mr-1"></i> {{ $currentFY->full }} - {{ $currentFY->quarter_suffix }} Quarter
+                            </span>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-    <div class="container-fluid">
+
         <div class="row">
             <div class="col-12">
-                <!-- Main Card -->
                 <div class="card card-primary card-outline">
                     <div class="card-header">
                         <h3 class="card-title">
                             <i class="fas fa-file-alt mr-2"></i>
                             Create Dynamic Reports
                         </h3>
-                        <div class="card-tools">
-                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                <i class="fas fa-minus"></i>
-                            </button>
-                        </div>
                     </div>
+
                     <div class="card-body">
-                        <p class="text-muted mb-4">Create custom reports by selecting specific fields and date ranges</p>
+                        {{-- filters --}}
+                        <div class="p-4 bg-light border rounded mb-4 shadow-sm">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0 text-primary font-weight-bold">
+                                    <i class="fas fa-sliders-h mr-2"></i> Global Report Filters
+                                </h5>
+                                <x-loading-button
+                                    title="Clear All Filters"
+                                    target="clearFilters"
+                                    class="btn-outline-secondary"
+                                    icon="fas fa-sync-alt"
+                                    label="Clear All Filters"
+                                />
+                            </div>
 
+                            <div wire:ignore class="row">
 
-                        <!-- Select Fields to Include -->
+                                {{-- <div class="col-md-3 mb-3">
+                                    <div class="form-group">
+                                        <label class="small font-weight-bold text-uppercase text-muted">
+                                            <i class="fas fa-map mr-1 text-danger"></i> County
+                                        </label>
+                                        <x-dropdown-search
+                                            model="filterCounty"
+                                            :options="$allCounties"
+                                            icon="fas fa-map-marked-alt"
+                                            optionLabel="county_name"
+                                            optionValue="id"
+                                            placeholder="Select County" />
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3 mb-3">
+                                    <div class="form-group">
+                                        <label class="small font-weight-bold text-uppercase text-muted">
+                                            <i class="fas fa-map-pin mr-1 text-danger"></i> Constituency
+                                        </label>
+                                        <x-dropdown-search
+                                            model="filterConstituency"
+                                            :options="$constituencies"
+                                            icon="fas fa-map-marker-alt"
+                                            optionLabel="constituency_name"
+                                            optionValue="id"
+                                            placeholder="Select Constituency" />
+                                    </div>
+                                </div> --}}
+
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label class="small font-weight-bold text-uppercase text-muted">
+                                            <i class="fas fa-draw-polygon mr-1 text-success"></i> Ward
+                                        </label>
+                                        <x-dropdown-search model="filterWard" :options="$allWards" icon="fas fa-map-marker-alt" optionLabel="ward_name" optionValue="id" placeholder="All Wards" />
+                                    </div>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label class="small font-weight-bold text-uppercase text-muted">
+                                            <i class="fas fa-business-time mr-1 text-info"></i> Loan Phase
+                                        </label>
+                                        <x-dropdown-search model="filterLoanPhase" :options="$loanPhases" icon="fas fa-clipboard-check" optionLabel="phase" optionValue="id" placeholder="All Phases" />
+                                    </div>
+                                </div>
+
+                                <div class="col-sm col-3">
+                                    <div class="form-group">
+                                        <label class="small font-weight-bold text-uppercase text-muted">
+                                            <i class="fas fa-users mr-1 text-info"></i>
+                                            Filter by Group Category
+                                        </label>
+
+                                        <x-dropdown-search
+                                            model="filterGroupCategory"
+                                            :options="$groupCategories"
+                                            icon="fas fa-users"
+                                            optionLabel="category"
+                                            optionValue="category"
+                                            placeholder="All Categories"
+                                        />
+                                    </div>
+                                </div>
+                                <div class="col-sm col-3">
+                                    <div class="form-group">
+                                        <label class="small font-weight-bold text-uppercase text-muted">
+                                            <i class="fas fa-tools mr-1 text-warning"></i> Group Sector
+                                        </label>
+                                        <x-dropdown-search model="filterGroupActivity" :options="$groupActivities" icon="fas fa-briefcase" optionLabel="activity" optionValue="activity" placeholder="All Sectors" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div wire:ignore class="row border-top pt-3">
+                                <div class="col-sm col-3">
+                                    <label class="small font-weight-bold text-uppercase text-muted">Disbursement From</label>
+                                    <div class="position-relative">
+                                        {{-- Slate Icon --}}
+                                        <div class="position-absolute d-flex align-items-center justify-content-center"
+                                            style="left: 12px; top: 0; bottom: 0; width: 25px; z-index: 5; pointer-events: none;">
+                                            <i class="fas fa-calendar-alt icon-premium" style="font-size: 0.9rem;"></i>
+                                        </div>
+
+                                        <input type="date"
+                                            wire:model.live="dateFrom"
+                                            class="form-control shadow-none border-light-subtle"
+                                            style="height: 48px; border-radius: 12px; padding-left: 45px; cursor: pointer; transition: 0.2s;">
+                                    </div>
+                                </div>
+
+                                <div class="col-sm col-3">
+                                    <label class="small font-weight-bold text-uppercase text-muted">Disbursement To</label>
+                                    <div class="position-relative">
+                                        {{-- Slate Icon --}}
+                                        <div class="position-absolute d-flex align-items-center justify-content-center"
+                                            style="left: 12px; top: 0; bottom: 0; width: 25px; z-index: 5; pointer-events: none;">
+                                            <i class="fas fa-calendar-alt icon-premium" style="font-size: 0.9rem;"></i>
+                                        </div>
+
+                                        <input type="date"
+                                            wire:model.live="dateTo"
+                                            class="form-control shadow-none border-light-subtle"
+                                            style="height: 48px; border-radius: 12px; padding-left: 45px; cursor: pointer; transition: 0.2s;">
+                                    </div>
+                                </div>
+
+                                <div class="col-sm col-3">
+                                    <div class="form-group">
+                                        <label class="small font-weight-bold text-uppercase text-muted">
+                                            <i class="fas fa-exclamation-circle mr-1 text-danger"></i> Status Check
+                                        </label>
+                                        <div class="custom-control custom-switch custom-switch-off-light custom-switch-on-danger mt-1">
+                                            <input type="checkbox" class="custom-control-input" id="filterDefaulter" wire:model.live="filterDefaulter">
+                                            <label class="custom-control-label font-weight-normal" for="filterDefaulter">
+                                                Only Defaulters
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- select columns --}}
                         <div class="row">
-                            <div class="col-12">
-                                <div class="card card-primary card-outline">
-                                    <div class="card-header">
-                                        <h3 class="card-title">
-                                            <i class="fas fa-check-square mr-2"></i>
-                                            Select Fields to Include
-                                        </h3>
-                                        <div class="card-tools">
-                                            <div class="form-check">
-                                                <input class="form-check-input"
-                                                    type="checkbox"
-                                                    id="selectAllFields"
-                                                    wire:click="toggleAllColumns">
-                                                <label class="form-check-label small font-weight-normal">
-                                                    Select All
+                            @php
+                                $categories = [
+                                    ['key' => 'groups', 'title' => 'Groups', 'icon' => 'fa-layer-group', 'color' => 'success', 'columns' => $availableColumns['groups']],
+                                    ['key' => 'loans', 'title' => 'Loans', 'icon' => 'fa-money-bill-wave', 'color' => 'warning', 'columns' => $availableColumns['loans']],
+                                    ['key' => 'members', 'title' => 'Members', 'icon' => 'fa-users', 'color' => 'primary', 'columns' => $availableColumns['members']],
+                                    ['key' => 'filters', 'title' => 'Loan Status', 'icon' => 'fa-filter', 'color' => 'info', 'columns' => $filterOptions, 'isSingleSelect' => true],
+                                ];
+                            @endphp
+
+                            @foreach($categories as $cat)
+                            <div class="col-md-6 col-xl-3 mb-3">
+                                <div class="card card-outline card-{{ $cat['color'] }} h-100 shadow-sm">
+                                    <div class="card-header py-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h3 class="card-title font-weight-bold text-dark mb-0" style="font-size: 1rem;">
+                                                <i class="fas {{ $cat['icon'] }} mr-2 text-{{ $cat['color'] }}"></i>
+                                                {{ $cat['title'] }}
+                                                <span class="badge badge-{{ $cat['color'] }}-soft ml-1 px-2">
+                                                    {{ count($cat['columns']) }}
+                                                </span>
+                                            </h3>
+
+                                            <!-- Select All / Deselect All for multi-select categories only -->
+                                            @if (!isset($cat['isSingleSelect']) || !$cat['isSingleSelect'])
+                                            <div x-data="{
+                                                allKeys: {{ json_encode(array_keys($cat['columns'])) }},
+                                                selectedColumns: @entangle('selectedColumns').live,
+                                                get allSelected() { return this.allKeys.every(key => this.selectedColumns.includes(key)); },
+                                                toggle() {
+                                                    if (this.allSelected) {
+                                                        this.selectedColumns = this.selectedColumns.filter(id => !this.allKeys.includes(id));
+                                                    } else {
+                                                        let current = new Set(this.selectedColumns);
+                                                        this.allKeys.forEach(key => current.add(key));
+                                                        this.selectedColumns = Array.from(current);
+                                                    }
+                                                }
+                                            }">
+                                                <div class="custom-control custom-checkbox">
+                                                    <input type="checkbox"
+                                                        class="custom-control-input"
+                                                        id="select_all_{{ $cat['key'] }}"
+                                                        @change="toggle()"
+                                                        :checked="allSelected">
+                                                    <label class="custom-control-label small text-muted font-weight-normal cursor-pointer"
+                                                        for="select_all_{{ $cat['key'] }}">
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            @endif
+                                        </div>
+                                    </div>
+
+                                    <div class="card-body p-2" style="max-height: 250px; overflow-y: auto;">
+                                        @if (isset($cat['isSingleSelect']) && $cat['isSingleSelect'])
+                                            <!-- Radio buttons for Loan Status (single select) -->
+                                            @foreach($cat['columns'] as $key => $label)
+                                            <div class="custom-control custom-radio mb-1">
+                                                <input type="radio"
+                                                    class="custom-control-input"
+                                                    id="{{ $cat['key'] }}_{{ $key }}"
+                                                    name="loan_status_filter"
+                                                    value="{{ $key }}"
+                                                    wire:model.live="filterLoanStatus">
+                                                <label class="custom-control-label font-weight-normal small cursor-pointer"
+                                                    for="{{ $cat['key'] }}_{{ $key }}">
+                                                    {{ $label }}
                                                 </label>
-                                                <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                                    <i class="fas fa-minus"></i>
+                                            </div>
+                                            @endforeach
+                                        @else
+                                            <!-- Checkboxes for other categories (multi-select) -->
+                                            @foreach($cat['columns'] as $key => $label)
+                                            <div class="custom-control custom-checkbox mb-1">
+                                                <input class="custom-control-input"
+                                                    type="checkbox"
+                                                    id="{{ $cat['key'] }}_{{ $key }}"
+                                                    value="{{ $key }}"
+                                                    wire:model.live="selectedColumns">
+                                                <label class="custom-control-label font-weight-normal small"
+                                                    for="{{ $cat['key'] }}_{{ $key }}">
+                                                    {{ $label }}
+                                                </label>
+                                            </div>
+                                            @endforeach
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                            @endforeach
+                        </div>
+
+                        {{-- filtered columns --}}
+                        @if(count($this->selectedColumnLabels) > 0)
+                            <div class="card card-success card-outline mt-4 shadow-sm" style="border-radius: 12px;">
+                                <div class="card-header bg-white py-3 border-bottom-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h3 class="card-title text-dark font-weight-bold mb-0" style="font-size: 1.1rem;">
+                                                <i class="fas fa-th-list mr-2 text-success"></i>
+                                                Selected Report Columns {{ $isDirty ? '(Unsaved Changes)' : '' }}
+                                            </h3> <br>
+                                            <p class="text-muted small mb-0 mt-1">
+                                                Drag handles to reorder. These fields will appear as table headers from left to right.
+                                            </p>
+                                        </div>
+
+                                        <div class="card-tools d-flex align-items-center">
+                                            <span class="badge mr-3 py-2 px-3" style="background: #f0fdf4; color: #166534; border-radius: 10px; font-weight: 600;">
+                                                {{ count($this->selectedColumnLabels) }} Fields Active
+                                            </span>
+
+                                            <x-loading-button
+                                                style="border-radius: 10px; transition: 0.3s;"
+                                                title="reset all selections"
+                                                target="clearAllColumns"
+                                                class="btn-light text-danger border px-3"
+                                                icon="fas fa-undo-alt"
+                                                label="Reset"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card-body bg-light p-3"
+                                    x-data="{
+                                        selected: @entangle('selectedColumns').live,
+                                        init() {
+                                            new Sortable($refs.sortContainer, {
+                                                animation: 200,
+                                                handle: '.drag-handle', // Restricted drag to the icon
+                                                ghostClass: 'sortable-ghost',
+                                                onEnd: (evt) => {
+                                                    let newOrder = Array.from($refs.sortContainer.querySelectorAll('[data-id]'))
+                                                                        .map(el => el.getAttribute('data-id'));
+
+                                                    // We must preserve the 'hidden' filter columns that weren't in the UI
+                                                    let hiddenFilters = this.selected.filter(id => !newOrder.includes(id));
+                                                    this.selected = [...newOrder, ...hiddenFilters];
+                                                }
+                                            });
+                                        }
+                                    }">
+
+                                    <div class="d-flex flex-wrap" x-ref="sortContainer">
+                                        @foreach($this->selectedColumnLabels as $id => $label)
+                                            <div data-id="{{ $id }}"
+                                                class="badge badge-white border p-0 mr-2 mb-2 shadow-sm d-flex align-items-center bg-white"
+                                                style="font-size: 14px; border-radius: 8px; overflow: hidden; transition: 0.2s;">
+
+                                                <div class="drag-handle px-2 py-2 bg-light border-right" style="cursor: grab;">
+                                                    <i class="fas fa-grip-vertical text-muted opacity-50"></i>
+                                                </div>
+
+                                                <span class="px-3 text-dark font-weight-bold">
+                                                    {{ $label }}
+                                                </span>
+
+                                                <button type="button"
+                                                        class="btn btn-link btn-sm p-0 pr-2 text-muted hover-danger border-0 shadow-none"
+                                                        wire:click="removeColumn('{{ $id }}')">
+                                                    <i class="fas fa-times-circle"></i>
                                                 </button>
                                             </div>
-                                        </div>
+                                        @endforeach
                                     </div>
-                                    <div class="card-body p-0">
-                                        <!-- Custom Filters Section -->
-                                        <div class="p-3 bg-light border-bottom">
-                                            <h5 class="mb-3">
-                                                <i class="fas fa-filter mr-2 text-primary"></i>
-                                                Custom Filters
-                                                <small class="text-muted">(These filters won't appear in the exported report)</small>
-                                            </h5>
-                                            <div wire:ignore class="row">
-                                                <div class="col-md-3">
-                                                    <div class="form-group">
-                                                        <label for="filterLoanPhase" class="font-weight-bold">
-                                                            <i class="fas fa-calendar-alt mr-1 text-info"></i>
-                                                            Filter by Loan Phase
-                                                        </label>
-                                                        <select class="form-control select2"
-                                                                id="filterLoanPhase"
-                                                                wire:model.live="filterLoanPhase">
-                                                            <option value="">All Phases</option>
-                                                            @foreach($loanPhases as $phase)
-                                                                <option value="{{ $phase->phase }}">{{ $phase->phase }}</option>
-                                                            @endforeach
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-3">
-                                                    <div class="form-group">
-                                                        <label for="filterWard" class="font-weight-bold">
-                                                            <i class="fas fa-map-marker-alt mr-1 text-success"></i>
-                                                            Filter by Ward
-                                                        </label>
-                                                        <select class="form-control select2"
-                                                                id="filterWard"
-                                                                wire:model.live="filterWard">
-                                                            <option value="">All Wards</option>
-                                                            @foreach($allWards as $ward)
-                                                                <option value="{{ $ward->ward_name }}">{{ $ward->ward_name }}</option>
-                                                            @endforeach
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-3">
-                                                    <div class="form-group">
-                                                        <label for="filterGroupCategory" class="font-weight-bold">
-                                                            <i class="fas fa-users mr-1 text-info"></i>
-                                                            Filter by Group Category
-                                                        </label>
-                                                        <select class="form-control select2"
-                                                                id="filterGroupCategory"
-                                                                wire:model.live="filterGroupCategory">
-                                                            <option value="">All Categories</option>
-                                                            @foreach($groupCategories as $category)
-                                                                <option value="{{ $category }}">{{ $category }}</option>
-                                                            @endforeach
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-3">
-                                                    <div class="form-group">
-                                                        <label for="filterGroupActivity" class="font-weight-bold">
-                                                            <i class="fas fa-briefcase mr-1 text-info"></i>
-                                                            Filter by Group Activity
-                                                        </label>
-                                                        <select class="form-control select2"
-                                                                id="filterGroupActivity"
-                                                                wire:model.live="filterGroupActivity">
-                                                            <option value="">All Activities</option>
-                                                            @foreach($groupActivities as $activity)
-                                                                <option value="{{ $activity }}">{{ $activity }}</option>
-                                                            @endforeach
-                                                        </select>
-                                                    </div>
-                                                </div>
+                                </div>
 
-                                            </div>
-                                            <div class="row">
-                                                <div class="col-md-3">
-                                                    <div class="form-group">
-                                                        <label class="font-weight-bold d-block">
-                                                            <i class="fas fa-exclamation-triangle mr-1 text-warning"></i>
-                                                            Additional Filters
-                                                        </label>
-                                                        <div class="custom-control custom-checkbox mt-2">
-                                                            <input class="custom-control-input"
-                                                                type="checkbox"
-                                                                id="filterDefaulter"
-                                                                wire:model.live="filterDefaulter">
-                                                            <label for="filterDefaulter" class="custom-control-label font-weight-normal">
-                                                                Show Defaulters Only
-                                                            </label>
-                                                        </div>
-                                                    </div>
-
-                                                </div>
-                                                <div class="col-md-3">
-                                                    <div class="form-group">
-                                                        <label for="reportName">
-                                                            <i class="fas fa-file-signature mr-1"></i>
-                                                            Report Name
-                                                        </label>
-                                                        <input type="text"
-                                                            class="form-control"
-                                                            id="reportName"
-                                                            placeholder="Enter report name"
-                                                            wire:model="reportName"
-                                                            required>
-                                                        <small class="form-text text-muted">This will be the name of the report file.</small>
-                                                        {{-- error handler --}}
-                                                        @error('reportName')
-                                                            <span class="text-sm text-danger font-weight-bold">{{ $message }}</span>
-                                                        @enderror
-                                                    </div>
-                                                </div>
-                                                {{-- clear filters --}}
-                                                <div class="col-md-6 d-flex align-items-end">
-                                                    <div class="form-group ml-auto">
-                                                        <button type="button"
-                                                                class="btn btn-outline-secondary"
-                                                                wire:click="clearFilters">
-                                                            <i class="fas fa-broom mr-1"></i> Clear All Filters
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                <div class="card-footer bg-white border-top">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-6">
+                                            <x-input-search
+                                                model="reportName"
+                                                label="Report Name"
+                                                icon="fas fa-tag"
+                                                placeholder="e.g., Annual Assessment Report - 2026"
+                                            />
                                         </div>
-
-                                        <div class="p-3 row">
-                                            <!-- Groups Section -->
-                                            <div class="col-md-6 col-xl-3 mb-3 d-flex">
-                                                <div class="card card-outline card-success w-100" style="height: 320px;">
-                                                    <div class="card-header">
-                                                        <h3 class="card-title">
-                                                            <i class="fas fa-layer-group mr-2"></i>
-                                                            Groups
-                                                            <span class="badge badge-light ml-1">{{ count($availableColumns['groups']) }}</span>
-                                                        </h3>
-                                                        <div class="card-tools">
-                                                            <input type="checkbox"
-                                                                class="category-select-all"
-                                                                data-category="groups"
-                                                                wire:click="toggleCategory('groups')"
-                                                                wire:model="categoryGroupsSelected">
-                                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                                                <i class="fas fa-minus"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div class="card-body p-2" style="overflow-y: auto;">
-                                                        @foreach($availableColumns['groups'] as $key => $label)
-                                                            <div class="form-group mb-1">
-                                                                <div class="custom-control custom-checkbox">
-                                                                    <input class="custom-control-input column-checkbox"
-                                                                        type="checkbox"
-                                                                        id="groups_{{ $key }}"
-                                                                        value="{{ $key }}"
-                                                                        data-category="groups"
-                                                                        wire:model.live="selectedColumns">
-                                                                    <label for="groups_{{ $key }}" class="custom-control-label font-weight-normal small">
-                                                                        {{ $label }}
-                                                                    </label>
-                                                                </div>
-                                                            </div>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <!-- Loans Section -->
-                                            <div class="col-md-6 col-xl-3 mb-3 d-flex">
-                                                <div class="card card-outline card-warning w-100" style="height: 320px;">
-                                                    <div class="card-header">
-                                                        <h3 class="card-title">
-                                                            <i class="fas fa-money-bill-wave mr-2"></i>
-                                                            Loans
-                                                            <span class="badge badge-light ml-1">{{ count($availableColumns['loans']) }}</span>
-                                                        </h3>
-                                                        <div class="card-tools">
-                                                            <input type="checkbox"
-                                                                class="category-select-all"
-                                                                data-category="loans"
-                                                                wire:click="toggleCategory('loans')"
-                                                                wire:model="categoryLoansSelected">
-                                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                                                <i class="fas fa-minus"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div class="card-body p-2" style="overflow-y: auto;">
-                                                        @foreach($availableColumns['loans'] as $key => $label)
-                                                            <div class="form-group mb-1">
-                                                                <div class="custom-control custom-checkbox">
-                                                                    <input class="custom-control-input column-checkbox"
-                                                                        type="checkbox"
-                                                                        id="loans_{{ $key }}"
-                                                                        value="{{ $key }}"
-                                                                        data-category="loans"
-                                                                        wire:model.live="selectedColumns">
-                                                                    <label for="loans_{{ $key }}" class="custom-control-label font-weight-normal small">
-                                                                        {{ $label }}
-                                                                    </label>
-                                                                </div>
-                                                            </div>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <!-- Members Section -->
-                                            <div class="col-md-6 col-xl-3 mb-3 d-flex">
-                                                <div class="card card-outline card-primary w-100" style="height: 320px;">
-                                                    <div class="card-header">
-                                                        <h3 class="card-title">
-                                                            <i class="fas fa-users mr-2"></i>
-                                                            Members
-                                                            <span class="badge badge-light ml-1">{{ count($availableColumns['members']) }}</span>
-                                                        </h3>
-                                                        <div class="card-tools">
-                                                            <input type="checkbox"
-                                                                class="category-select-all"
-                                                                data-category="members"
-                                                                wire:click="toggleCategory('members')"
-                                                                wire:model="categoryMembersSelected">
-                                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                                                <i class="fas fa-minus"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div class="card-body p-2" style="overflow-y: auto;">
-                                                        @foreach($availableColumns['members'] as $key => $label)
-                                                            <div class="form-group mb-1">
-                                                                <div class="custom-control custom-checkbox">
-                                                                    <input class="custom-control-input column-checkbox"
-                                                                        type="checkbox"
-                                                                        id="members_{{ $key }}"
-                                                                        value="{{ $key }}"
-                                                                        data-category="members"
-                                                                        wire:model.live="selectedColumns">
-                                                                    <label for="members_{{ $key }}" class="custom-control-label font-weight-normal small">
-                                                                        {{ $label }}
-                                                                    </label>
-                                                                </div>
-                                                            </div>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {{-- loans status filters --}}
-                                            <div class="col-md-6 col-xl-3 mb-3 d-flex">
-                                                <div class="card card-outline card-info w-100" style="height: 320px;">
-                                                    <div class="card-header">
-                                                        <h3 class="card-title">
-                                                            <i class="fas fa-filter mr-2"></i>
-                                                            Loan Status Filters
-                                                            <span class="badge badge-light ml-1">{{ count($filterOptions) }}</span>
-                                                        </h3>
-                                                        <div class="card-tools">
-                                                            <input type="checkbox"
-                                                                class="category-select-all"
-                                                                data-category="filters"
-                                                                wire:click="toggleCategory('filters')"
-                                                                wire:model="categoryFiltersSelected">
-                                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                                                <i class="fas fa-minus"></i>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div class="card-body p-2" style="overflow-y: auto;">
-                                                        @foreach($filterOptions as $key => $label)
-                                                            <div class="form-group mb-1">
-                                                                <div class="custom-control custom-checkbox">
-                                                                    <input class="custom-control-input column-checkbox"
-                                                                        type="checkbox"
-                                                                        id="filters_{{ $key }}"
-                                                                        value="{{ $key }}"
-                                                                        data-category="filters"
-                                                                        wire:model.live="selectedColumns">
-                                                                    <label for="filters_{{ $key }}" class="custom-control-label font-weight-normal small">
-                                                                        {{ $label }}
-                                                                    </label>
-                                                                </div>
-                                                            </div>
-                                                        @endforeach
-                                                    </div>
-                                                </div>
-                                            </div>
+                                        <div class="col-md-6 text-right">
+                                            <x-loading-button
+                                                title="Generate Report with current column selection"
+                                                target="generateReport"
+                                                class="btn-primary"
+                                                icon="fas fa-file-download"
+                                                label="Generate Report"
+                                            />
                                         </div>
                                     </div>
                                 </div>
+
                             </div>
-                        </div>
-                        {{-- Selected Columns Preview --}}
-                        {{-- Selected Columns Preview --}}
-                        {{-- Selected Columns Preview --}}
-                        @if(count(array_filter($selectedColumns, function($col) use ($availableColumns, $filterOptions) { return !array_key_exists($col, $filterOptions); })) > 0)
-                        <div class="row mt-3">
-                            <div class="col-12">
-                                <div class="card card-success card-outline">
-                                    <div class="card-header bg-success text-white">
-                                        <h3 class="card-title mb-0">
-                                            <i class="fas fa-check-circle mr-2"></i>
-                                            Selected Fields
-                                            <span class="badge badge-light ml-2">{{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) }}</span>
+                        @endif
+
+                        {{-- data --}}
+                        @if($reportGenerated)
+                            <div class="card card-success card-outline shadow-sm border-0"
+                                style="border-radius: 16px; overflow: hidden;"
+                                x-data="{ isDirty: @entangle('isDirty') }">
+
+                                <div class="card-header bg-white py-3">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h3 class="card-title text-dark font-weight-bold mb-0">
+                                            <i class="fas fa-table mr-2 text-success"></i>
+                                            {{ $reportName ?? 'Data Preview' }}
+                                            <span class="badge badge-warning-soft ml-2 py-1 px-2" style="background: #fff3e0; color: #ef6c00; font-size: 0.75rem; border-radius: 6px;">
+                                                <i class="fas fa-eye mr-1"></i> Preview Mode
+                                            </span>
                                         </h3>
                                         <div class="card-tools">
-                                            <button type="button" class="btn btn-tool btn-light"
-                                                    wire:click="clearAllColumns"
-                                                    title="Clear All Fields">
-                                                <i class="fas fa-times"></i> Clear All
-                                            </button>
-                                            <button type="button" class="btn btn-tool" data-card-widget="collapse">
-                                                <i class="fas fa-minus"></i>
+                                            <span class="text-muted small font-weight-bold bg-light px-3 py-2 rounded-pill border">
+                                                <i class="fas fa-database mr-1 text-primary"></i>
+                                                {{ number_format($totalRecords) }} / {{ number_format($totalActualRecords) }} Records Loaded
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="card-body p-0 position-relative">
+
+                                    <div x-show="isDirty"
+                                        x-cloak
+                                        x-transition.opacity.duration.300ms
+                                        :class="isDirty ? 'd-flex' : 'd-none'"
+                                        class="position-absolute w-100 h-100 align-items-center justify-content-center"
+                                        style="background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(4px); z-index: 100; top: 0; left: 0;">
+
+                                        <div class="text-center p-4 shadow-lg bg-white border" style="border-radius: 15px; max-width: 400px; z-index: 101;">
+                                            <div class="mb-3 text-warning">
+                                                <span class="fa-stack fa-lg">
+                                                    <i class="fas fa-table fa-stack-1x"></i>
+                                                    <i class="fas fa-sync fa-stack-2x opacity-25 fa-spin"></i>
+                                                </span>
+                                            </div>
+                                            <h5 class="font-weight-bold text-dark">Selection Changed</h5>
+                                            <p class="text-muted small">Your column selection has changed. Please regenerate the report to see the updated data structure.</p>
+                                            <button class="btn btn-success btn-block rounded-pill font-weight-bold shadow-sm" wire:click="generateReport">
+                                                <i class="fas fa-sync-alt mr-2"></i> Update Report Results
                                             </button>
                                         </div>
                                     </div>
-                                    <div class="card-body">
-                                        <div class="alert alert-info d-flex align-items-center mb-3">
-                                            <i class="fas fa-info-circle mr-2 fa-lg"></i>
-                                            <div>
-                                                <strong>Tip:</strong> Drag fields using the <i class="fas fa-arrows-alt text-primary mx-1"></i> icon to reorder them. Click the <i class="fas fa-times text-danger mx-1"></i>
-                                                icon to remove fields from your report.
+
+                                    @if(count($reportData) > 0)
+                                        <div class="table-responsive custom-scrollbar shadow-inset"
+                                            :class="isDirty ? 'opacity-25' : ''"
+                                            style="max-height: 650px; border-radius: 0; background: #ffffff; transition: opacity 0.3s ease;">
+
+                                            <table class="table table-hover mb-0" style="border-collapse: separate; border-spacing: 0; min-width: 1000px;">
+                                                <thead>
+                                                    <tr class="bg-light sticky-top shadow-sm" style="z-index: 10; top: 0;">
+                                                        @foreach($this->selectedColumnLabels as $id => $label)
+                                                            <th class="py-3 px-4 border-bottom border-top-0 text-uppercase tracking-wider"
+                                                                style="background: #f8f9fa; font-size: 0.8rem; letter-spacing: 0.05em; color: #4a5568;">
+                                                                <div class="d-flex align-items-center {{ str_contains($id, 'amount') || is_numeric($id) ? 'justify-content-end' : '' }}">
+                                                                    {{ $label }}
+                                                                    <i class="fas fa-sort ml-2 opacity-25" style="font-size: 0.7rem;"></i>
+                                                                </div>
+                                                            </th>
+                                                        @endforeach
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y">
+                                                    @foreach($reportData as $row)
+                                                        <tr class="transition-all hover-bg-soft-success">
+                                                            @foreach($this->selectedColumnLabels as $id => $label)
+                                                                <td class="py-3 px-4 align-middle border-bottom-light {{ str_contains($id, 'amount') ? 'text-right font-family-mono' : '' }}"
+                                                                    style="color: #2d3748; font-size: 0.9rem;">
+                                                                    @if(isset($row[$id]))
+                                                                        @if(is_numeric($row[$id]) && str_contains($id, 'amount'))
+                                                                            <span class="font-weight-bold">{{ number_format($row[$id], 2) }}</span>
+                                                                        @elseif(str_contains($id, 'status'))
+                                                                            <span class="badge badge-pill {{ $row[$id] == 'Paid' ? 'badge-success' : 'badge-light border' }} px-2 py-1" style="font-size: 0.75rem;">
+                                                                                {{ $row[$id] }}
+                                                                            </span>
+                                                                        @else
+                                                                            {{ $row[$id] }}
+                                                                        @endif
+                                                                    @else
+                                                                        <span class="text-muted opacity-50">—</span>
+                                                                    @endif
+                                                                </td>
+                                                            @endforeach
+                                                        </tr>
+                                                    @endforeach
+
+                                                    @if($totalActualRecords > $displayLimit)
+                                                        <tr>
+                                                            <td colspan="{{ count($this->selectedColumnLabels) }}" class="p-4" style="background: linear-gradient(to bottom, #ffffff, #fffbeb);">
+                                                                <div class="d-flex align-items-center justify-content-center text-warning-emphasis">
+                                                                    <div class="bg-warning text-white rounded-circle mr-3 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                                                        <i class="fas fa-exclamation"></i>
+                                                                    </div>
+                                                                    <div>
+                                                                        <h6 class="mb-0 font-weight-bold text-dark">Data Truncated for Performance</h6>
+                                                                        <p class="mb-0 small text-muted">Showing {{ $displayLimit }} of {{ number_format($totalActualRecords) }} rows.</p>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    @endif
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    @else
+                                        <div class="text-center py-5 bg-light">
+                                            <div class="mb-3">
+                                                <i class="fas fa-filter fa-3x text-muted opacity-25"></i>
                                             </div>
+                                            <h5 class="text-muted font-weight-light">No Data to Display</h5>
+                                            <p class="small text-muted px-5">Adjust your filters or select columns above to generate a report preview.</p>
                                         </div>
+                                    @endif
+                                </div>
 
-                                        <div class="row" id="selectedColumnsContainer">
-                                            @foreach($selectedColumns as $column)
-                                                @php
-                                                    // Skip filter options in the display
-                                                    if (array_key_exists($column, $filterOptions)) {
-                                                        continue;
-                                                    }
-
-                                                    $columnLabel = collect($availableColumns)
-                                                        ->flatMap(fn($cols) => $cols)
-                                                        ->get($column, $column);
-                                                    $category = $this->getColumnCategory($column);
-                                                    $categoryColors = [
-                                                        'members' => 'primary',
-                                                        'groups' => 'success',
-                                                        'loans' => 'warning'
-                                                    ];
-                                                    $color = $categoryColors[$category] ?? 'secondary';
-                                                    $categoryIcons = [
-                                                        'members' => 'users',
-                                                        'groups' => 'layer-group',
-                                                        'loans' => 'money-bill-wave'
-                                                    ];
-                                                    $icon = $categoryIcons[$category] ?? 'cube';
-                                                @endphp
-                                                <div class="col-xl-3 col-lg-4 col-md-6 mb-3 selected-column-item" data-column="{{ $column }}">
-                                                    <div class="card card-outline card-{{ $color }} h-75 draggable-column">
-                                                        <div class="card-header bg-{{ $color }} bg-opacity-10 py-2 px-3 d-flex justify-content-between align-items-center">
-                                                            <span class="drag-handle mr-auto text-{{ $color }}" style="cursor: grab;" title="Drag to reorder">
-                                                                <i class="fas fa-arrows-alt"></i>
-                                                            </span>
-                                                            <small class="text-muted">
-                                                                <i class="fas fa-{{ $icon }} mr-1"></i>
-                                                                {{ ucfirst($category) }}
-                                                            </small>
-                                                            <button type="button"
-                                                                    class="btn btn-xs btn-outline-{{ $color }} py-0 px-1 ml-auto"
-                                                                    wire:click="removeColumn('{{ $column }}')"
-                                                                    title="Remove {{ $columnLabel }}">
-                                                                <i class="fas fa-times fa-xs"></i>
-                                                            </button>
-                                                        </div>
-                                                        <div class="card-body mb-3">
-                                                            <div class="d-flex align-items-center mb-2">
-                                                                <h6 class="mb-0 text-dark font-weight-bold flex-grow-1">{{ $columnLabel }}</h6>
-                                                            </div>
-                                                            <small class="text-muted">
-                                                                <i class="fas fa-code mr-1"></i>
-                                                                {{ $column }}
-                                                            </small>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            @endforeach
+                                <div class="card-footer bg-white py-3 border-top">
+                                    <div class="row align-items-center">
+                                        <div class="col-md-4">
+                                            <small class="text-muted">
+                                                <i class="fas fa-clock mr-1"></i>
+                                                Generated {{ now()->diffForHumans() }}
+                                            </small>
                                         </div>
-
-                                        <!-- Quick Actions -->
-                                        <div class="mt-3 pt-3 border-top">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <div>
-                                                    <small class="text-muted">
-                                                        <i class="fas fa-lightbulb mr-1"></i>
-                                                        You've selected {{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) }} field(s) for your report
-                                                    </small>
-                                                </div>
-                                                <div class="btn-group">
-                                                    <button type="button" class="btn btn-outline-secondary btn-sm"
-                                                            wire:click="clearAllColumns">
-                                                        <i class="fas fa-broom mr-1"></i> Clear All
-                                                    </button>
-                                                    <button type="button" class="btn btn-outline-primary btn-sm"
-                                                            wire:click="resetToDefault">
-                                                        <i class="fas fa-undo mr-1"></i> Reset to Default
-                                                    </button>
-                                                    <button type="button"
-                                                            class="btn btn-success btn-sm"
-                                                            wire:click="generateReport"
-                                                            wire:loading.attr="disabled"
-                                                            {{ count(array_filter($selectedColumns, function($col) use ($filterOptions) { return !array_key_exists($col, $filterOptions); })) === 0 ? 'disabled' : '' }}>
-                                                        <i class="fas fa-play mr-2" wire:loading.class="d-none"></i>
-                                                        <i class="fas fa-spinner fa-spin mr-2" wire:loading></i>
-                                                        Generate Report
-                                                    </button>
-                                                </div>
+                                        <div class="col-md-8 text-right">
+                                            <div class="btn-group shadow-sm">
+                                                <x-loading-button
+                                                    title="export current report data to Excel file"
+                                                    target="exportToExcel"
+                                                    class="btn-outline-success"
+                                                    icon="fas fa-file-excel"
+                                                    label="Export to Excel"
+                                                />
+                                                {{-- <x-loading-button
+                                                    title="export current report data to PDF file"
+                                                    target="exportToPDF"
+                                                    class="btn-outline-success btn-sm"
+                                                    icon="fas fa-file-pdf"
+                                                    label="PDF"
+                                                    loadingLabel="Generating..."
+                                                /> --}}
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
                         @endif
-                        {{-- End Selected Columns Preview --}}
                     </div>
                 </div>
-
-                <!-- Loading State -->
-                @if($loading)
-                <div class="card">
-                    <div class="card-body text-center py-5">
-                        <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
-                            <span class="sr-only">Loading...</span>
-                        </div>
-                        <p class="mt-3 text-muted">
-                            <i class="fas fa-cog fa-spin mr-2"></i>
-                            Generating report... This may take a moment for large constituencies.
-                        </p>
-                    </div>
-                </div>
-                @endif
-
-                <!-- Report Results -->
-                <!-- Report Results -->
-                <!-- Loading State with Progress -->
-@if($loading)
-<div class="card">
-    <div class="card-body text-center py-5">
-        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
-            <span class="sr-only">Loading...</span>
-        </div>
-        <p class="mt-3 text-muted">
-            <i class="fas fa-cog fa-spin mr-2"></i>
-            Generating report... This may take a moment for large constituencies.
-        </p>
-        @if($totalAvailableRecords > 1000)
-        <div class="progress mt-3" style="height: 10px;">
-            <div class="progress-bar progress-bar-striped progress-bar-animated"
-                 role="progressbar"
-                 style="width: 50%">
-            </div>
-        </div>
-        <small class="text-muted mt-2">
-            Processing large dataset: {{ number_format($totalAvailableRecords) }} records
-        </small>
-        @endif
-    </div>
-</div>
-@endif
-@if($reportGenerated && !$loading)
-<div class="card card-success">
-    <div class="card-header">
-        <h3 class="card-title">
-            <i class="fas fa-table mr-2"></i>
-            Report Results - {{ $reportName ?? 'unknown' }}
-
-
-            <span class="badge badge-warning ml-2">
-                <i class="fas fa-info-circle mr-1"></i>
-                Preview Mode
-            </span>
-        </h3>
-        <div class="card-tools">
-            <span class="badge badge-light">
-                <i class="fas fa-chart-bar mr-1"></i>
-                {{ number_format($totalRecords) }}/{{ number_format($totalActualRecords) }} records
-
-            </span>
-        </div>
-    </div>
-
-    <div class="card-body p-0">
-        @if($totalRecords > 0)
-            <div class="table-responsive">
-                <table class="table table-bordered table-responsive table-striped table-hover mb-0">
-                    {{-- <thead class="thead-dark">
-                        <tr>
-                            @foreach($selectedColumns as $column)
-                                @php
-                                    $columnLabel = collect($availableColumns)
-                                        ->flatMap(fn($cols) => $cols)
-                                        ->get($column, $column);
-                                @endphp
-                                <th class="bg-primary">
-                                    {{ $columnLabel }}
-                                </th>
-                            @endforeach
-                        </tr>
-                    </thead> --}}
-                    <!-- In the Report Results section -->
-                    <thead class="thead-dark">
-                        <tr>
-                            @foreach($selectedColumns as $column)
-                                @php
-                                    // Skip filter options in the table headers
-                                    if (array_key_exists($column, $filterOptions)) {
-                                        continue;
-                                    }
-
-                                    $columnLabel = collect($availableColumns)
-                                        ->flatMap(fn($cols) => $cols)
-                                        ->get($column, $column);
-                                @endphp
-                                <th class="bg-primary">
-                                    {{ $columnLabel }}
-                                </th>
-                            @endforeach
-                        </tr>
-                    </thead>
-                    {{-- <tbody>
-                        @foreach($reportData as $index => $row)
-                            <tr>
-                                @foreach($selectedColumns as $column)
-                                    <td>{{ $row[$column] ?? 'N/A' }}</td>
-                                @endforeach
-                            </tr>
-                        @endforeach
-
-                        @if($showingLimitedData)
-                            <tr class="table-warning">
-                                <td colspan="{{ count($selectedColumns) }}" class="text-center font-weight-bold">
-                                    <i class="fas fa-info-circle mr-2"></i>
-                                    📊 Showing first {{ $displayLimit }} of {{ number_format($totalAvailableRecords) }} records.
-                                    <br>
-                                    <small class="mt-1 d-block">
-                                        <i class="fas fa-download mr-1"></i>
-                                        Use the export buttons below to download all {{ number_format($totalActualRecords) }} records.
-                                    </small>
-                                </td>
-                            </tr>
-                        @elseif($totalRecords > $displayLimit)
-                            <tr class="table-info">
-                                <td colspan="{{ count($selectedColumns) }}" class="text-center font-weight-bold">
-                                    <i class="fas fa-info-circle mr-2"></i>
-                                    Showing first {{ $displayLimit }} of {{ number_format($totalActualRecords) }} records.
-                                    Use export features to download complete data.
-                                </td>
-                            </tr>
-                        @endif
-                    </tbody> --}}
-                    <tbody>
-                        @foreach($reportData as $index => $row)
-                            <tr>
-                                @foreach($selectedColumns as $column)
-                                    @php
-                                        // Skip filter options in the table cells
-                                        if (array_key_exists($column, $filterOptions)) {
-                                            continue;
-                                        }
-                                    @endphp
-                                    <td>{{ $row[$column] ?? 'N/A' }}</td>
-                                @endforeach
-                            </tr>
-
-                        @endforeach
-                        <tr class="table-warning">
-                                <td colspan="{{ count($selectedColumns) }}" class="text-center font-weight-bold">
-                                    <i class="fas fa-info-circle mr-2"></i>
-                                    📊 Showing first {{ $totalAvailableRecords <= $displayLimit ? $totalAvailableRecords :  $displayLimit }} of {{ number_format($totalAvailableRecords) }} records.
-                                    <br>
-                                    <small class="mt-1 d-block">
-                                        <i class="fas fa-download mr-1"></i>
-                                        Use the export buttons below to download all {{ number_format($totalActualRecords) }} records.
-                                    </small>
-                                </td>
-                            </tr>
-                    </tbody>
-                </table>
-            </div>
-        @else
-            <div class="text-center py-5">
-                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">No records found</h5>
-                <p class="text-muted">No data matches your selected criteria.</p>
-            </div>
-        @endif
-    </div>
-
-    <!-- Enhanced Footer with Export Options -->
-    <div class="card-footer">
-        <div class="d-flex justify-content-between align-items-center">
-            <div>
-                <small class="text-muted">
-                    <i class="fas fa-clock mr-1"></i>
-                    Generated on: {{ now()->format('M j, Y g:i A') }}
-                    {{-- @if($showingLimitedData) --}}
-
-                    {{-- @endif --}}
-                </small>
-            </div>
-            <div class="btn-group">
-                @if($showingLimitedData)
-                    <button type="button" class="btn btn-warning btn-sm"
-                            title="Export all {{ number_format($totalAvailableRecords) }} records">
-                        <i class="fas fa-download mr-2"></i>Export All Data
-                    </button>
-                @endif
-                <button type="button"
-                        class="btn btn-warning btn-sm"
-                        wire:click="exportToExcel"
-                        wire:target="exportToExcel"
-                        wire:loading.attr="disabled"
-                        >
-                    <i class="fas fa-download mr-2" wire:loading.class="d-none"></i>
-                    <i class="fas fa-spinner fa-spin mr-2" wire:target="exportToExcel" wire:loading></i>
-                    Export Excel
-                </button>
-                <button type="button"
-                        class="btn btn-danger btn-sm"
-                        wire:click="exportToPDF"
-                        wire:target="exportToPDF"
-                        wire:loading.attr="disabled"
-                        >
-                    <i class="fas fa-file-pdf mr-2" wire:loading.class="d-none"></i>
-                    <i class="fas fa-spinner fa-spin mr-2" wire:target="exportToPDF" wire:loading></i>
-                    Export PDF
-                </button>
-                <button type="button" class="btn btn-info btn-sm" wire:click="refreshReport">
-                    <i class="fas fa-sync-alt mr-2"></i>Refresh
-                </button>
-            </div>
-        </div>
-
-        {{-- @if($showingLimitedData) --}}
-        <div class="mt-2 pt-2 border-top">
-            <div class="text-center">
-                <small class="text-muted">
-                    <i class="fas fa-lightbulb mr-1"></i>
-                    <strong>Tip:</strong> For better performance with large datasets, use the export feature to download and analyze data in Excel.
-                </small>
-            </div>
-        </div>
-        {{-- @endif --}}
-    </div>
-</div>
-@endif
             </div>
         </div>
     </div>
@@ -890,42 +712,9 @@
 @endpush
 
 @push('scripts')
-<script src="{{asset('plugins/select2/js/select2.full.min.js')}}"></script>
 <script src="{{asset('plugins/sortableJs/sortable.min.js')}}"></script>
-<script src="{{asset('plugins/toastr/toastr.min.js')}}"></script>
 <script>
     $(document).ready(function() {
-        // Initialize Select2
-        $('.select2').select2({
-            theme: 'bootstrap4'
-        });
-
-        // Update category select all visual state when individual checkboxes change
-        $(document).on('change', '.column-checkbox', function() {
-            const category = $(this).data('category');
-            updateCategorySelectAllState(category);
-        });
-
-        // Function to update category select all state
-        function updateCategorySelectAllState(category) {
-            const categoryCheckboxes = $(`.column-checkbox[data-category="${category}"]`);
-            const selectAll = $(`.category-select-all[data-category="${category}"]`);
-
-            if (categoryCheckboxes.length > 0 && selectAll.length > 0) {
-                const allChecked = categoryCheckboxes.length === categoryCheckboxes.filter(':checked').length;
-                const someChecked = categoryCheckboxes.filter(':checked').length > 0;
-
-                selectAll.prop('checked', allChecked);
-                selectAll.prop('indeterminate', someChecked && !allChecked);
-            }
-        }
-
-        // Initialize category select all states on page load
-        setTimeout(() => {
-            ['members', 'groups', 'loans', 'filters'].forEach(category => {
-                updateCategorySelectAllState(category);
-            });
-        }, 100);
 
         // SortableJS initialization with multiple attempts
         function initializeColumnSorting() {
@@ -1003,132 +792,9 @@
         }
 
         // Multiple initialization attempts
-        setTimeout(initializeColumnSorting, 300);
-        setTimeout(initializeColumnSorting, 1000);
-        setTimeout(initializeColumnSorting, 2000);
-
-        // Livewire event listeners
-        document.addEventListener('livewire:init', function () {
-            Livewire.on('report-generated', (event) => {
-                if (event.limited) {
-                    toastr.warning(event.message, 'Limited Preview', { timeOut: 10000 });
-                } else {
-                    toastr.success(event.message);
-                }
-            });
-
-            Livewire.on('export-success', (event) => {
-                toastr.success(event.message, 'Export Complete');
-            });
-
-            Livewire.on('report-error', (event) => {
-                toastr.error(event.message);
-            });
-
-            Livewire.on('columns-reordered', (event) => {
-                toastr.info(event.message);
-            });
-
-            // Update category states after Livewire updates
-            Livewire.hook('commit', ({ component, commit, respond, succeed, fail }) => {
-                succeed(() => {
-                    setTimeout(() => {
-                        ['members', 'groups', 'loans', 'filters'].forEach(category => {
-                            updateCategorySelectAllState(category);
-                        });
-                        // Re-initialize SortableJS after Livewire updates
-                        setTimeout(initializeColumnSorting, 100);
-                    }, 50);
-                });
-            });
-
-            // Handle filter column selections
-            Livewire.hook('request', ({ uri, options, payload, respond, succeed, fail }) => {
-                if (payload.serverMemo.data.selectedColumns) {
-                    const selectedColumns = payload.serverMemo.data.selectedColumns;
-                    const filterMappings = {
-                        'financed_loans_filter': 'filterFinancedLoans',
-                        'approved_loans_filter': 'filterApprovedLoans',
-                        'deferred_loans_filter': 'filterDeferredLoans',
-                        'cancelled_loans_filter': 'filterCancelledLoans',
-                        'pending_loans_filter': 'filterPendingLoans',
-                    };
-
-                    Object.keys(filterMappings).forEach(column => {
-                        const filterProperty = filterMappings[column];
-                        const isSelected = selectedColumns.includes(column);
-                        if (payload.serverMemo.data[filterProperty] !== isSelected) {
-                            payload.serverMemo.data[filterProperty] = isSelected;
-                        }
-                    });
-                }
-            });
-        });
-
-        // Re-initialize when Livewire updates
-        document.addEventListener('livewire:update', function () {
-            setTimeout(initializeColumnSorting, 150);
-            $('.select2').select2({ theme: 'bootstrap4' });
-        });
-
-        // Add progress indicators for long-running operations
-        Livewire.on('export-progress', (event) => {
-            const progress = event.progress;
-            const progressBar = document.getElementById('export-progress-bar');
-            const progressText = document.getElementById('export-progress-text');
-
-            if (progressBar) {
-                progressBar.style.width = `${progress}%`;
-            }
-            if (progressText) {
-                progressText.textContent = `Exporting... ${progress}%`;
-            }
-        });
-
-        // Add confirmation for large exports
-        function confirmLargeExport() {
-            const totalRecords = @json($totalAvailableRecords);
-            if (totalRecords > 10000) {
-                return confirm(`This export will process ${totalRecords.toLocaleString()} records. This may take several minutes. Continue?`);
-            }
-            return true;
-        }
-
-        // Listen for the filters-cleared event
-        Livewire.on('filters-cleared', (event) => {
-            toastr.success("Filters have been cleared");
-            // Reset Select2 elements
-            ['filterLoanPhase', 'filterWard', 'filterGroupCategory', 'filterGroupActivity'].forEach(id => {
-                const selectElement = $(`#${id}`);
-                if (selectElement.length) {
-                    selectElement.val(null).trigger('change');
-                }
-            });
-        });
-
-        Livewire.on('export-error', (event) => {
-            toastr.error(event.message, 'Export Failed!');
-        });
-
-        // Select2 handling
-        $(document).on('change', '.select2', function() {
-            const elementName = $(this).attr('id');
-            const value = $(this).val();
-            if (elementName === 'filterLoanPhase') {
-                @this.set('filterLoanPhase', value);
-            } else if (elementName === 'filterWard') {
-                @this.set('filterWard', value);
-            } else if (elementName === 'filterGroupCategory') {
-                @this.set('filterGroupCategory', value);
-            } else if (elementName === 'filterGroupActivity') {
-                @this.set('filterGroupActivity', value);
-            }
-        });
-
-        $(document).on('select2:open', () => {
-            const searchField = document.querySelector('.select2-container--open .select2-search__field');
-            if (searchField) searchField.focus();
-        });
+        // setTimeout(initializeColumnSorting, 300);
+        // setTimeout(initializeColumnSorting, 1000);
+        // setTimeout(initializeColumnSorting, 2000);
     });
 </script>
 @endpush

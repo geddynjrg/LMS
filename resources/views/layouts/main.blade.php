@@ -19,10 +19,8 @@
         @stack('styles')
         <!-- Theme style -->
         <link rel="stylesheet" href="{{asset('dist/css/adminlte.min.css')}}">
-        <link rel="stylesheet" href="{{asset('dist/css/custom.css')}}">
 
-          <!-- SweetAlert2 -->
-        <link rel="stylesheet" href="{{ asset('plugins/sweetalert2-theme-bootstrap-4/bootstrap-4.min.css') }}">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
 
         {{-- toastr --}}
         <link rel="stylesheet" href="{{asset('plugins/toastr/toastr.min.css')}}">
@@ -37,9 +35,75 @@
         <link rel="stylesheet" href="{{asset('plugins/datatables-responsive/css/responsive.bootstrap4.min.css')}}">
         <link rel="stylesheet" href="{{asset('plugins/datatables-buttons/css/buttons.bootstrap4.min.css')}}">
 
+        @vite(['resources/css/app.css','resources/js/app.js'])
+
         {{-- livewire styles --}}
         @livewireStyles
 
+        <style>
+    /* Modern Pill Breadcrumbs */
+
+    .btn-white {
+        background-color: #ffffff;
+        color: #4b545c;
+        transition: all 0.2s ease;
+    }
+
+    .btn-white:hover {
+        background-color: #f8f9fa;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+    }
+
+    /* Subtle Navy highlights */
+    .text-navy { color: #001f3f; }
+
+    /* Loading Bar for  */
+    .reloading-bar {
+        height: 3px;
+        background: #007bff;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 9999;
+        animation: loading-bar 2s infinite;
+    }
+</style>
+
+        <style>
+
+
+            /* 1. The Large Display Size (e.g., for Loan Amounts) */
+            .text-responsive-xl {
+                font-size: clamp(1.5rem, 5vw, 2.5rem);
+                line-height: 1.2;
+            }
+
+            /* 2. The Header Size (e.g., for Group Name, Section Headers) */
+            .text-responsive-lg {
+                font-size: clamp(1.1rem, 3vw, 1.5rem);
+                line-height: 1.3;
+            }
+
+            /* 3. The Standard Data Size (e.g., Registration No, Years of Experience) */
+            .text-responsive-md {
+                font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+            }
+
+            /* 4. The Label Size (e.g., "Monthly Income", "Nature of Group") */
+            .text-responsive-sm {
+                font-size: clamp(0.75rem, 2vw, 0.9rem);
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            /* Apply these to your existing hover cards */
+            .card-custom-hover {
+                transition: all 0.3s ease;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+            }
+        </style>
         {{-- custom styles --}}
         <style>
             :root {
@@ -117,17 +181,48 @@
                 0% { transform: rotate(0deg); }
                 100% { transform: rotate(360deg); }
             }
-        </style>
+
+            /* Container Styling */
+            .premium-toast {
+                background: rgba(214, 220, 224, 0.637) !important;
+                backdrop-filter: blur(8px);
+                border-radius: 16px !important;
+                border: 1px solid rgba(0, 0, 0, 0.05) !important;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+                padding: 0.75rem 1rem !important;
+            }
+  /* Progress Bar Styling */
+    .premium-toast-progress {
+        height: 3px !important;
+        background: rgba(0, 0, 0, 0.05) !important;
+    }
+
+    /* Typography Refinements */
+    .premium-toast-title {
+        color: #1e293b !important; /* Slate 800 */
+        font-weight: 700 !important;
+        font-size: 1rem !important;
+        margin-bottom: 2px !important;
+    }
+
+    .premium-toast-text {
+        color: #64748b !important; /* Slate 500 */
+        font-size: 0.85rem !important;
+    }
+
+    /* Icon Polish */
+    .swal2-icon {
+        animation: pulse-icon 2s infinite;
+    }
+    @keyframes pulse-icon {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+        100% { transform: scale(1); }
+    }
+</style>
         <style>
             /* Modern Styling */
-            .card-hover {
-                transition: transform 0.2s ease, box-shadow 0.2s ease;
-                border-radius: 12px;
-            }
-            .card-hover:hover {
-                transform: translateY(-4px);
-                box-shadow: 0 8px 15px rgba(0,0,0,0.1) !important;
-            }
+
             .bg-light-pink { background-color: #fff1f2; }
             .text-pink { color: #e11d48 !important; }
             .bg-pink { background-color: #e11d48 !important; }
@@ -144,7 +239,7 @@
             .text-xs { font-size: 0.7rem; letter-spacing: 0.5px; }
         </style>
     </head>
-    <body class="hold-transition sidebar-mini layout-fixed text-sm layout-footer-fixed layout-navbar-fixed ">
+    <body class="hold-transition sidebar-mini layout-fixed text-sm layout-footer-fixed layout-navbar-fixed sidebar-collapse">
 
             <div class="wrapper">
                 @auth
@@ -169,13 +264,13 @@
                     <!-- /.control-sidebar -->
 
                     <!-- Main Footer -->
-                    <footer class="main-footer">
+                    <footer class="main-footer footer-bg">
                         <!-- To the right -->
                         <div class="float-right d-none d-sm-inline">
                             Uwezo Fund
                         </div>
                         <!-- Default to the left -->
-                        <strong>Copyright &copy; 2025-2026 <a href="#">uwezo</a>.</strong> All rights reserved.
+                        <strong>Copyright &copy; 2025-2026 <a class="text-white" href="https://uwezo.go.ke">UWEZO FUND</a>.</strong> All rights reserved.
                     </footer>
                 @endauth
 
@@ -196,7 +291,7 @@
         <script src="{{asset('plugins/overlayScrollbars/js/jquery.overlayScrollbars.min.js')}}"></script>
 
         <!-- SweetAlert2 -->
-        <script src="{{ asset('plugins/sweetalert2/sweetalert2.min.js') }}"></script>
+        {{-- <script src="{{ asset('plugins/sweetalert2/sweetalert2.min.js') }}"></script> --}}
 
         {{-- toastr --}}
         <script src="{{asset('plugins/toastr/toastr.min.js')}}"></script>
@@ -234,270 +329,12 @@
 
         <!-- AdminLTE App -->
         <script src="{{asset('dist/js/adminlte.min.js')}}"></script>
+
         @stack('scripts')
 
         @livewire('add-apps-to-phase-modal')
 
         @livewireScripts
-
-        <script>
-            window.progressInterval = window.progressInterval || null;
-
-            document.addEventListener('livewire:navigate', () => {
-                document.body.classList.add('loading-process');
-                const bar = document.getElementById('livewire-main-progress');
-                if (!bar) return;
-
-                // Reset and show
-                clearInterval(window.progressInterval);
-                bar.style.transition = 'width 300ms ease-out, opacity 150ms';
-                bar.style.opacity = '1';
-                bar.style.width = '10%';
-
-                let width = 10;
-                window.progressInterval = setInterval(() => {
-                    if (width < 30) {
-                        width += 20; // Jump to 30
-                    } else if (width < 60) {
-                        width += 10; // Move to 60
-                    } else if (width < 90) {
-                        width += 2;  // Slowly crawl to 90
-                    }
-                    bar.style.width = width + '%';
-                }, 200);
-            });
-
-            $(document).off('click', '[data-widget="navbar-search"]').on('click', '[data-widget="navbar-search"]', function (e) {
-                e.preventDefault();
-
-                const searchBlock = $('.navbar-search-block');
-                const isCloseBtn = $(this).find('.fas.fa-times').length > 0;
-
-                if (isCloseBtn) {
-                    searchBlock.removeClass('navbar-search-block-open');
-                } else {
-                    searchBlock.addClass('navbar-search-block-open');
-                    setTimeout(() => {
-                        $('#nav-search-input').focus();
-                    }, 150);
-                }
-            });
-
-            function handleGlobalSearch(e) {
-                const activeElem = document.activeElement.tagName;
-                if (activeElem === 'INPUT' || activeElem === 'TEXTAREA' || activeElem === 'SELECT') return;
-
-                if (e.key === '/') {
-                    e.preventDefault();
-                    const searchToggle = document.querySelector('[data-widget="navbar-search"]');
-                    if (searchToggle) {
-                        const searchBlock = document.querySelector('.navbar-search-block');
-                        if (searchBlock && !searchBlock.classList.contains('navbar-search-block-open')) {
-                            searchToggle.click();
-                        }
-                        setTimeout(() => {
-                            const input = document.getElementById('nav-search-input');
-                            if (input) input.focus();
-                        }, 100);
-                    }
-                }
-
-                if (e.key === 'Escape') {
-                    const searchBlock = $('.navbar-search-block');
-                    if (searchBlock.hasClass('navbar-search-block-open')) {
-                        searchBlock.removeClass('navbar-search-block-open');
-                    }
-                }
-            }
-
-            if (window.handleGlobalSearch) {
-                document.removeEventListener('keydown', window.handleGlobalSearch);
-            }
-
-            document.addEventListener('livewire:navigated', () => {
-                document.body.classList.remove('loading-process');
-                const bar = document.getElementById('livewire-main-progress');
-                if (!bar) return;
-
-                clearInterval(window.progressInterval);
-                bar.style.width = '100%';
-
-                setTimeout(() => {
-                    bar.style.opacity = '0';
-                    setTimeout(() => {
-                        bar.style.transition = 'none';
-                        bar.style.width = '0';
-                    }, 300);
-                }, 250);
-
-
-                // Re-initialize select2
-                if (typeof window.initSelect2 === 'function') {
-                    window.initSelect2();
-                }
-
-                // Re-initialize dropdown
-                if (typeof $ !== 'undefined' && typeof $.fn.dropdown !== 'undefined') {
-                    $('[data-toggle="dropdown"]').dropdown();
-                }
-
-                // Re-initialize Tooltips
-                if (typeof $ !== 'undefined' && typeof $.fn.tooltip !== 'undefined') {
-                    $('[data-toggle="tooltip"]').tooltip();
-                }
-
-                $(document).off('click', '[data-card-widget="collapse"]');
-
-                $(document).on('click', '[data-card-widget="collapse"]', function (e) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-                    const button = $(this);
-                    const card = button.closest('.card');
-                    const cardBody = card.find('.card-body');
-                    const icon = button.find('i');
-
-                    if (card.hasClass('collapsed-card')) {
-                        cardBody.slideDown(300, function() {
-                            card.removeClass('collapsed-card');
-                            icon.removeClass('fa-plus').addClass('fa-minus');
-                        });
-                    } else {
-                        cardBody.slideUp(300, function() {
-                            card.addClass('collapsed-card');
-                            icon.removeClass('fa-minus').addClass('fa-plus');
-                        });
-                    }
-                });
-            });
-
-            $(document).on('mousedown', function (e) {
-                const searchBlock = $('.navbar-search-block');
-                const searchToggle = $('[data-widget="navbar-search"]');
-
-                // If the click is NOT on the search block and NOT on the toggle button
-                if (!searchBlock.is(e.target) && searchBlock.has(e.target).length === 0 &&
-                    !searchToggle.is(e.target) && searchToggle.has(e.target).length === 0) {
-                    if (searchBlock.hasClass('navbar-search-block-open')) {
-                        searchBlock.removeClass('navbar-search-block-open');
-                    }
-                }
-            });
-
-            document.addEventListener('keydown', window.handleGlobalSearch);
-
-            window.addEventListener('swal:modal', event => {
-                const data = Array.isArray(event.detail) ? event.detail[0] : event.detail;
-
-                // Define Toast configuration
-                if (data.toast) {
-                    const Toast = Swal.mixin({
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 3000,
-                        timerProgressBar: true,
-                        didOpen: (toast) => {
-                            toast.addEventListener('mouseenter', Swal.stopTimer)
-                            toast.addEventListener('mouseleave', Swal.resumeTimer)
-                        }
-                    });
-
-                    Toast.fire({
-                        icon: data.type,
-                        title: data.title
-                    });
-                } else {
-
-                    Swal.fire({
-                        title: data.title,
-                        text: data.text,
-                        icon: data.type,
-                        theme: 'bootstrap-4',
-                        timer: data.timer || null,
-                        showConfirmButton: data.showConfirmButton !== undefined ? data.showConfirmButton : true,
-                        customClass: {
-                            confirmButton: 'btn btn-primary px-4',
-                            cancelButton: 'btn btn-danger px-4'
-                        },
-                        buttonsStyling: false
-                    });
-                }
-            });
-
-
-        </script>
-
-        <script>
-            // Define the function globally
-            window.initSelect2 = function() {
-                if (!window.jQuery || !window.jQuery.fn.select2) return;
-
-                $('select.select2').each(function () {
-                    const el = $(this);
-                    if (el.hasClass('select2-hidden-accessible')) return;
-
-                    // Find the property name: check wire:model first, then the ID
-                    let propertyName = el.attr('wire:model') || el.attr('wire:model.live');
-
-                    if (!propertyName && el.attr('id')) {
-                        propertyName = el.attr('id').replace('select2-', '');
-                    }
-
-                    el.select2({
-                        // theme: 'bootstrap4',
-                        width: '100%',
-                        // placeholder: el.data('placeholder') || 'Select an option',
-                        allowClear: false,
-                    });
-
-                    // Sync visual state for Back Button / URL hydration
-                    const currentVal = el.val();
-                    if (currentVal) {
-                        el.val(currentVal).trigger('change.select2');
-                    }
-
-                    el.on('change', function (e) {
-                        let component = Livewire.find(el.closest('[wire\\:id]').attr('wire:id'));
-                        if (component && propertyName) {
-                            // Tells Livewire to update the public property
-                            component.set(propertyName, el.val());
-                        }
-                    });
-                });
-            };
-
-            // Initialize on first load and after every Livewire navigation
-            document.addEventListener('livewire:navigated', () => {
-                initSelect2();
-            });
-
-            // Re-init after Livewire updates the DOM (for dynamic selects)
-            document.addEventListener('livewire:init', () => {
-                Livewire.hook('morph.updated', ({ el }) => {
-                    initSelect2();
-                });
-
-                Livewire.on('confirm-action', (eventData) => {
-                    const data = Array.isArray(eventData) ? eventData[0] : eventData;
-                    Swal.fire({
-                        title: data.title || "Are you sure?",
-                        text: data.text || "This action cannot be undone!",
-                        icon: data.icon || "warning",
-                        showCancelButton: true,
-                        confirmButtonColor: "#3085d6",
-                        cancelButtonColor: "#d33",
-                        confirmButtonText: data.confirmText || "Yes, proceed!",
-                        reverseButtons: true // Places "Cancel" on the left
-                    }).then((result) => {
-                        if (result.isConfirmed) {
-                            // If confirmed, tell Livewire to call the actual function
-                            // 'componentId' and 'action' must be passed from the backend
-                            Livewire.find(data.componentId).call(data.action, data.params);
-                        }
-                    });
-                });
-            });
-        </script>
 
     </body>
 </html>

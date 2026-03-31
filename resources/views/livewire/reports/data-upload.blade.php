@@ -1,1455 +1,1203 @@
 <section class="content">
     <div class="container-fluid">
-        {{-- Import Process Guide --}}
-        <div class="row">
-            <div class="col-12">
-                <div class="card card-primary">
-                    <div class="card-header">
-                        <h3 class="card-title">
-                            <i class="fas fa-info-circle mr-2"></i>Import Process Guide
+        <div class="card shadow-none border-left-info mb-4" style="border-left: 5px solid #17a2b8;">
+            <div class="card-body py-3">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h3 class="mb-0 font-weight-bold text-dark">
+                            <i class="fas fa-clipboard-list text-info mr-2"></i>
+                            {{ ucwords(strtolower($constituency->constituency_name)) }} Constituency
                         </h3>
+                        <p class="text-muted mb-0">Data Upload</p>
                     </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-12">
-                                <div class="alert alert-info">
-                                    <h5><i class="icon fas fa-exclamation-triangle"></i> Important!</h5>
-                                    Follow these steps <strong>in order</strong> to avoid errors. Each step depends on the previous one. Ensure all mandatory fields are filled <strong>(fields marked with (*))</strong>
-                                </div>
-
-                                <div class="timeline">
-                                    {{-- Step 1: Loan Phases --}}
-                                    <div class="time-label">
-                                        <span class="bg-success">Step 1</span>
-                                    </div>
-                                    <div>
-                                        <i class="fas fa-clipboard-list bg-blue"></i>
-                                        <div class="timeline-item">
-                                            <span class="time"><i class="fas fa-clock"></i> First Step</span>
-                                            <h3 class="timeline-header">
-                                                <i class="fas fa-clipboard-list mr-2"></i>Import Loan Phases
-                                            </h3>
-                                            <div class="timeline-body">
-                                                <div class="row">
-                                                    <div class="col-md-8">
-                                                        <h6>What are Loan Phases?</h6>
-                                                        <p>Loan phases define the funding cycles in the constituency (e.g., Phase 1, Phase 2, Phase 3).</p>
-
-                                                        <h6>Import Instructions:</h6>
-                                                        <ul>
-                                                            <li>Download the template</li>
-                                                            <li>Fill in the and phase names</li>
-                                                            <li>Upload the completed file</li>
-                                                            <li>System will validate and import the data</li>
-                                                        </ul>
-
-                                                        <div class="alert alert-info small">
-                                                            <i class="fas fa-lightbulb mr-2"></i>
-                                                            <strong>Tip:</strong> Name your phases as "Phase 1, Phase 2, Phase 3... Do not include naming as New/Refinancing/Resubmition. Just the Phase Name" <br> Do not repeat naming.
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-4">
-                                                        <div class="card card-outline card-success">
-                                                            <div class="card-header">
-                                                                <h6 class="card-title mb-0">Quick Actions</h6>
-                                                            </div>
-                                                            <div class="card-body text-center">
-                                                                <button type="submit" class="btn btn-info"
-                                                                        wire:click.prevent="downloadTemplate('loan-phases')"
-                                                                        wire:loading.attr="disabled"
-                                                                        wire:target="downloadTemplate('loan-phases')">
-                                                                    <span wire:loading.remove wire:target="downloadTemplate">
-                                                                        <i class="fas fa-download mr-1"></i>Download Template
-                                                                    </span>
-                                                                    <span wire:loading wire:target="downloadTemplate">
-                                                                        <i class="fas fa-spinner fa-spin mr-1"></i> processing...
-                                                                    </span>
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {{-- Loan Phases Import Section --}}
-                                                <div id="loanPhasesImportSection" class="mt-3">
-                                                    <div class="card card-outline card-primary">
-                                                        <div class="card-header">
-                                                            <h6 class="card-title mb-0">
-                                                                <i class="fas fa-upload mr-1"></i>Import Loan Phases
-                                                            </h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div class="alert alert-info">
-                                                                <h6><i class="fas fa-info-circle mr-2"></i>Template Format Requirements</h6>
-                                                                <p class="mb-1">Your Excel file <strong>must</strong> have exactly 2 columns with these exact headers:</p>
-                                                                <table class="table table-sm table-bordered mt-2 bg-white">
-                                                                    <thead class="bg-light">
-                                                                        <tr>
-                                                                            <th class="text-center">S/No.</th>
-                                                                            <th class="text-center">Phase*</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        <tr>
-                                                                            <td class="text-center">1</td>
-                                                                            <td class="text-center"><strong>Phase 1</strong></td>
-                                                                        </tr>
-                                                                        <tr>
-                                                                            <td class="text-center">2</td>
-                                                                            <td class="text-center"><strong>Phase 2</strong></td>
-                                                                        </tr>
-                                                                        <tr>
-                                                                            <td class="text-center">3</td>
-                                                                            <td class="text-center"><strong>Phase 3A</strong></td>
-                                                                        </tr>
-                                                                    </tbody>
-                                                                </table>
-                                                                <div class="mt-2">
-                                                                    <strong>Valid Phase Name Examples:</strong>
-                                                                    <ul class="mb-1">
-                                                                        <li>Phase 1, Phase 2, Phase 3</li>
-                                                                        <li>Phase 2A, Phase 3B, Phase 4C</li>
-                                                                    </ul>
-                                                                </div>
-                                                                <p class="mb-0 mt-2"><strong>Note:</strong> Phases will be imported for constituency: <strong>{{ $constituency->constituency_name }}</strong> ({{ $constituency->constituency_code }})</p>
-                                                            </div>
-
-                                                            <form id="loanPhasesForm" wire:submit.prevent="loanPhasesForm" class="import-form">
-                                                                @csrf
-                                                                <div class="form-group">
-                                                                    <label for="loan_phases_file">Select Excel File</label>
-                                                                    {{-- <div class="input-group">
-                                                                        <div class="custom-file">
-                                                                            <input type="file" wire:model="loanPhasesData" class="custom-file-input"
-                                                                                id="loan_phases_file" accept=".xlsx,.xls,.csv"
-                                                                                @if($importing) disabled @endif required>
-                                                                            <label class="custom-file-label" for="loan_phases_file" id="loan_phases_file_label">
-                                                                                @if($loanPhasesData)
-                                                                                    {{ $loanPhasesData->getClientOriginalName() }}
-                                                                                @else
-                                                                                    No file chosen
-                                                                                @endif
-                                                                            </label>
-                                                                        </div>
-                                                                        <div class="input-group-append">
-                                                                            <button class="btn btn-outline-danger" type="button"
-                                                                                    wire:click="removeFile('loanPhasesData')"
-                                                                                    @if(!$loanPhasesData || $importing) disabled @endif>
-                                                                                <i class="fas fa-times"></i> Remove
-                                                                            </button>
-                                                                        </div>
-                                                                    </div> --}}
-                                                                    <div class="input-group">
-                                                                        <div class="custom-file">
-                                                                            <input type="file" class="custom-file-input"
-                                                                                id="loan_phases_file" accept=".xlsx,.xls,.csv" name="loanPhasesData" required
-                                                                                onchange="uploadGroupFile(this)">
-                                                                            <label wire:ignore class="custom-file-label" for="loan_phases_file" id="loan_phases_file_label">
-                                                                                <span id="phasesFileName">No file chosen</span>
-                                                                                <span id="phasesInputSpiner" hidden>
-                                                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Uploading...
-                                                                                </span>
-                                                                            </label>
-                                                                        </div>
-                                                                        <div class="input-group-append">
-                                                                            <button class="btn btn-outline-danger" type="button"
-                                                                                    onclick="removeFile('loanPhasesData')"
-                                                                                    @if(!$loanPhasesData) disabled @endif>
-                                                                                <i class="fas fa-times"></i> Remove
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                    <small class="form-text text-muted">Supported formats: .xlsx, .xls, .csv (Max: 10MB)</small>
-                                                                    @error('loanPhasesData') <span class="error text-danger">{{ $message }}</span> @enderror
-
-                                                                    {{-- Show file info when selected --}}
-                                                                    @if($loanPhasesData)
-                                                                        <div class="mt-2 alert alert-info py-2">
-                                                                            <small>
-                                                                                <i class="fas fa-file-excel mr-1 text-success"></i>
-                                                                                Selected: <strong>{{ $loanPhasesData->getClientOriginalName() }}</strong>
-                                                                                ({{ number_format(($loanPhasesData->getSize() / 1024) / 1024, 2) }} MiB)
-                                                                            </small>
-                                                                        </div>
-                                                                    @endif
-                                                                </div>
-
-                                                                {{-- Progress Bar --}}
-
-                                                                <div wire:loading wire:target="loanPhasesForm" class="mt-3 w-100">
-                                                                    <div class="progress progress-sm rounded">
-                                                                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
-                                                                            role="progressbar" style="width: {{ $importProgress }}%">
-                                                                            <span class="sr-only">{{ $importProgress }}% Complete</span>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="text-center mt-1">
-                                                                        <small class="text-muted">
-                                                                            <i class="fas fa-check mr-1"></i> {{ $importMessage }}... {{ $importProgress }}%
-                                                                        </small>
-                                                                    </div>
-                                                                </div>
-
-                                                                {{-- Submit Button --}}
-                                                                @if($loanPhasesData)
-                                                                <div class="d-flex justify-content-between align-items-center mt-3">
-                                                                    <button type="submit" class="btn btn-info"
-                                                                            wire:loading.attr="disabled"
-                                                                            wire:target="loanPhasesForm">
-                                                                        <span wire:loading.remove wire:target="loanPhasesForm">
-                                                                            <i class="fas fa-upload mr-1"></i>Start Import
-                                                                        </span>
-                                                                        <span wire:loading wire:target="loanPhasesForm">
-                                                                            <i class="fas fa-spinner fa-spin mr-1"></i> Importing...
-                                                                        </span>
-                                                                    </button>
-                                                                </div>
-                                                                @endif
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-
-
-                                                {{-- Import Results --}}
-                                                @if($importResult)
-                                                    @if($importResult['success'])
-                                                        <div class="alert alert-success mt-3">
-                                                            <h6><i class="fas fa-check-circle mr-2"></i>Import Successful!</h6>
-                                                            <p class="mb-2">{{ $importResult['message'] }}</p>
-                                                            @if(isset($importResult['stats']))
-                                                                <div class="row text-center mt-2">
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-success">{{ $importResult['stats']['imported'] }}</div>
-                                                                            <small class="text-muted">New Inserted Phases</small>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-warning">{{ $importResult['stats']['skipped'] }}</div>
-                                                                            <small class="text-muted">Skipped (Existing)</small>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-primary">{{ $importResult['stats']['total'] }}</div>
-                                                                            <small class="text-muted">Total Processed</small>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {{-- Show skipped rows details --}}
-                                                                @if(isset($importResult['stats']['skipped_rows']) && count($importResult['stats']['skipped_rows']) > 0)
-                                                                    <div class="mt-3">
-                                                                        <button class="btn btn-sm btn-outline-warning" type="button" data-toggle="collapse" data-target="#skippedPhases">
-                                                                            <i class="fas fa-eye mr-1"></i> Show Skipped Phases Details
-                                                                        </button>
-
-                                                                        <div class="collapse mt-2" id="skippedPhases">
-                                                                            <div class="card card-body">
-                                                                                <h6 class="mb-2">Skipped Phases (Already Exist):</h6>
-                                                                                <div class="table-responsive">
-                                                                                    <table class="table table-sm table-bordered">
-                                                                                        <thead class="text-body">
-                                                                                            <tr>
-                                                                                                <th>Row</th>
-                                                                                                <th>Phase Name</th>
-                                                                                                <th>Reason</th>
-                                                                                            </tr>
-                                                                                        </thead>
-                                                                                        <tbody class="text-black-50">
-                                                                                            @foreach($importResult['stats']['skipped_rows'] as $skipped)
-                                                                                            <tr>
-                                                                                                <td>{{ $skipped['row'] }}</td>
-                                                                                                <td>{{ $skipped['phase'] }}</td>
-                                                                                                <td>{{ $skipped['reason'] }}</td>
-                                                                                            </tr>
-                                                                                            @endforeach
-                                                                                        </tbody>
-                                                                                    </table>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                @endif
-                                                            @endif
-                                                        </div>
-                                                    @else
-                                                        <div class="alert alert-danger mt-3">
-                                                            <h6><i class="fas fa-exclamation-triangle mr-2"></i>Import Failed!</h6>
-                                                            <p class="mb-2">{{ $importResult['message'] }}</p>
-                                                            @if(isset($importResult['errors']) && count($importResult['errors']) > 0)
-                                                                <div class="mt-2">
-                                                                    <strong>Errors:</strong>
-                                                                    <ul class="mb-0 pl-3">
-                                                                        @foreach($importResult['errors'] as $error)
-                                                                            <li>{{ $error }}</li>
-                                                                        @endforeach
-                                                                    </ul>
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                    @endif
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {{-- Step 2: Groups --}}
-                                    <div class="time-label">
-                                        <span class="bg-success">Step 2</span>
-                                    </div>
-                                    <div>
-                                        <i class="fas fa-users bg-green"></i>
-                                        <div class="timeline-item">
-                                            <span class="time"><i class="fas fa-clock"></i> Second Step</span>
-                                            <h3 class="timeline-header">
-                                                <i class="fas fa-users mr-2"></i>Import Groups
-                                            </h3>
-                                            <div class="timeline-body">
-                                                <div class="row">
-                                                    <div class="col-md-8">
-                                                        <h6>Groups</h6>
-                                                        <p>These are Groups that have applied for loans over the period. Each group belongs to a specific ward within the constituency.</p>
-                                                        <p>Note that this group data is only for <strong>New groups for every loan phase</strong></p>
-
-                                                        <div class="alert alert-danger small">
-                                                            <i class="fas fa-exclamation-triangle mr-2"></i>
-                                                            <strong>Important: GROUP CODE ACCURACY CRITICAL.</strong> The <u>Group Code</u> is a critical and unique identifier for every group. It must never be duplicated or entered incorrectly. Using a duplicate or wrong Group Code will cause import failures and may result in serious data inconsistencies — such as creating duplicate groups, linking financial transactions to the wrong group, and associating members with incorrect records. Always double-check the Group Code before importing.
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-4">
-                                                        <div class="card card-outline card-info">
-                                                            <div class="card-header">
-                                                                <h6 class="card-title mb-0">Quick Actions</h6>
-                                                            </div>
-                                                            <div class="card-body text-center">
-                                                                <button type="submit" class="btn btn-info"
-                                                                        wire:click.prevent="downloadTemplate('groups')"
-                                                                        wire:loading.attr="disabled"
-                                                                        wire:target="downloadTemplate('groups')">
-                                                                    <span wire:loading.remove wire:target="downloadTemplate">
-                                                                        <i class="fas fa-download mr-1"></i>Download Template
-                                                                    </span>
-                                                                    <span wire:loading wire:target="downloadTemplate">
-                                                                        <i class="fas fa-spinner fa-spin mr-1"></i> processing...
-                                                                    </span>
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {{-- Groups Import Section --}}
-                                                <div id="groupsImportSection" class="mt-3">
-                                                    <div class="card card-outline card-info">
-                                                        <div class="card-header">
-                                                            <h6 class="card-title mb-0">
-                                                                <i class="fas fa-upload mr-1"></i>Import Groups
-                                                            </h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div class="alert alert-info">
-                                                                <h6><i class="fas fa-info-circle mr-2"></i>Template Requirements</h6>
-                                                                <p class="mb-1">Your Excel file <strong>must</strong> have these columns:</p>
-                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-wrap">
-                                                                    <thead class="bg-light">
-                                                                        <tr>
-                                                                            <th>S/No*</th>
-                                                                            <th>Ward*</th>
-                                                                            <th>Name*</th>
-                                                                            <th>Code*</th>
-                                                                            <th>GFS Code*</th>
-                                                                            <th>Identifier</th>
-                                                                            <th>Reg Number*</th>
-                                                                            <th>Category*</th>
-                                                                            <th>Activity*</th>
-                                                                            <th>Date Formed</th>
-                                                                            <th>Date Registered</th>
-                                                                            <th>Bank</th>
-                                                                            <th>Account</th>
-                                                                            <th>Activity Desc</th>
-                                                                            <th>Location</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        <tr>
-                                                                            <td>1</td>
-                                                                            <td><strong>Kasigau</strong></td>
-                                                                            <td>MZAWO WOMEN GROUP</td>
-                                                                            <td><strong>001</strong></td>
-                                                                            <td>4-006-026-4110202-201-001</td>
-                                                                            <td>MZA001</td>
-                                                                            <td>TTA/CD/2/3677</td>
-                                                                            <td><strong>Women</strong></td>
-                                                                            <td><strong>Service</strong></td>
-                                                                            <td>2016-02-02</td>
-                                                                            <td>2016-02-10</td>
-                                                                            <td>Equity Bank</td>
-                                                                            <td>123456</td>
-                                                                            <td>Salons/Cosmetics</td>
-                                                                            <td>Kasigau</td>
-                                                                        </tr>
-                                                                    </tbody>
-                                                                </table>
-
-                                                                <div class="mt-2">
-                                                                    <strong>Important Instructions:</strong>
-                                                                    <ul class="mb-0">
-                                                                        <li>Fields marked with * are <strong>mandatory</strong></li>
-                                                                        <li>Ward names must exist in {{ $constituency->constituency_name }} constituency</li>
-                                                                        <li>Available wards:
-                                                                            @foreach($constituency->wards as $ward)
-                                                                                <strong>{{ $ward->ward_name }},</strong>
-                                                                            @endforeach
-                                                                        </li>
-                                                                        <li>Category must be: <strong>Youth, Women, or PWD</strong></li>
-                                                                        <li>Activity must be: <strong>Trade, Service, Manufacturing, Agriculture, or Other</strong></li>
-                                                                        <li>Group Code, GFS Code, and Registration Number must be <strong>unique</strong></li>
-                                                                        <li>All rows are validated before any data is saved to database</li>
-                                                                    </ul>
-                                                                </div>
-                                                            </div>
-
-                                                            <form id="groupsForm" wire:submit.prevent="groupsForm" class="import-form">
-                                                                @csrf
-                                                                <div class="form-group">
-                                                                    <label for="groups_file">Select Excel File</label>
-                                                                    <div class="input-group">
-                                                                        <div class="custom-file">
-                                                                            <input type="file" class="custom-file-input"
-                                                                                id="groups_file" accept=".xlsx,.xls,.csv" name="groupsData" required
-                                                                                onchange="uploadGroupFile(this)">
-                                                                            <label wire:ignore class="custom-file-label" for="groups_file" id="groups_file_label">
-                                                                                <span id="groupsFileName">No file chosen</span>
-                                                                                <span id="groupsInputSpiner" hidden>
-                                                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Uploading...
-                                                                                </span>
-                                                                            </label>
-                                                                        </div>
-                                                                        <div class="input-group-append">
-                                                                            <button class="btn btn-outline-danger" type="button"
-                                                                                    onclick="removeFile('groupsData')"
-                                                                                    @if(!$groupsData) disabled @endif>
-                                                                                <i class="fas fa-times"></i> Remove
-                                                                            </button>
-                                                                        </div>
-
-                                                                    </div>
-                                                                    <small class="form-text text-muted">Supported formats: .xlsx, .xls, .csv (Max: 10MB)</small>
-                                                                    @error('groupsData') <span class="error text-danger">{{ $message }}</span> @enderror
-
-                                                                    {{-- Show file info when selected --}}
-                                                                    @if($groupsData)
-                                                                        <div class="mt-2 alert alert-info py-2">
-                                                                            <small>
-                                                                                <i class="fas fa-file-excel mr-1 text-success"></i>
-                                                                                Selected: <strong>{{ $groupsData->getClientOriginalName() }}</strong>
-                                                                                ({{ number_format(($groupsData->getSize() / 1024) / 1024, 2) }} MiB)
-                                                                            </small>
-                                                                        </div>
-                                                                    @endif
-
-                                                                    {{-- Show loading state separately --}}
-                                                                    <div wire:loading wire:target="groupsData" class="mt-2 w-100">
-                                                                        <div class="progress" style="height: 4px;">
-                                                                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
-                                                                                style="width: 100%">
-                                                                            </div>
-                                                                        </div>
-                                                                        <small class="text-muted">
-                                                                            <i class="fas fa-upload mr-1"></i> loading file...
-                                                                        </small>
-                                                                    </div>
-                                                                </div>
-
-                                                                {{-- Progress Bar --}}
-
-                                                                <div wire:loading wire:target="groupsForm" class="mt-3 w-100">
-                                                                    <div class="progress progress-sm rounded">
-                                                                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
-                                                                            role="progressbar" style="width: {{ $importProgressGroups }}%">
-                                                                            <span class="sr-only">{{ $importProgressGroups }}% Complete</span>
-                                                                        </div>
-                                                                    </div>
-                                                                     <div class="text-center mt-2">
-                                                                        <small class="text-muted">
-                                                                            <i class="fas fa-spinner fa-spin mr-1"></i>
-                                                                            {{ $importMessageGroups }}
-                                                                        </small>
-                                                                    </div>
-
-                                                                    <div class="text-center mt-1">
-                                                                        <small class="text-muted">
-                                                                            Progress: {{ $importProgressGroups }}%
-                                                                        </small>
-                                                                    </div>
-                                                                </div>
-
-                                                                @if($groupsData && !$importProgressGroups)
-                                                                <div class="d-flex justify-content-between align-items-center mt-3">
-                                                                    <button type="submit" class="btn btn-info"
-                                                                            wire:loading.attr="disabled"
-                                                                            wire:target="groupsForm">
-                                                                        <span wire:loading.remove wire:target="groupsForm">
-                                                                            <i class="fas fa-upload mr-1"></i>Start Import
-                                                                        </span>
-                                                                        <span wire:loading wire:target="groupsForm">
-                                                                            <i class="fas fa-spinner fa-spin mr-1"></i> Importing...
-                                                                        </span>
-                                                                    </button>
-                                                                </div>
-                                                                @endif
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {{-- Results Section --}}
-                                                @if($groupsImportResult)
-                                                    @if($groupsImportResult['success'])
-                                                        <div class="alert alert-success mt-3">
-                                                            <h6><i class="fas fa-check-circle mr-2"></i>Import Successful!</h6>
-                                                            <p class="mb-2">{{ $groupsImportResult['message'] }}</p>
-                                                            @if(isset($groupsImportResult['stats']))
-                                                                <div class="row text-center mt-2">
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-success">{{ $groupsImportResult['stats']['imported'] }}</div>
-                                                                            <small class="text-muted">New Inserted Groups</small>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-warning">{{ $groupsImportResult['stats']['skipped'] }}</div>
-                                                                            <small class="text-muted">Skipped (Existing)</small>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-primary">{{ $groupsImportResult['stats']['total'] }}</div>
-                                                                            <small class="text-muted">Total Processed</small>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {{-- Show skipped rows details --}}
-                                                                @if(isset($groupsImportResult['stats']['skipped_rows']) && count($groupsImportResult['stats']['skipped_rows']) > 0)
-                                                                    <div class="mt-3">
-                                                                        <button class="btn btn-sm btn-outline-warning" type="button" data-toggle="collapse" data-target="#skippedPhases">
-                                                                            <i class="fas fa-eye mr-1"></i> Show Skipped Phases Details
-                                                                        </button>
-
-                                                                        <div class="collapse mt-2" id="skippedPhases">
-                                                                            <div class="card card-body">
-                                                                                <h6 class="mb-2">Skipped Phases (Already Exist):</h6>
-                                                                                <div class="table-responsive">
-                                                                                    <table class="table table-sm table-bordered">
-                                                                                        <thead class="text-body">
-                                                                                            <tr>
-                                                                                                <th>Row</th>
-                                                                                                <th>Phase Name</th>
-                                                                                                <th>Reason</th>
-                                                                                            </tr>
-                                                                                        </thead>
-                                                                                        <tbody class="text-black-50">
-                                                                                            @foreach($groupsImportResult['stats']['skipped_rows'] as $skipped)
-                                                                                            <tr>
-                                                                                                <td>{{ $skipped['row'] }}</td>
-                                                                                                <td>{{ $skipped['phase'] }}</td>
-                                                                                                <td>{{ $skipped['reason'] }}</td>
-                                                                                            </tr>
-                                                                                            @endforeach
-                                                                                        </tbody>
-                                                                                    </table>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                @endif
-                                                            @endif
-                                                        </div>
-                                                    @else
-                                                        <div class="alert alert-danger mt-3">
-                                                            <h6><i class="fas fa-exclamation-triangle mr-2"></i>
-                                                                Import Failed!
-                                                            </h6>
-
-                                                            @if($groupsImportResult['total_errors'] > 0)
-                                                                <div class="mt-3">
-                                                                    <button class="btn btn-sm btn-default btn-outline-warning" type="button" data-toggle="collapse" data-target="#groupvalidationErrors">
-                                                                        <i class="fas fa-list mr-1"></i>
-                                                                        Show Validation Errors ({{ $groupsImportResult['total_errors'] ?? count($groupsImportResult['errors']) }} errors found)
-                                                                    </button>
-
-                                                                    <div class="collapse mt-2" id="groupvalidationErrors">
-                                                                        <div class="card card-body">
-                                                                            <h6 class="mb-2 text-danger">
-                                                                                <i class="fas fa-times-circle mr-1"></i>
-                                                                                Validation Errors Summary
-                                                                                @if(($groupsImportResult['total_errors'] ?? 0) > 20)
-                                                                                    <span class="text-sm ml-2">(Showing first 20 errors)</span>
-                                                                                @endif
-                                                                            </h6>
-
-                                                                            <div class="table-responsive" style="max-height: 300px;">
-                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-wrap">
-                                                                                    <thead class="text-body">
-                                                                                        <tr>
-                                                                                            <th width="15%" class="text-center">Row #</th>
-                                                                                            <th width="85%">Error Description</th>
-                                                                                        </tr>
-                                                                                    </thead>
-                                                                                    <tbody class="text-black-50">
-                                                                                        @foreach($groupsImportResult['display_errors'] ?? array_slice($groupsImportResult['errors'], 0, 20) as $error)
-                                                                                        <tr>
-                                                                                            <td class="text-center">
-                                                                                                <span class="badge badge-info font-weight-normal">{{ $error['row'] }}</span>
-                                                                                            </td>
-                                                                                            <td class="small">
-                                                                                                <div class="d-flex align-items-start">
-                                                                                                    <i class="fas fa-exclamation-triangle text-info mr-2 mt-1"></i>
-                                                                                                    <span>{{ $error['message'] ?? $error }}</span>
-                                                                                                </div>
-                                                                                            </td>
-                                                                                        </tr>
-                                                                                        @endforeach
-                                                                                    </tbody>
-                                                                                </table>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                    @endif
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {{-- Step 3: Group Loans --}}
-                                    <div class="time-label">
-                                        <span class="bg-success">Step 3</span>
-                                    </div>
-                                    <div>
-                                        <i class="fas fa-hand-holding-usd bg-purple"></i>
-                                        <div class="timeline-item">
-                                            <span class="time"><i class="fas fa-clock"></i> Third Step</span>
-                                            <h3 class="timeline-header">
-                                                <i class="fas fa-hand-holding-usd mr-2"></i>Import Group Loans
-                                                <span class="badge badge-warning ml-2">Requires First and Second Step</span>
-                                            </h3>
-                                            <div class="timeline-body">
-                                                <div class="row">
-                                                    <div class="col-md-8">
-                                                        <h6>What are Group Loans?</h6>
-                                                        <p>Group loans are the actual loan applications submitted by groups. Each loan is associated with a specific loan phase.</p>
-
-                                                        <div class="alert alert-default-warning small">
-                                                            <i class="fas fa-exclamation-triangle mr-2"></i>
-                                                            <strong>Important:</strong> Groups must be imported before creating loans! Ensure to check on the loan level for every loan phase
-                                                        </div>
-                                                    </div>
-                                                    <div class="col-md-4">
-                                                        <div class="card card-outline card-purple">
-                                                            <div class="card-header">
-                                                                <h6 class="card-title mb-0">Quick Actions</h6>
-                                                            </div>
-                                                            <div class="card-body text-center">
-                                                                <button type="submit" class="btn btn-info"
-                                                                        wire:click.prevent="downloadTemplate('group-loans')"
-                                                                        wire:loading.attr="disabled"
-                                                                        wire:target="downloadTemplate">
-                                                                    <span wire:loading.remove wire:target="downloadTemplate">
-                                                                        <i class="fas fa-download mr-1"></i>Download Template
-                                                                    </span>
-                                                                    <span wire:loading wire:target="downloadTemplate">
-                                                                        <i class="fas fa-spinner fa-spin mr-1"></i> processing...
-                                                                    </span>
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {{-- Import Section --}}
-                                                <div id="groupLoansImportSection" class="mt-3">
-                                                    <div class="card card-outline card-purple">
-                                                        <div class="card-header">
-                                                            <h6 class="card-title mb-0">
-                                                                <i class="fas fa-upload mr-1"></i>Import Group Loans
-                                                            </h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div class="alert alert-info">
-                                                                <h6><i class="fas fa-info-circle mr-2"></i>Template Requirements</h6>
-                                                                <p class="mb-1">Your Excel file <strong>must</strong> have these columns:</p>
-                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-wrap">
-                                                                    <thead class="bg-light">
-                                                                        <tr>
-                                                                            <th>S/No*</th>
-                                                                            <th>Phase*</th>
-                                                                            <th>Group*</th>
-                                                                            <th>Code*</th>
-                                                                            <th>level*</th>
-                                                                            <th>loan_status*</th>
-                                                                            <th>disbursement_date*</th>
-                                                                            <th>cheque_no</th>
-                                                                            <th>amount_applied</th>
-                                                                            <th>amount_approved*</th>
-                                                                            <th>amount_issued*</th>
-                                                                            <th>amount_repaid*</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        <tr>
-                                                                            <td>1</td>
-                                                                            <td><strong>Phase 1</strong></td>
-                                                                            <td><strong>MZAWO WOMEN GROUP</strong></td>
-                                                                            <td><strong>001</strong></td>
-                                                                            <td><strong>New</strong></td>
-                                                                            <td><strong>financed</strong></td>
-                                                                            <td><strong>2016-02-02</strong></td>
-                                                                            <td>001/0010</td>
-                                                                            <td>100,000</td>
-                                                                            <td><strong>100,000</strong></td>
-                                                                            <td><strong>100,000</strong></td>
-                                                                            <td><strong>95,000</strong></td>
-                                                                        </tr>
-                                                                    </tbody>
-                                                                </table>
-
-                                                                <div class="mt-2">
-                                                                    <strong>Important Instructions:</strong>
-                                                                    <ul class="mb-0">
-                                                                        <li>Fields marked with * are <strong>mandatory</strong></li>
-                                                                        <li>Phases must exist in {{ $constituency->constituency_name }} constituency</li>
-                                                                        <li>Available Phases:
-                                                                            @foreach($constituency->phases as $phase)
-                                                                                <strong>{{ $phase->phase }},</strong>
-                                                                            @endforeach
-                                                                        </li>
-                                                                        <li>Level must be: <strong>New, Refinancing, Resubmission or Reallocation</strong></li>
-                                                                        <li>Loan status must be: <strong>Financed or Cancelled</strong></li>
-                                                                        <li>Ensure to capture correct financial details.</li>
-                                                                        <li>All rows are validated before any data is saved to database</li>
-                                                                    </ul>
-                                                                </div>
-                                                            </div>
-                                                            <form id="groupLoansForm" wire:submit.prevent="groupLoansForm" class="import-form">
-                                                                @csrf
-                                                                <div class="form-group">
-                                                                    <label for="group_loans_file">Select Excel File</label>
-                                                                    <div class="input-group">
-                                                                        <div class="custom-file">
-                                                                            <input type="file" class="custom-file-input"
-                                                                                id="group_loans_file" accept=".xlsx,.xls,.csv" name="groupLoansData" required
-                                                                                onchange="uploadGroupFile(this)">
-                                                                            <label wire:ignore class="custom-file-label" for="group_loans_file" id="group_loans_file_label">
-                                                                                <span id="groupLoansFileName">No file chosen</span>
-                                                                                <span id="groupLoansInputSpiner" hidden>
-                                                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Uploading...
-                                                                                </span>
-                                                                            </label>
-                                                                        </div>
-                                                                        <div class="input-group-append">
-                                                                            <button class="btn btn-outline-danger" type="button"
-                                                                                    onclick="removeFile('groupLoansData')"
-                                                                                    @if(!$groupLoansData) disabled @endif>
-                                                                                <i class="fas fa-times"></i> Remove
-                                                                            </button>
-                                                                        </div>
-
-                                                                    </div>
-                                                                    <small class="form-text text-muted">Supported formats: .xlsx, .xls, .csv (Max: 10MB)</small>
-                                                                    @error('groupLoansData') <span class="error text-red">{{ $message }}</span> @enderror
-                                                                    @if($groupLoansData)
-                                                                        <div class="mt-2 alert alert-info py-2">
-                                                                            <small>
-                                                                                <i class="fas fa-file-excel mr-1 text-success"></i>
-                                                                                Selected: <strong>{{ $groupLoansData->getClientOriginalName() }}</strong>
-                                                                                ({{ number_format(($groupLoansData->getSize() / 1024) / 1024, 2) }} MiB)
-                                                                            </small>
-                                                                        </div>
-                                                                    @endif
-                                                                </div>
-
-                                                                {{-- Progress Bar --}}
-                                                                <div wire:loading wire:target="groupLoansForm" class="mt-3 w-100">
-                                                                    <div class="progress progress-sm rounded">
-                                                                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
-                                                                            role="progressbar" style="width: {{ $importProgressGroupLoans }}%">
-                                                                            <span class="sr-only">{{ $importProgressGroupLoans }}% Complete</span>
-                                                                        </div>
-                                                                    </div>
-                                                                     <div class="text-center mt-2">
-                                                                        <small class="text-muted">
-                                                                            <i class="fas fa-spinner fa-spin mr-1"></i>
-                                                                            {{ $importMessageGroupLoans }}
-                                                                        </small>
-                                                                    </div>
-
-                                                                    <div class="text-center mt-1">
-                                                                        <small class="text-muted">
-                                                                            Progress: {{ $importProgressGroupLoans }}%
-                                                                        </small>
-                                                                    </div>
-                                                                </div>
-                                                                @if($groupLoansData && !$importProgressGroupLoans)
-                                                                <div class="d-flex justify-content-between align-items-center mt-3">
-                                                                    <button type="submit" class="btn btn-info"
-                                                                            wire:loading.attr="disabled"
-                                                                            wire:target="groupLoansForm">
-                                                                        <span wire:loading.remove wire:target="groupLoansForm">
-                                                                            <i class="fas fa-upload mr-1"></i>Start Import
-                                                                        </span>
-                                                                        <span wire:loading wire:target="groupLoansForm">
-                                                                            <i class="fas fa-spinner fa-spin mr-1"></i> Importing...
-                                                                        </span>
-                                                                    </button>
-                                                                </div>
-                                                                @endif
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {{-- Results Section --}}
-                                                @if($groupLoansImportResult)
-                                                    @if($groupLoansImportResult['success'])
-                                                        <div class="alert alert-success mt-3">
-                                                            <h6><i class="fas fa-check-circle mr-2"></i>Import Successful!</h6>
-                                                            <p class="mb-2">{{ $groupLoansImportResult['message'] }}</p>
-                                                            @if(isset($groupLoansImportResult['stats']))
-                                                                <div class="row text-center mt-2">
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-success">{{ $groupLoansImportResult['stats']['imported'] }}</div>
-                                                                            <small class="text-muted">New Inserted Group Loans</small>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-warning">{{ $groupLoansImportResult['stats']['skipped'] }}</div>
-                                                                            <small class="text-muted">Skipped (Existing)</small>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="col-4">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-primary">{{ $groupLoansImportResult['stats']['total'] }}</div>
-                                                                            <small class="text-muted">Total Processed</small>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {{-- Show skipped rows details --}}
-                                                                @if(isset($groupLoansImportResult['stats']['skipped_rows']) && count($groupLoansImportResult['stats']['skipped_rows']) > 0)
-                                                                    <div class="mt-3">
-                                                                        <button class="btn btn-sm btn-outline-warning" type="button" data-toggle="collapse" data-target="#skippedPhases">
-                                                                            <i class="fas fa-eye mr-1"></i> Show Skipped Phases Details
-                                                                        </button>
-
-                                                                        <div class="collapse mt-2" id="skippedPhases">
-                                                                            <div class="card card-body">
-                                                                                <h6 class="mb-2">Skipped Phases (Already Exist):</h6>
-                                                                                <div class="table-responsive">
-                                                                                    <table class="table table-sm table-bordered">
-                                                                                        <thead class="text-body">
-                                                                                            <tr>
-                                                                                                <th>Row</th>
-                                                                                                <th>Phase Name</th>
-                                                                                                <th>Reason</th>
-                                                                                            </tr>
-                                                                                        </thead>
-                                                                                        <tbody class="text-black-50">
-                                                                                            @foreach($groupLoansImportResult['stats']['skipped_rows'] as $skipped)
-                                                                                            <tr>
-                                                                                                <td>{{ $skipped['row'] }}</td>
-                                                                                                <td>{{ $skipped['phase'] }}</td>
-                                                                                                <td>{{ $skipped['reason'] }}</td>
-                                                                                            </tr>
-                                                                                            @endforeach
-                                                                                        </tbody>
-                                                                                    </table>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                @endif
-                                                            @endif
-                                                        </div>
-                                                    @else
-                                                        <div class="alert alert-danger mt-3">
-                                                            <h6><i class="fas fa-exclamation-triangle mr-2"></i>
-                                                                Import Failed!
-                                                            </h6>
-
-                                                            @if($groupLoansImportResult['total_errors'] > 0)
-                                                                <div class="mt-3">
-                                                                    <button class="btn btn-sm btn-default btn-outline-warning" type="button" data-toggle="collapse" data-target="#groupvalidationErrors">
-                                                                        <i class="fas fa-list mr-1"></i>
-                                                                        Show Validation Errors ({{ $groupLoansImportResult['total_errors'] ?? count($groupLoansImportResult['errors']) }} errors found)
-                                                                    </button>
-
-                                                                    <div class="collapse mt-2" id="groupvalidationErrors">
-                                                                        <div class="card card-body">
-                                                                            <h6 class="mb-2 text-danger">
-                                                                                <i class="fas fa-times-circle mr-1"></i>
-                                                                                Validation Errors Summary
-                                                                                @if(($groupLoansImportResult['total_errors'] ?? 0) > 20)
-                                                                                    <span class="text-sm ml-2">(Showing first 20 errors)</span>
-                                                                                @endif
-                                                                            </h6>
-
-                                                                            <div class="table-responsive" style="max-height: 300px;">
-                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-wrap">
-                                                                                    <thead class="text-body">
-                                                                                        <tr>
-                                                                                            <th width="15%" class="text-center">Row #</th>
-                                                                                            <th width="85%">Error Description</th>
-                                                                                        </tr>
-                                                                                    </thead>
-                                                                                    <tbody class="text-black-50">
-                                                                                        @foreach($groupLoansImportResult['display_errors'] ?? array_slice($groupLoansImportResult['errors'], 0, 20) as $error)
-                                                                                        <tr>
-                                                                                            <td class="text-center">
-                                                                                                <span class="badge badge-info font-weight-normal">{{ $error['row'] }}</span>
-                                                                                            </td>
-                                                                                            <td class="small">
-                                                                                                <div class="d-flex align-items-start">
-                                                                                                    <i class="fas fa-exclamation-triangle text-info mr-2 mt-1"></i>
-                                                                                                    <span>{{ $error['message'] ?? $error }}</span>
-                                                                                                </div>
-                                                                                            </td>
-                                                                                        </tr>
-                                                                                        @endforeach
-                                                                                    </tbody>
-                                                                                </table>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                    @endif
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-
-
-                                    {{-- Step 4 --}}
-                                    <div class="time-label">
-                                        <span class="bg-success">Step 4</span>
-                                    </div>
-                                    <div>
-                                        <i class="fas fa-user-friends bg-orange"></i>
-                                        <div class="timeline-item">
-                                            <span class="time"><i class="fas fa-clock"></i> Fourth</span>
-                                            <h3 class="timeline-header">Import Members</h3>
-                                            <span class="badge badge-warning ml-2">Requires third Step</span>
-                                            <div class="timeline-body">
-                                                <div class="row">
-                                                    <div class="col-md-8">
-                                                        <h6>Members</h6>
-                                                        <p>These are the participants of respective groups in every loaning phase</p>
-
-                                                    </div>
-                                                    <div class="col-md-4">
-                                                        <div class="card card-outline card-purple">
-                                                            <div class="card-header">
-                                                                <h6 class="card-title mb-0">Quick Actions</h6>
-                                                            </div>
-                                                            <div class="card-body text-center">
-                                                                <a href="" wire:click.prevent="downloadTemplate('members')" class="mb-2">
-                                                                    <i class="fas fa-download mr-1"></i>Download Template
-                                                                </a>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {{-- Import Section --}}
-                                                <div id="groupMembersImportSection" class="mt-3">
-                                                    <div class="card card-outline card-purple">
-                                                        <div class="card-header">
-                                                            <h6 class="card-title mb-0">
-                                                                <i class="fas fa-upload mr-1"></i>Import Group Members
-                                                            </h6>
-                                                        </div>
-                                                        <div class="card-body">
-                                                            <div class="alert alert-info">
-                                                                <h6><i class="fas fa-info-circle mr-2"></i>Template Requirements</h6>
-                                                                <p class="mb-1">Your Excel file <strong>must</strong> have these columns:</p>
-                                                                <table class="table table-sm table-responsive table-bordered mt-2 bg-white table-hover text-wrap">
-                                                                    <thead class="bg-light">
-                                                                        <tr>
-                                                                            <th>S/No*</th>
-                                                                            <th>Phase*</th>
-                                                                            <th>Level*</th>
-                                                                            <th>Group*</th>
-                                                                            <th>Code*</th>
-                                                                            <th>Name*</th>
-                                                                            <th>Member ID*</th>
-                                                                            <th>Role*</th>
-                                                                            <th>Number*</th>
-                                                                            <th>Gender*</th>
-                                                                            <th>Disabled*</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        <tr>
-                                                                            <td>1</td>
-                                                                            <td><strong>Phase 1</strong></td>
-                                                                            <td><strong>New</strong></td>
-                                                                            <td>MZAWO WOMEN GROUP</td>
-                                                                            <td><strong>001</strong></td>
-                                                                            <td>Defence Shali</td>
-                                                                            <td><strong>3931995</strong></td>
-                                                                            <td><strong>Chairperson</strong></td>
-                                                                            <td>0716183561</td>
-                                                                            <td><strong>Female</strong></td>
-                                                                            <td><strong>No</strong></td>
-                                                                        </tr>
-                                                                    </tbody>
-                                                                </table>
-
-                                                                <div class="mt-2">
-                                                                    <strong>Important Instructions:</strong>
-                                                                    <ul class="mb-0">
-                                                                        <li>Fields marked with * are <strong>mandatory</strong></li>
-                                                                        <li>Groups must be imported before adding members</li>
-                                                                        <li>Group loans must exist for the specified Phase + Level + Group combination</li>
-                                                                        <li>Level must be: <strong>New, Refinancing, Resubmission, or Reallocation</strong></li>
-                                                                        <li>Role must be: <strong>Chairperson, Secretary, Tresurer, or Member</strong></li>
-                                                                        <li>Gender must be: <strong>Male or Female</strong></li>
-                                                                        <li>Disabled must be: <strong>Yes or No</strong></li>
-                                                                        <li>Member ID must be <strong>unique numeric identifier</strong> (numbers only)</li>
-                                                                        <li>Phone number should be in valid format (e.g., 0712345678)</li>
-                                                                        <li>Same member can be in multiple groups but only once per group loan</li>
-                                                                        <li>All rows are validated before any data is saved to database</li>
-                                                                    </ul>
-                                                                </div>
-
-                                                                <div class="mt-3 alert alert-default-warning">
-                                                                    <h6><i class="fas fa-exclamation-triangle mr-2"></i>Critical Data Integrity Notes</h6>
-                                                                    <ul class="mb-0">
-                                                                        <li><strong>Member ID is permanent:</strong> Once a member is created with an ID, it cannot be changed</li>
-                                                                        <li><strong>Group Loan Verification:</strong> Ensure the Phase + Level + Group combination exists before importing members</li>
-                                                                        <li><strong>Role Accuracy:</strong> Each group loan should have only one Chairperson, Secretary, and Tresurer</li>
-                                                                        <li><strong>Phone Numbers:</strong> Use the member's primary phone number for communication</li>
-                                                                        <li><strong>Disability Status:</strong> Mark "Yes" only for officially recognized PWD members</li>
-                                                                    </ul>
-                                                                </div>
-
-                                                                <div class="mt-2">
-                                                                    <strong>Common Import Errors to Avoid:</strong>
-                                                                    <ul class="mb-0">
-                                                                        <li>Using non-existent Phase, Group, or Level combinations</li>
-                                                                        <li>Duplicate Member IDs within the same group loan</li>
-                                                                        <li>Invalid phone number formats</li>
-                                                                        <li>Misspelled roles (e.g., "Treasurer" instead of "Tresurer")</li>
-                                                                        <li>Inconsistent Group names or codes</li>
-                                                                    </ul>
-                                                                </div>
-                                                            </div>
-
-                                                            <form id="groupMembersForm" wire:submit.prevent="groupMembersForm" class="import-form">
-                                                                @csrf
-                                                                <div class="form-group">
-                                                                    <label for="group_loans_file">Select Excel File</label>
-
-                                                                    <div class="input-group">
-                                                                        <div class="custom-file">
-                                                                            <input type="file" class="custom-file-input"
-                                                                                id="group_members_file" accept=".xlsx,.xls,.csv" name="groupMembersData" required
-                                                                                onchange="uploadGroupFile(this)">
-                                                                            <label wire:ignore class="custom-file-label" for="group_members_file" id="group_members_file_label">
-                                                                                <span id="groupMembersFileName">No file chosen</span>
-                                                                                <span id="groupMembersInputSpiner" hidden>
-                                                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Uploading...
-                                                                                </span>
-                                                                            </label>
-                                                                        </div>
-                                                                        <div class="input-group-append">
-                                                                            <button class="btn btn-outline-danger" type="button"
-                                                                                    onclick="removeFile('groupMembersData')"
-                                                                                    @if(!$groupMembersData) disabled @endif>
-                                                                                <i class="fas fa-times"></i> Remove
-                                                                            </button>
-                                                                        </div>
-
-                                                                    </div>
-                                                                    <small class="form-text text-muted">Supported formats: .xlsx, .xls, .csv (Max: 10MB)</small>
-                                                                    @error('groupMembersData') <span class="error text-red">{{ $message }}</span> @enderror
-                                                                    @if($groupMembersData)
-                                                                        <div class="mt-2 alert alert-info py-2">
-                                                                            <small>
-                                                                                <i class="fas fa-file-excel mr-1 text-success"></i>
-                                                                                Selected: <strong>{{ $groupMembersData->getClientOriginalName() }}</strong>
-                                                                                ({{ number_format(($groupMembersData->getSize() / 1024) / 1024, 2) }} MiB)
-                                                                            </small>
-                                                                        </div>
-                                                                    @endif
-                                                                </div>
-                                                                {{-- Progress Bar --}}
-                                                                <div wire:loading wire:target="groupMembersForm" class="mt-3 w-100">
-                                                                    <div class="progress progress-sm rounded">
-                                                                        <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
-                                                                            role="progressbar" style="width: {{ $importProgressGroupMembers }}%">
-                                                                            <span class="sr-only">{{ $importProgressGroupMembers }}% Complete</span>
-                                                                        </div>
-                                                                    </div>
-                                                                     <div class="text-center mt-2">
-                                                                        <small class="text-muted">
-                                                                            <i class="fas fa-spinner fa-spin mr-1"></i>
-                                                                            {{ $importMessageGroupMembers }}
-                                                                        </small>
-                                                                    </div>
-
-                                                                    <div class="text-center mt-1">
-                                                                        <small class="text-muted">
-                                                                            Progress: {{ $importProgressGroupMembers }}%
-                                                                        </small>
-                                                                    </div>
-                                                                </div>
-                                                                @if($groupMembersData)
-                                                                <div class="d-flex justify-content-between align-items-center mt-3">
-                                                                    <button type="submit" class="btn btn-info"
-                                                                            wire:loading.attr="disabled"
-                                                                            wire:target="groupMembersForm">
-                                                                        <span wire:loading.remove wire:target="groupMembersForm">
-                                                                            <i class="fas fa-upload mr-1"></i>Start Import
-                                                                        </span>
-                                                                        <span wire:loading wire:target="groupMembersForm">
-                                                                            <i class="fas fa-spinner fa-spin mr-1"></i> Importing...
-                                                                        </span>
-                                                                    </button>
-                                                                </div>
-                                                                @endif
-                                                            </form>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {{-- Results Section --}}
-                                                @if($groupMembersImportResult)
-                                                    @if($groupMembersImportResult['success'])
-                                                        <div class="alert alert-success mt-3">
-                                                            <h6><i class="fas fa-check-circle mr-2"></i>Import Successful!</h6>
-                                                            <p class="mb-2">{{ $groupMembersImportResult['message'] }}</p>
-                                                            @if(isset($groupMembersImportResult['stats']))
-                                                                <div class="row text-center mt-2">
-                                                                    <div class="col-6">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-success">{{ $groupMembersImportResult['stats']['imported_members'] }}</div>
-                                                                            <small class="text-muted">New Inserted Members</small>
-                                                                        </div>
-                                                                    </div>
-                                                                    <div class="col-6">
-                                                                        <div class="border rounded p-2 bg-light">
-                                                                            <div class="h5 mb-0 text-primary">{{ $groupMembersImportResult['stats']['total_processed'] }}</div>
-                                                                            <small class="text-muted">Total Processed</small>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-
-                                                                {{-- Show skipped rows details --}}
-                                                                {{-- @if(isset($groupMembersImportResult['stats']['skipped_members']))
-                                                                    <div class="mt-3">
-                                                                        <button class="btn btn-sm btn-outline-warning" type="button" data-toggle="collapse" data-target="#skippedPhases">
-                                                                            <i class="fas fa-eye mr-1"></i> Show Skipped Phases Details
-                                                                        </button>
-
-                                                                        <div class="collapse mt-2" id="skippedPhases">
-                                                                            <div class="card card-body">
-                                                                                <h6 class="mb-2">Skipped Phases (Already Exist):</h6>
-                                                                                <div class="table-responsive">
-                                                                                    <table class="table table-sm table-bordered">
-                                                                                        <thead class="text-body">
-                                                                                            <tr>
-                                                                                                <th>Row</th>
-                                                                                                <th>Phase Name</th>
-                                                                                                <th>Reason</th>
-                                                                                            </tr>
-                                                                                        </thead>
-                                                                                        <tbody class="text-black-50">
-                                                                                            @foreach($groupMembersImportResult['stats']['skipped_members'] as $skipped)
-                                                                                            <tr>
-                                                                                                <td>{{ $skipped['row'] }}</td>
-                                                                                                <td>{{ $skipped['phase'] }}</td>
-                                                                                                <td>{{ $skipped['reason'] }}</td>
-                                                                                            </tr>
-                                                                                            @endforeach
-                                                                                        </tbody>
-                                                                                    </table>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                @endif --}}
-                                                            @endif
-                                                        </div>
-                                                    @else
-                                                        <div class="alert alert-danger mt-3">
-                                                            <h6><i class="fas fa-exclamation-triangle mr-2"></i>
-                                                                Import Failed!
-                                                            </h6>
-
-                                                            @if($groupMembersImportResult['total_errors'] > 0)
-                                                                <div class="mt-3">
-                                                                    <button class="btn btn-sm btn-default btn-outline-warning" type="button" data-toggle="collapse" data-target="#groupvalidationErrors">
-                                                                        <i class="fas fa-list mr-1"></i>
-                                                                        Show Validation Errors ({{ $groupMembersImportResult['total_errors'] ?? count($groupMembersImportResult['errors']) }} errors found)
-                                                                    </button>
-
-                                                                    <div class="collapse mt-2" id="groupvalidationErrors">
-                                                                        <div class="card card-body">
-                                                                            <h6 class="mb-2 text-danger">
-                                                                                <i class="fas fa-times-circle mr-1"></i>
-                                                                                Validation Errors Summary
-                                                                                @if(($groupMembersImportResult['total_errors'] ?? 0) > 20)
-                                                                                    <span class="text-sm ml-2">(Showing first 20 errors)</span>
-                                                                                @endif
-                                                                            </h6>
-
-                                                                            <div class="table-responsive" style="max-height: 300px;">
-                                                                                <table class="table table-sm table-bordered table-hover table-head-fixed text-wrap">
-                                                                                    <thead class="text-body">
-                                                                                        <tr>
-                                                                                            <th width="15%" class="text-center">Row #</th>
-                                                                                            <th width="85%">Error Description</th>
-                                                                                        </tr>
-                                                                                    </thead>
-                                                                                    <tbody class="text-black-50">
-                                                                                        @foreach($groupMembersImportResult['display_errors'] ?? array_slice($groupMembersImportResult['errors'], 0, 20) as $error)
-                                                                                        <tr>
-                                                                                            <td class="text-center">
-                                                                                                <span class="badge badge-info font-weight-normal">{{ $error['row'] }}</span>
-                                                                                            </td>
-                                                                                            <td class="small">
-                                                                                                <div class="d-flex align-items-start">
-                                                                                                    <i class="fas fa-exclamation-triangle text-info mr-2 mt-1"></i>
-                                                                                                    <span>{{ $error['message'] ?? $error }}</span>
-                                                                                                </div>
-                                                                                            </td>
-                                                                                        </tr>
-                                                                                        @endforeach
-                                                                                    </tbody>
-                                                                                </table>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            @endif
-                                                        </div>
-                                                    @endif
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+                            <span class="badge badge-info px-3 py-2 shadow-sm">
+                            <i class="fas fa-calendar-alt mr-1"></i> {{ $currentFY->full }} - {{ $currentFY->quarter_suffix }} Quarter
+                            </span>
                     </div>
                 </div>
             </div>
         </div>
 
-        {{-- Data Import Section --}}
+        <div class="card border-0 shadow-sm b-radius-15">
+            <div class="card-body">
+                {{-- 1. Roadmap Banner --}}
+                <div class="d-flex align-items-stretch mb-4">
+                    <div class="bg-info d-flex align-items-center justify-content-center px-3 b-radius-15-left" style="min-width: 60px;">
+                        <i class="fas fa-route fa-lg text-white"></i>
+                    </div>
+                    <div class="p-3 bg-soft-info w-100 b-radius-15-right">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-1 font-weight-bold text-info-emphasis">
+                                <i class="fas fa-clipboard-check mr-2"></i>Upload Roadmap
+                            </h5>
+                            <span class="badge badge-info shadow-sm rounded-pill">Sequential Action Required</span>
+                        </div>
+                        <p class="mb-0 text-muted mt-1">
+                            To maintain data integrity for <strong>{{ $constituency->constituency_name }}</strong>, please process these steps in numerical order.
+                            <span class="text-info-emphasis font-weight-bold">Step 2 (Groups)</span> relies on the successful completion of <span class="text-info-emphasis font-weight-bold">Step 1 (Phases)</span>.
+                        </p>
+                        <div class="mt-2 align-items-center">
+                            <span class="extra-small text-uppercase font-weight-bold text-muted mr-3">
+                                <i class="fas fa-exclamation-circle text-danger mr-1"></i> Reference the approved codelist
+                            </span> <br>
+                            <span class="extra-small text-uppercase font-weight-bold text-muted mr-3">
+                                <i class="fas fa-asterisk text-danger mr-1"></i> Are Mandatory Fields
+                            </span>
+                            {{-- <div class="progress flex-grow-1" style="height: 4px; background-color: rgba(0,0,0,0.05);">
+                                @php
+                                    $progress = 0;
+                                    if($importResult && $importResult['success']) $progress += 50;
+                                    if($groupsImportResult && $groupsImportResult['success']) $progress += 50;
+                                @endphp
+                                <div class="progress-bar bg-info transition-all" style="width: {{ $progress }}%"></div>
+                            </div> --}}
+                        </div>
+                    </div>
+                </div>
 
+                <div class="timeline">
+                    {{-- Step 1: Loan Phases --}}
+                    <div class="time-label">
+                        <span class="bg-info">Step 1</span>
+                    </div>
+                    <div>
+                        <i class="fas fa-layer-group bg-info"></i>
+                        <div class="timeline-item shadow-sm border-0 b-radius-15"
+                            x-data="{ dragging: false, step: @entangle('loanPhasesData').live ? 2 : 1 }">
 
+                            <span class="time"><i class="fas fa-clock"></i> First Step</span>
 
+                            <h3 class="timeline-header font-weight-bold">
+                                <i class="fas fa-layer-group mr-2 text-info"></i>Import Loan Phases
+                                <span class="text-muted small ml-2 d-none d-sm-inline">Define funding cycles for {{ $constituency->constituency_name }}</span>
+                            </h3>
+
+                            <div class="timeline-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <h6 class="font-weight-bold">Phase Requirements</h6>
+                                        <p class="text-muted">Establish the specific loan distribution periods. Each phase acts as a container for your groups and members.</p>
+
+                                        <div class="bg-light p-3 rounded border-left-indigo shadow-none mb-3">
+                                            <ul class="list-unstyled mb-0">
+                                                <li class="mb-2">
+                                                    <i class="fas fa-check-circle text-success mr-2"></i>
+                                                    Exactly 2 columns: <strong>S/No.</strong> and <strong>Phase*</strong>
+                                                </li>
+                                                <li class="mb-2">
+                                                    <i class="fas fa-check-circle text-success mr-2"></i>
+                                                    Phase naming: e.g., "Phase 1", "Phase 2"
+                                                </li>
+                                                <li class="text-danger font-weight-bold">
+                                                    <i class="fas fa-exclamation-circle mr-2"></i>
+                                                    Avoid "Refinancing/Resubmission" in names.
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="card border-0 shadow-sm b-radius-15 h-100 bg-gradient-light">
+                                            <div class="card-body d-flex flex-column justify-content-center p-3">
+                                                <p class="text-center small mb-3 px-2">
+                                                    Use our pre-formatted Excel template to ensure data compatibility.
+                                                </p>
+
+                                                <button type="button"
+                                                        class="btn btn-outline-info btn-sm btn-block shadow-sm rounded-pill py-2 font-weight-bold"
+                                                        wire:click.prevent="downloadTemplate('loan-phases')"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="downloadTemplate('loan-phases')">
+
+                                                    <span wire:loading.remove wire:target="downloadTemplate('loan-phases')">
+                                                        <i class="fas fa-file-excel mr-2"></i>Download Template
+                                                    </span>
+
+                                                    <span wire:loading wire:target="downloadTemplate('loan-phases')">
+                                                        <i class="fas fa-spinner fa-spin mr-1"></i> Preparing...
+                                                    </span>
+                                                </button>
+
+                                                <div class="mt-2 text-center">
+                                                    <span class="badge badge-soft-indigo extra-small">
+                                                        <i class="fas fa-info-circle mr-1"></i> .XLSX format
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr class="my-4" style="border-top: 1px dashed #ddd;">
+
+                                {{-- Horizontal Step Tracker inside the Timeline Body --}}
+                                <div class="row mb-4 text-center px-lg-5">
+                                    <div class="col-4">
+                                        <div class="step-circle" :class="step >= 1 ? 'active' : ''">1</div>
+                                        <div class="step-label small" :class="step >= 1 ? 'font-weight-bold' : ''">Select File</div>
+                                    </div>
+                                    <div class="col-4 border-left">
+                                        <div class="step-circle" :class="step >= 2 ? 'active' : ''">2</div>
+                                        <div class="step-label small" :class="step >= 2 ? 'font-weight-bold' : ''">Verify</div>
+                                    </div>
+                                    <div class="col-4 border-left">
+                                        <div class="step-circle" :class="step >= 3 ? 'active' : ''">3</div>
+                                        <div class="step-label small" :class="step >= 3 ? 'font-weight-bold' : ''">Complete</div>
+                                    </div>
+                                </div>
+
+                                {{-- Import Form --}}
+                                <form wire:submit.prevent="loanPhasesForm" @submit="step = 3">
+                                    <div class="form-group">
+                                        <div class="upload-zone p-4 text-center transition-all b-radius-15"
+                                            :class="dragging ? 'border-indigo bg-soft-indigo' : ''"
+                                            @dragover.prevent="dragging = true"
+                                            @dragleave.prevent="dragging = false"
+                                            @drop="dragging = false"
+                                            @click="$refs.phaseInput.click()"
+                                            style="cursor: pointer; border: 2px dashed #cbd5e0;">
+
+                                            <input type="file" x-ref="phaseInput" class="d-none" wire:model="loanPhasesData" accept=".xlsx,.xls,.csv">
+
+                                            @if(!$loanPhasesData)
+                                                <div class="py-2">
+                                                    <div class="icon-shape bg-soft-indigo text-indigo mb-3">
+                                                        <i class="fas fa-cloud-upload-alt fa-2x"></i>
+                                                    </div>
+                                                    <h6 class="mb-1 font-weight-bold">Select Phase Excel File</h6>
+                                                    <p class="text-muted small mb-0">Drag and drop or click to browse</p>
+                                                </div>
+                                            @else
+                                                <div class="py-2">
+                                                    <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
+                                                    <h6 class="mb-1 text-success font-weight-bold text-truncate">
+                                                        {{ $loanPhasesData->getClientOriginalName() }}
+                                                    </h6>
+                                                    <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('loanPhasesData', null); step = 1">
+                                                        <i class="fas fa-trash-alt mr-1"></i> Remove
+                                                    </button>
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        @error('loanPhasesData')
+                                            <div class="alert alert-danger mt-2 py-2 small shadow-sm">
+                                                <i class="fas fa-exclamation-circle mr-1"></i> {{ $message }}
+                                            </div>
+                                        @enderror
+
+                                        @if($loanPhasesData)
+                                            <button type="submit" class="btn btn-info btn-block btn-lg mt-3 shadow-sm rounded-pill py-2"
+                                                    wire:loading.attr="disabled" wire:target="loanPhasesForm">
+                                                <span wire:loading.remove wire:target="loanPhasesForm">
+                                                    <i class="fas fa-play-circle mr-1"></i> Start Group Import
+                                                </span>
+                                                <span wire:loading wire:target="loanPhasesForm">
+                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Processing...
+                                                </span>
+                                            </button>
+                                        @endif
+                                    </div>
+                                </form>
+
+                                {{-- Results Section --}}
+                                @if($importResult)
+                                    <div class="mt-4 animate__animated animate__fadeIn" x-data="{ showSkipped: false }">
+                                        @if($importResult['success'])
+                                            <div class="card border-success bg-soft-success shadow-none">
+                                                <div class="card-body p-3">
+                                                    <div class="d-flex align-items-center mb-3">
+                                                        <div class="icon-shape bg-success text-white mr-3 shadow-sm">
+                                                            <i class="fas fa-check"></i>
+                                                        </div>
+                                                        <div>
+                                                            <h6 class="mb-0 font-weight-bold text-success">Import Successful!</h6>
+                                                            <p class="text-muted small mb-0">{{ $importResult['message'] }}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="row no-gutters shadow-sm rounded border bg-white overflow-hidden">
+                                                        <div class="col-4 p-2 border-right text-center">
+                                                            <div class="h5 mb-0 font-weight-bold text-success">{{ $importResult['stats']['imported'] }}</div>
+                                                            <div class="extra-small text-muted">NEW</div>
+                                                        </div>
+                                                        <div class="col-4 p-2 border-right text-center">
+                                                            <div class="h5 mb-0 font-weight-bold text-warning">{{ $importResult['stats']['skipped'] }}</div>
+                                                            <div class="extra-small text-muted">SKIPPED</div>
+                                                        </div>
+                                                        <div class="col-4 p-2 text-center">
+                                                            <div class="h5 mb-0 font-weight-bold text-indigo">{{ $importResult['stats']['total'] }}</div>
+                                                            <div class="extra-small text-muted">TOTAL</div>
+                                                        </div>
+                                                    </div>
+
+                                                    @if(isset($importResult['stats']['skipped_rows']) && count($importResult['stats']['skipped_rows']) > 0)
+                                                        <button @click="showSkipped = !showSkipped" class="btn btn-sm btn-link text-warning-emphasis font-weight-bold mt-2">
+                                                            <i class="fas" :class="showSkipped ? 'fa-eye-slash' : 'fa-eye'"></i>
+                                                            <span x-text="showSkipped ? 'Hide Review Issues' : 'Review Issues Found'"></span>
+                                                        </button>
+
+                                                        <div x-show="showSkipped"
+                                                            x-transition:enter="transition ease-out duration-300"
+                                                            x-transition:enter-start="opacity-0 transform -translate-y-2"
+                                                            class="mt-3">
+
+                                                            <div class="card border-warning-light shadow-none bg-white overflow-hidden" style="border: 1px solid #ffeeba;">
+                                                                <div class="bg-soft-warning px-3 py-2 d-flex justify-content-between align-items-center">
+                                                                    <span class="small font-weight-bold text-warning-emphasis">
+                                                                        <i class="fas fa-info-circle mr-1"></i> Review Issues
+                                                                    </span>
+                                                                    <span class="badge badge-warning">{{ count($importResult['stats']['skipped_rows']) }} Issues found</span>
+                                                                </div>
+
+                                                                <div class="table-responsive" style="max-height: 250px; overflow-y: auto;">
+                                                                    <table class="table table-hover mb-0">
+                                                                        <thead class="bg-light sticky-top">
+                                                                            <tr class="text-muted extra-small text-uppercase">
+                                                                                <th class="px-3 py-2 border-top-0" style="width: 80px;">Row #</th>
+                                                                                <th class="py-2 border-top-0">Data Found</th>
+                                                                                <th class="py-2 border-top-0 text-right px-3">Resolution Reason</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            @foreach($importResult['stats']['skipped_rows'] as $skipped)
+                                                                                <tr>
+                                                                                    <td class="px-3 align-middle font-weight-bold text-dark">
+                                                                                        <span class="badge badge-light border">{{ $skipped['row'] }}</span>
+                                                                                    </td>
+                                                                                    <td class="align-middle font-weight-bold text-dark">
+                                                                                        <span>{{ $skipped['phase'] ?: '[Empty Cell]' }}</span>
+                                                                                    </td>
+                                                                                    <td class="align-middle text-right px-3">
+                                                                                        <span class="font-weight-bold">
+                                                                                            {{ $skipped['reason'] }}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            @endforeach
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+
+                                                                <div class="card-footer bg-white border-top-0 py-2">
+                                                                    <p class="small text-muted mb-0">
+                                                                        <i class="fas fa-lightbulb mr-1 text-info"></i>
+                                                                        <strong>Tip:</strong> Fix these rows in your Excel and re-upload to complete the import.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        @else
+                                            {{-- Error Alert styled for Timeline --}}
+                                            <div class="alert alert-soft-danger border-left-danger shadow-sm">
+                                                <h6 class="font-weight-bold"><i class="fas fa-exclamation-triangle mr-2"></i>Import Failed</h6>
+                                                <p class="small mb-0">{{ $importResult['message'] }}</p>
+                                                @if(isset($importResult['errors']))
+                                                    <ul class="small mt-2 pl-3">
+                                                        @foreach($importResult['errors'] as $error) <li>{{ $error }}</li> @endforeach
+                                                    </ul>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Step 2: Groups --}}
+                    <div class="time-label">
+                        <span class="bg-info">Step 2</span>
+                    </div>
+                    <div>
+                        <i class="fas fa-users bg-info"></i>
+                        <div class="timeline-item shadow-sm border-0 b-radius-15">
+                            <span class="time"><i class="fas fa-clock"></i> Second Step</span>
+                            <h3 class="timeline-header font-weight-bold">
+                                <i class="fas fa-users mr-2 text-info"></i>Upload Groups Data With Their Financial Records
+                            </h3>
+
+                            <div class="timeline-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <div class="icon-shape bg-soft-green text-green mr-3 rounded-circle">
+                                                <i class="fas fa-users-cog"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="font-weight-bold mb-0">Groups Overview</h6>
+                                                <p class="text-muted small mb-0">Entity management & ward-based categorization</p>
+                                            </div>
+                                        </div>
+
+                                        {{-- Structured Info Grid --}}
+                                        <div class="row no-gutters mb-3">
+                                            <div class="col-sm-6 pr-sm-2">
+                                                <div class="p-2 border rounded bg-light mb-2">
+                                                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem;">Primary Link</small>
+                                                    <span class="small font-weight-bold text-dark">Constituency Wards and Loan Phases</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-6 pl-sm-2">
+                                                <div class="p-2 border rounded bg-light mb-2">
+                                                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem;">Import Type</small>
+                                                    <span class="small font-weight-bold text-dark">Beneficiary Groups Only <code>(approved code list)</code></span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <p class="text-muted small mb-3">
+                                            Each group represents a primary loan applicant entity. Data must be mapped correctly to specific wards, loan phase and loan type to maintain localized reporting.
+                                        </p>
+
+                                        {{-- High-Impact Critical Warning --}}
+                                        <div class="card border-0 bg-soft-danger shadow-none mb-0">
+                                            <div class="card-body p-3">
+                                                <div class="d-flex">
+                                                    <div class="mr-3">
+                                                        <i class="fas fa-fingerprint fa-2x text-danger opacity-50"></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="text-danger font-weight-bold mb-1 small text-uppercase">Critical: Unique Identifier Rule</h6>
+                                                        <p class="small text-danger-emphasis mb-0" style="line-height: 1.4;">
+                                                            The <strong>Group GFS Code</strong> acts as the system's DNA.
+                                                            Duplicate codes or manual overrides will corrupt financial history, member links, and disbursement tracking.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card border-0 shadow-sm b-radius-15 h-100 bg-gradient-light">
+                                            <div class="card-body d-flex flex-column justify-content-center p-3">
+                                                <p class="text-center small mb-3 px-2">
+                                                    Use our pre-formatted Excel template to ensure data compatibility.
+                                                </p>
+
+                                                <button type="button"
+                                                        class="btn btn-outline-info btn-sm btn-block shadow-sm rounded-pill py-2 font-weight-bold"
+                                                        wire:click.prevent="downloadTemplate('groups')"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="downloadTemplate('groups')">
+
+                                                    <span wire:loading.remove wire:target="downloadTemplate('groups')">
+                                                        <i class="fas fa-file-excel mr-2"></i>Download Template
+                                                    </span>
+
+                                                    <span wire:loading wire:target="downloadTemplate('groups')">
+                                                        <i class="fas fa-spinner fa-spin mr-1"></i> Preparing...
+                                                    </span>
+                                                </button>
+
+                                                <div class="mt-2 text-center">
+                                                    <span class="badge badge-soft-indigo extra-small">
+                                                        <i class="fas fa-info-circle mr-1"></i> Group_Loan_Template.xlsx
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Requirements Table --}}
+                                <div class="bg-soft-info p-4 rounded-xl mb-4 mt-3 border border-info-light shadow-sm">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="icon-shape bg-info text-white rounded shadow-sm mr-3" style="width: 40px; height: 40px;">
+                                            <i class="fas fa-table"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="font-weight-bold mb-0">Template Requirements</h6>
+                                            <p class="text-muted small mb-0">Ensure your Excel file matches this structure exactly.</p>
+                                        </div>
+                                    </div>
+
+                                    {{-- 1. Visual Table Header Preview --}}
+                                    <div class="table-responsive rounded shadow-sm mb-4 border bg-white">
+                                        <table class="table table-sm mb-0 text-nowrap small">
+                                            <thead>
+                                                <tr class="bg-light text-muted extra-small text-uppercase">
+                                                    <th class="px-3 border-bottom-0">S/No*</th>
+                                                    <th class="border-bottom-0">Date of Disbursement*</th>
+                                                    <th class="border-bottom-0">Name of Group*</th>
+                                                    <th class="border-bottom-0">Ward*</th>
+                                                    <th class="border-bottom-0">Loan Phase*</th>
+                                                    <th class="border-bottom-0">Loan Type*</th>
+                                                    <th class="border-bottom-0">GFS Code*</th>
+                                                    <th class="border-bottom-0">Idetifier</th>
+                                                    <th class="border-bottom-0">Category*</th>
+                                                    <th class="border-bottom-0">Sector*</th>
+                                                    <th class="border-bottom-0">Amount Approved*</th>
+                                                    <th class="border-bottom-0">Amount Issued*</th>
+                                                    <th class="border-bottom-0">Amount Repaid*</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="bg-soft-success-light">
+                                                    <td class="px-3">1</td>
+                                                    <td>2016-02-10</td>
+                                                    <td class="font-weight-bold">WAMAMA WOMEN</td>
+                                                    <td><span class="badge badge-outline-info">{{ $constituency->wards[0]->ward_name ?? 'Kasigau'}}</span></td>
+                                                    <td><span class="badge badge-outline-info">Phase 1</span></td>
+                                                    <td><span class="badge badge-outline-info">New</span></td>
+                                                    <td class="">4-{{ $constituency->county_code }}-{{ $constituency->constituency_code }}-4110202-201-001</td>
+                                                    <td>MZW001</td>
+                                                    <td>Women</td>
+                                                    <td>Trade</td>
+                                                    <td>100000</td>
+                                                    <td>90000</td>
+                                                    <td>80000</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {{-- 2. Validation Rules Grid --}}
+                                    <div class="row align-items-stretch">
+                                        {{-- Ward Constraints --}}
+                                        <div class="col-md-6 border-right">
+                                            {{-- Header --}}
+                                            <div class="mb-3">
+                                                <h6 class="extra-small font-weight-bold text-uppercase text-info tracking-wider mb-1">
+                                                    <i class="fas fa-check-double mr-1"></i> Data Validation Rules
+                                                </h6>
+                                                <p class="extra-small text-muted mb-0">The following values must match your Excel file exactly.</p>
+                                            </div>
+
+                                            {{-- 1. Wards Section --}}
+                                            <div class="constraint-group mb-3">
+                                                <label class="extra-small font-weight-bold text-muted text-uppercase d-block mb-2">
+                                                    <i class="fas fa-map-marker-alt mr-1"></i> 1. Permitted Wards
+                                                </label>
+                                                <div class="d-flex flex-wrap bg-light-info-subtle p-2 rounded border-dashed">
+                                                    @foreach($constituency->wards as $ward)
+                                                        <span class="badge badge-white border border-info-light text-info-emphasis mr-1 mb-1 shadow-xs py-1 px-2">
+                                                            {{ $ward->ward_name }}
+                                                        </span>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+
+                                            {{-- 2. Phases Section --}}
+                                            <div class="constraint-group mb-3">
+                                                <label class="extra-small font-weight-bold text-muted text-uppercase d-block mb-2">
+                                                    <i class="fas fa-layer-group mr-1"></i> 2. Permitted Loan Phases
+                                                </label>
+                                                <div class="d-flex flex-wrap bg-light-indigo-subtle p-2 rounded border-dashed">
+                                                    @forelse($this->getPhases as $phase)
+                                                        <span class="badge badge-white border border-info-light text-info-emphasis mr-1 mb-1 shadow-xs py-1 px-2">
+                                                            {{ $phase->phase }}
+                                                        </span>
+                                                    @empty
+                                                        <span class="extra-small text-muted italic">No phases defined yet. Complete Step 1 first.</span>
+                                                    @endforelse
+                                                </div>
+                                            </div>
+
+                                            <div class="constraint-group">
+                                                <label class="extra-small font-weight-bold text-muted text-uppercase d-block mb-2">
+                                                    <i class="fas fa-table mr-1"></i> 3. Permitted Data fields and type
+                                                </label>
+                                                <div class="d-flex flex-wrap bg-light-indigo-subtle p-2 rounded border-dashed">
+                                                    <ul class="list-unstyled mb-0 ">
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>Date format: </strong>
+                                                            <span class="font-italic">YYYY/MM/DD</span>
+                                                        </div>
+                                                    </li>
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>Loan Type: </strong>
+                                                            <span class="font-italic">New, Refinancing, Resubmission or Reallocation</span>
+                                                        </div>
+                                                    </li>
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>Category: </strong>
+                                                            <span class="font-italic">Youth, Women, or PWD</span>
+                                                        </div>
+                                                    </li>
+
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>Sector:</strong>
+                                                            <span class="font-italic">Trade, Service, Manufacturing, Agriculture, Other</span>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                </div>
+                                            </div>
+
+                                            {{-- Warning Footer --}}
+                                            {{-- <div class="mt-3 p-2 bg-soft-warning rounded d-flex align-items-center">
+                                                <i class="fas fa-exclamation-triangle text-warning mr-2"></i>
+                                                <span class="extra-small font-weight-bold text-warning-emphasis">
+                                                    Case-sensitive check active. Use "Kasigau", not "kasigau".
+                                                </span>
+                                            </div> --}}
+                                        </div>
+
+                                        <div class="col-md-6 pl-md-4">
+                                            {{-- Header --}}
+                                            <div class="mb-1">
+                                                <h6 class="extra-small font-weight-bold text-uppercase text-danger tracking-wider mb-1">
+                                                    <i class="fas fa-file-invoice-dollar mr-1"></i> Financial Audit Rules
+                                                </h6>
+                                                <p class="text-muted mb-0">Values will be cross-referenced against financial records.</p>
+                                            </div>
+
+                                            {{-- Financial Integrity Card --}}
+                                            <div class="card border-0 bg-soft-danger shadow-none mb-1">
+                                                <div class="card-body p-3">
+                                                    <h6 class="font-weight-bold text-danger text-uppercase mb-2">
+                                                        <i class="fas fa-shield-alt mr-1"></i> Integrity Warning
+                                                    </h6>
+                                                    <p class="text-danger-emphasis mb-0" style="line-height: 1.5;">
+                                                        Data in <strong>Approved</strong>, <strong>Issued</strong>, and <strong>Repaid</strong> columns must be purely numerical.
+                                                        Misreporting financial data constitutes a compliance breach and will result in the <strong>immediate flagging</strong> of the data record.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {{-- Rules List --}}
+                                            <div class="bg-white rounded p-3 border shadow-xs">
+                                                <ul class="list-unstyled mb-0 ">
+                                                    <li class="mb-2 d-flex align-items-center">
+                                                        <i class="fas fa-hashtag text-muted mr-2"></i>
+                                                        <span><strong>Format:</strong> Use numbers only (e.g., <code>50000</code>). No commas or currency symbols.</span>
+                                                    </li>
+                                                    <li class="mb-2 d-flex align-items-center">
+                                                        <i class="fas fa-balance-scale text-muted mr-2"></i>
+                                                        <span><strong>Logic:</strong> 1 - <code>Issued</code> cannot exceed <code>Approved</code>. 2 - <code>Refinancing</code> cannot be recorded before <code>New</code>.</span>
+                                                    </li>
+                                                    <li class="d-flex align-items-center">
+                                                        <i class="fas fa-history text-muted mr-2"></i>
+                                                        <span><strong>Verification:</strong> Subject to audit against bank and financial accounts records.</span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Import Form with x-ref pattern --}}
+                                <div id="groupsImportSection" x-data="{ dragging: false }">
+                                    <form wire:submit.prevent="groupsForm">
+                                        <div class="form-group">
+                                            <div
+                                                class="upload-zone p-5 text-center transition-all b-radius-15"
+                                                :class="dragging ? 'border-info bg-soft-info' : 'border-light'"
+                                                @dragover.prevent="dragging = true"
+                                                @dragleave.prevent="dragging = false"
+                                                @drop="dragging = false"
+                                                @click="$refs.groupInput.click()"
+                                                style="cursor: pointer; border: 2px dashed #cbd5e0;"
+                                            >
+                                                {{-- The Alpine Ref and Wire Model --}}
+                                                <input type="file"
+                                                    x-ref="groupInput"
+                                                    class="d-none"
+                                                    wire:model="groupsData"
+                                                    accept=".xlsx,.xls,.csv">
+
+                                                @if(!$groupsData)
+                                                    <div class="py-2">
+                                                        <div class="icon-shape bg-soft-info text-info mb-3">
+                                                            <i class="fas fa-cloud-upload-alt fa-2x"></i>
+                                                        </div>
+                                                        <h6 class="mb-1 font-weight-bold">Select Groups Excel File</h6>
+                                                        <p class="text-muted small mb-0">Drag and drop or click to browse (Max 10MB)</p>
+                                                    </div>
+                                                @else
+                                                    <div class="py-2">
+                                                        <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
+                                                        <h6 class="mb-1 text-success font-weight-bold text-truncate">
+                                                            {{ $groupsData->getClientOriginalName() }}
+                                                        </h6>
+                                                        <p class="small text-muted mb-2">{{ number_format($groupsData->getSize() / 1024 / 1024, 2) }} MB</p>
+                                                        <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('groupsData', null)">
+                                                            <i class="fas fa-trash-alt mr-1"></i> Remove File
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                            </div>
+
+                                            {{-- Validation Errors --}}
+                                            @error('groupsData')
+                                                <div class="alert alert-danger mt-2 py-2 small shadow-sm">
+                                                    <i class="fas fa-exclamation-circle mr-1"></i> {{ $message }}
+                                                </div>
+                                            @enderror
+
+                                            {{-- Upload Progress (File hitting server) --}}
+                                            <div wire:loading wire:target="groupsData" class="mt-3 text-center">
+                                                <div class="progress progress-xxs mb-2">
+                                                    <div class="progress-bar bg-info progress-bar-striped progress-bar-animated" style="width: 100%"></div>
+                                                </div>
+                                                <small class="text-muted italic">Uploading to server... please wait</small>
+                                            </div>
+                                        </div>
+
+                                        {{-- Processing Progress (Database import) --}}
+                                        @if($importProgressGroups > 0)
+                                            <div class="mt-4 p-3 border rounded bg-light">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <small class="font-weight-bold">{{ $importMessageGroups }}</small>
+                                                    <small class="font-weight-bold text-info">{{ $importProgressGroups }}%</small>
+                                                </div>
+                                                <div class="progress progress-sm rounded-pill shadow-sm">
+                                                    <div class="progress-bar bg-info progress-bar-striped progress-bar-animated"
+                                                        role="progressbar" :style="'width: ' + {{ $importProgressGroups }} + '%'">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        @if($groupsData && $importProgressGroups == 0)
+                                            <button type="submit" class="btn btn-info btn-block btn-lg mt-3 shadow-sm rounded-pill py-2"
+                                                    wire:loading.attr="disabled" wire:target="groupsForm">
+                                                <span wire:loading.remove wire:target="groupsForm">
+                                                    <i class="fas fa-play-circle mr-1"></i> Start Group Import
+                                                </span>
+                                                <span wire:loading wire:target="groupsForm">
+                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Processing...
+                                                </span>
+                                            </button>
+                                        @endif
+                                    </form>
+                                </div>
+
+                                {{-- Results Section --}}
+                                @if($groupsImportResult)
+                                    <div class="mt-4 animate__animated animate__fadeIn">
+                                        @if($groupsImportResult['success'])
+                                            <div class="card border-success bg-soft-success">
+                                                <div class="card-body py-3">
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="fas fa-check-circle fa-2x text-success mr-3"></i>
+                                                        <div>
+                                                            <h6 class="mb-0 font-weight-bold text-success">Import Successful!</h6>
+                                                            <small class="text-muted">{{ $groupsImportResult['message'] }}</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row mt-3">
+                                                        <div class="col-6 text-center border-right">
+                                                            <div class="h5 mb-0 font-weight-bold text-success">{{ $groupsImportResult['stats']['new'] }}</div>
+                                                            <div class="extra-small text-uppercase text-muted">New {{ Str::plural('Group', $groupsImportResult['stats']['new']) }} Created</div>
+                                                        </div>
+                                                        <div class="col-6 text-center">
+                                                            <div class="h5 mb-0 font-weight-bold text-info">{{ $groupsImportResult['stats']['imported'] }}</div>
+                                                            <div class="extra-small text-uppercase text-muted">Total Entries</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @else
+                                            {{-- Error Table for Groups --}}
+                                            <div class="card border-danger shadow-none overflow-hidden" x-data="{ open: true }">
+                                                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center py-2" @click="open = !open" style="cursor: pointer;">
+                                                    <h6 class="mb-0 small font-weight-bold"><i class="fas fa-times-circle mr-2"></i> Import Failed: {{ $groupsImportResult['total_errors'] }} Errors</h6>
+                                                    <i class="fas" :class="open ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                                </div>
+                                                <div x-show="open" class="table-responsive" style="max-height: 300px;">
+                                                    <table class="table table-sm table-hover mb-0">
+                                                        <thead class="bg-light sticky-top">
+                                                            <tr class="extra-small text-uppercase text-muted">
+                                                                <th class="text-center px-3" width="15%">Row</th>
+                                                                <th>Error Description</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="">
+                                                            @foreach($groupsImportResult['errors'] as $error)
+                                                                <tr>
+                                                                    <td class="text-center align-middle font-weight-bold text-danger">
+                                                                        #{{ $error['row'] }}
+                                                                    </td>
+                                                                    <td class="py-2 text-muted">
+                                                                        <i class="fas fa-info-circle text-info mr-1"></i>
+                                                                        {{-- Use whitespace-pre-wrap to show the "Current/Existing" group indenting --}}
+                                                                        <span style="white-space: pre-wrap; font-family: inherit;">{{ $error['message'] }}</span>
+                                                                    </td>
+                                                                </tr>
+                                                            @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Step 3: Members Data --}}
+                    <div class="time-label">
+                        <span class="bg-info">Step 3</span>
+                    </div>
+                    <div>
+                        <i class="fas fa-user-plus bg-info"></i>
+                        <div class="timeline-item shadow-sm border-0 b-radius-15">
+                            <span class="time"><i class="fas fa-clock"></i> Third Step</span>
+                            <h3 class="timeline-header font-weight-bold">
+                                <i class="fas fa-user-tie mr-2 text-info"></i>Import Individual Group Members
+                            </h3>
+
+                            <div class="timeline-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <div class="icon-shape bg-soft-primary text-primary mr-3 rounded-circle">
+                                                <i class="fas fa-id-card"></i>
+                                            </div>
+                                            <div>
+                                                <h6 class="font-weight-bold mb-0">Members Onboarding</h6>
+                                                <p class="text-muted small mb-0">Linking individuals to their respective GFS-coded groups</p>
+                                            </div>
+                                        </div>
+
+                                        {{-- Structured Info Grid --}}
+                                        <div class="row no-gutters mb-3">
+                                            <div class="col-sm-6 pr-sm-2">
+                                                <div class="p-2 border rounded bg-light mb-2">
+                                                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem;">Primary Link</small>
+                                                    <span class="small font-weight-bold text-dark">Phase, Group Name, GFS Code & ID Numbers</span>
+                                                </div>
+                                            </div>
+                                            <div class="col-sm-6 pl-sm-2">
+                                                <div class="p-2 border rounded bg-light mb-2">
+                                                    <small class="text-muted d-block text-uppercase font-weight-bold" style="font-size: 0.65rem;">Import Scope</small>
+                                                    <span class="small font-weight-bold text-dark">Individual Beneficiaries Only</span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <p class="text-muted small mb-3">
+                                            Members must be mapped to existing groups using the <strong>Phase + Loan Type + Group Name + Group GFS Code </strong>. Ensure every member has a valid National ID and unique phone number to prevent KYC (Know Your Customer) conflicts.
+                                        </p>
+
+                                        {{-- Critical Warning --}}
+                                        <div class="card border-0 bg-soft-warning shadow-none mb-0">
+                                            <div class="card-body p-3">
+                                                <div class="d-flex">
+                                                    <div class="mr-3">
+                                                        <i class="fas fa-exclamation-triangle fa-2x text-warning opacity-50"></i>
+                                                    </div>
+                                                    <div>
+                                                        <h6 class="text-warning-emphasis font-weight-bold mb-1 small text-uppercase">Member Linkage Rule</h6>
+                                                        <p class="small text-muted mb-0" style="line-height: 1.4;">
+                                                            If the <strong>Group GFS Code</strong> in your Excel does not exist in the system, those members will be rejected. Import groups (Step 2) before importing members.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <div class="card border-0 shadow-sm b-radius-15 h-100 bg-gradient-light">
+                                            <div class="card-body d-flex flex-column justify-content-center p-3">
+                                                <p class="text-center small mb-3 px-2">
+                                                    Use the specific Member Template to capture bio-data correctly.
+                                                </p>
+
+                                                <button type="button"
+                                                        class="btn btn-outline-info btn-sm btn-block shadow-sm rounded-pill py-2 font-weight-bold"
+                                                        wire:click.prevent="downloadTemplate('members')"
+                                                        wire:loading.attr="disabled">
+                                                    <span wire:loading.remove>
+                                                        <i class="fas fa-file-excel mr-2"></i>Download Template
+                                                    </span>
+                                                    <span wire:loading>
+                                                        <i class="fas fa-spinner fa-spin mr-1"></i> Preparing...
+                                                    </span>
+                                                </button>
+
+                                                <div class="mt-2 text-center">
+                                                    <span class="badge badge-soft-primary extra-small">
+                                                        <i class="fas fa-info-circle mr-1"></i> Member_Template.xlsx
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Requirements Table --}}
+                                <div class="bg-soft-info p-4 rounded-xl mb-4 mt-3 border border-primary-light shadow-sm">
+                                    <div class="d-flex align-items-center mb-3">
+                                        <div class="icon-shape bg-primary text-white rounded shadow-sm mr-3" style="width: 40px; height: 40px;">
+                                            <i class="fas fa-list-ol"></i>
+                                        </div>
+                                        <div>
+                                            <h6 class="font-weight-bold mb-0">Member Template Requirements</h6>
+                                            <p class="text-muted small mb-0">Required columns for individual group linkage.</p>
+                                        </div>
+                                    </div>
+
+                                    {{-- Table Preview --}}
+                                    <div class="table-responsive rounded shadow-sm mb-4 border bg-white">
+                                        <table class="table table-sm mb-0 text-nowrap small">
+                                            <thead>
+                                                <tr class="bg-light text-muted extra-small text-uppercase">
+                                                    <th class="px-3 border-bottom-0">S/No*</th>
+                                                    <th class="border-bottom-0">Phase*</th>
+                                                    <th class="border-bottom-0">Loan Type*</th>
+                                                    <th class="border-bottom-0">Group Name*</th>
+                                                    <th class="border-bottom-0">GFS Code*</th>
+                                                    <th class="border-bottom-0">Member Name*</th>
+                                                    <th class="border-bottom-0">Member ID*</th>
+                                                    <th class="border-bottom-0">Member Role*</th>
+                                                    <th class="border-bottom-0">Phone Number*</th>
+                                                    <th class="border-bottom-0">Gender*</th>
+                                                    <th class="border-bottom-0">Disabled*</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="bg-soft-success-light">
+                                                    <td class="px-3">1</td>
+                                                    <td><span class="badge badge-outline-info">Phase 1</span></td>
+                                                    <td><span class="badge badge-outline-info">New</span></td>
+                                                    <td class="font-weight-bold">WAMAMA WOMEN</td>
+                                                    <td class="">4-{{ $constituency->county_code }}-{{ $constituency->constituency_code }}-4110202-201-001</td>
+                                                    <td class="font-weight-bold">JANE DOE</td>
+                                                    <td>12345678</td>
+                                                    <td><span class="badge badge-outline-info">Chairperson</span></td>
+                                                    <td>0712345678</td>
+                                                    <td><span class="badge badge-outline-info">Female</span></td>
+                                                    <td><span class="badge badge-outline-info">No</span></td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {{-- Validation Rules --}}
+                                    <div class="row align-items-stretch">
+                                        <div class="col-md-6 border-right">
+                                            <div class="mb-3">
+                                                <h6 class="extra-small font-weight-bold text-uppercase text-info tracking-wider mb-1">
+                                                    <i class="fas fa-user-check mr-1"></i> Bio-Data Validation
+                                                </h6>
+                                            </div>
+
+                                            <div class="constraint-group mb-3">
+                                                <label class="extra-small font-weight-bold text-muted text-uppercase d-block mb-2">
+                                                    <i class="fas fa-venus-mars mr-1"></i> 1. Permitted Designations
+                                                </label>
+                                                <div class="d-flex flex-wrap bg-light-info-subtle p-2 rounded border-dashed">
+                                                    <span class="badge badge-white border border-info-light text-info mr-1 mb-1 shadow-xs py-1 px-2">Chairperson</span>
+                                                    <span class="badge badge-white border border-info-light text-info mr-1 mb-1 shadow-xs py-1 px-2">Secretary</span>
+                                                    <span class="badge badge-white border border-info-light text-info mr-1 mb-1 shadow-xs py-1 px-2">Treasurer</span>
+                                                    <span class="badge badge-white border border-info-light text-info mr-1 mb-1 shadow-xs py-1 px-2">Member</span>
+                                                </div>
+                                            </div>
+
+                                            {{-- 2. Phases Section --}}
+                                            <div class="constraint-group mb-3">
+                                                <label class="extra-small font-weight-bold text-muted text-uppercase d-block mb-2">
+                                                    <i class="fas fa-layer-group mr-1"></i> 2. Permitted Loan Phases
+                                                </label>
+                                                <div class="d-flex flex-wrap bg-light-indigo-subtle p-2 rounded border-dashed">
+                                                    @forelse($this->getPhases as $phase)
+                                                        <span class="badge badge-white border border-info-light text-info-emphasis mr-1 mb-1 shadow-xs py-1 px-2">
+                                                            {{ $phase->phase }}
+                                                        </span>
+                                                    @empty
+                                                        <span class="extra-small text-muted italic">No phases defined yet. Complete Step 1 first.</span>
+                                                    @endforelse
+                                                </div>
+                                            </div>
+
+                                            <div class="constraint-group">
+                                                <label class="extra-small font-weight-bold text-muted text-uppercase d-block mb-2">
+                                                    <i class="fas fa-table mr-1"></i> 3. Permitted Data fields and type
+                                                </label>
+                                                <div class="d-flex flex-wrap bg-light-indigo-subtle p-2 rounded border-dashed">
+                                                    <ul class="list-unstyled mb-0 ">
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>ID Number: </strong>
+                                                            <span class="font-italic">Must be 7-8 digits. No letters.</span>
+                                                        </div>
+                                                    </li>
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>Phone Number: </strong>
+                                                            <span class="font-italic">Start with 07... or 01... (10 digits). </span>
+                                                            <code>Start with 7... or 1... for (9 digits).</code>
+                                                        </div>
+                                                    </li>
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>Gender: </strong>
+                                                            <span class="font-italic">Female or Male.</span>
+                                                        </div>
+                                                    </li>
+
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>Disability Status:</strong>
+                                                            <span class="font-italic">Yes or No.</span>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-6 pl-md-4">
+                                            <div class="mb-1">
+                                                <h6 class="extra-small font-weight-bold text-uppercase text-danger tracking-wider mb-1">
+                                                    <i class="fas fa-link mr-1"></i> Integrity & Duplication
+                                                </h6>
+                                            </div>
+
+                                            <div class="card border-0 bg-soft-danger shadow-none mb-1">
+                                                <div class="card-body p-3">
+                                                    <p class="text-danger-emphasis mb-0 small" style="line-height: 1.5;">
+                                                        The system performs a <strong>Global Identity Check</strong>. An ID number cannot belong to multiple different members.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div class="bg-white rounded p-3 border shadow-xs">
+                                                <ul class="list-unstyled mb-0 extra-small">
+                                                    <li class="mb-2 d-flex align-items-center">
+                                                        <i class="fas fa-fingerprint text-muted mr-2"></i>
+                                                        <span><strong>Unique ID:</strong> System flags duplicate National ID numbers on different members.</span>
+                                                    </li>
+                                                    <li class="d-flex align-items-center">
+                                                        <i class="fas fa-network-wired text-muted mr-2"></i>
+                                                        <span><strong>GFS Matching:</strong> Exact string match required for Group linkage.</span>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Import Form --}}
+                                <div id="membersImportSection" x-data="{ dragging: false }">
+                                    <form wire:submit.prevent="groupMembersForm">
+                                        <div class="form-group">
+                                            <div class="upload-zone p-5 text-center transition-all b-radius-15"
+                                                :class="dragging ? 'border-info bg-soft-info' : 'border-light'"
+                                                @dragover.prevent="dragging = true"
+                                                @dragleave.prevent="dragging = false"
+                                                @drop="dragging = false"
+                                                @click="$refs.memberInput.click()"
+                                                style="cursor: pointer; border: 2px dashed #4e73df;">
+
+                                                <input type="file" x-ref="memberInput" class="d-none"
+                                                    wire:model="groupMembersData" accept=".xlsx,.xls,.csv">
+
+                                                @if(!$groupMembersData)
+                                                    <div class="py-2">
+                                                        <div class="icon-shape bg-soft-info text-info mb-3">
+                                                            <i class="fas fa-cloud-upload-alt fa-2x"></i>
+                                                        </div>
+                                                        <h6 class="mb-1 font-weight-bold">Select Members Excel File</h6>
+                                                        <p class="text-muted small mb-0">Drag and drop or click to browse</p>
+                                                    </div>
+                                                @else
+                                                    <div class="py-2">
+                                                        <i class="fas fa-file-excel fa-3x text-info mb-3"></i>
+                                                        <h6 class="mb-1 text-info font-weight-bold">
+                                                            {{ $groupMembersData->getClientOriginalName() }}
+                                                        </h6>
+                                                        <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('groupMembersData', null)">
+                                                            <i class="fas fa-trash-alt mr-1"></i> Remove
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        @if($groupMembersData)
+                                            <button type="submit" class="btn btn-info btn-block btn-lg mt-3 shadow-sm rounded-pill py-2"
+                                                    wire:loading.attr="disabled">
+                                                <span wire:loading.remove>
+                                                    <i class="fas fa-upload mr-1"></i> Start Member Import
+                                                </span>
+                                                <span wire:loading>
+                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Processing...
+                                                </span>
+                                            </button>
+                                        @endif
+                                    </form>
+                                </div>
+
+                                {{-- Results Section --}}
+                                @if($groupMembersImportResult)
+                                    <div class="mt-4 animate__animated animate__fadeIn">
+                                        @if($groupMembersImportResult['success'])
+                                            <div class="card border-success bg-soft-success">
+                                                <div class="card-body py-3">
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="fas fa-check-circle fa-2x text-success mr-3"></i>
+                                                        <div>
+                                                            <h6 class="mb-0 font-weight-bold text-success">Import Successful!</h6>
+                                                            <small class="text-muted">{{ $groupMembersImportResult['message'] }}</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="row mt-3">
+                                                        <div class="col-6 text-center border-right">
+                                                            <div class="h5 mb-0 font-weight-bold text-success">{{ $groupMembersImportResult['stats']['new'] }}</div>
+                                                            <div class="extra-small text-uppercase text-muted">New {{ Str::plural('Member', $groupMembersImportResult['stats']['new']) }} Created</div>
+                                                        </div>
+                                                        <div class="col-6 text-center">
+                                                            <div class="h5 mb-0 font-weight-bold text-info">{{ $groupMembersImportResult['stats']['imported'] }}</div>
+                                                            <div class="extra-small text-uppercase text-muted">Total Entries</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @else
+                                            {{-- Error Table for Members --}}
+                                            <div class="card border-danger shadow-none overflow-hidden" x-data="{ open: true }">
+                                                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center py-2" @click="open = !open" style="cursor: pointer;">
+                                                    <h6 class="mb-0 small font-weight-bold"><i class="fas fa-times-circle mr-2"></i> Import Failed: {{ $groupMembersImportResult['total_errors'] }} Errors</h6>
+                                                    <i class="fas" :class="open ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+                                                </div>
+                                                <div x-show="open" class="table-responsive" style="max-height: 500px;">
+                                                    <table class="table table-sm table-hover mb-0">
+                                                        <thead class="bg-light sticky-top">
+                                                            <tr class="extra-small text-uppercase text-muted">
+                                                                <th class="text-center px-3" width="15%">Row</th>
+                                                                <th>Error Description</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody class="">
+                                                            @foreach($groupMembersImportResult['errors'] as $error)
+                                                                <tr>
+                                                                    <td class="text-center align-middle font-weight-bold text-danger">
+                                                                        #{{ $error['row'] }}
+                                                                    </td>
+                                                                    <td class="py-2 text-muted">
+                                                                        <i class="fas fa-info-circle text-info mr-1"></i>
+                                                                        {{-- Use whitespace-pre-wrap to show the "Current/Existing" group indenting --}}
+                                                                        <span style="white-space: pre-wrap; font-family: inherit;">{{ $error['message'] }}</span>
+                                                                    </td>
+                                                                </tr>
+                                                            @endforeach
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                    <div><i class="fas fa-check-double bg-gray"></i></div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </section>
 
-@push('scripts')
-    <!-- bs-custom-file-input -->
+@push('styles')
+    <style>
+        .upload-zone {
+            border: 2px dashed #d1d5db;
+            border-radius: 12px;
+            position: relative;
+            transition: all 0.3s ease;
+            background: #f9fafb;
+            cursor: pointer;
+        }
+        .upload-zone:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+        .upload-input {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0; left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .icon-shape {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+        }
+        .bg-soft-primary { background-color: #e7f1ff; color: #007bff; }
+        .bg-soft-success { background-color: #e6fffa; color: #38b2ac; }
 
-<script>
-    document.addEventListener('livewire:init', function () {
 
-        Livewire.on('import-completed', (e) => {
-            document.getElementById(e.form).reset();
-            switch (e.form){
-                case 'loanPhasesForm':
-                    document.getElementById('phasesFileName').textContent = 'No file chosen';
-                    break;
-                case 'groupsForm':
-                    document.getElementById('groupsFileName').textContent = 'No file chosen';
-                    break;
-                case 'groupLoansForm':
-                    document.getElementById('groupLoansFileName').textContent = 'No file chosen';
-                    break;
-                case 'groupMembersForm':
-                    document.getElementById('groupMembersFileName').textContent = 'No file chosen';
-                    break;
-            }
-            console.log('Import completed');
-
-        });
-
-        // Also poll when the component is active
-        Livewire.on('import-started', () => {
-            console.log('Groups import started');
-        });
-
-        let pollingInterval = null;
-
-        // Start polling when import begins
-        Livewire.on('start-groups-polling', () => {
-            console.log('Starting groups import polling');
-
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-            }
-
-            pollingInterval = setInterval(() => {
-                Livewire.dispatch('poll-groups-progress');
-            }, 500);
-        });
-
-        Livewire.on('change', (change) => {
-            console.log(change)
-        })
-
-        // Stop polling when import completes
-        Livewire.on('stop-groups-polling', () => {
-            console.log('Stopping groups import polling');
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-                pollingInterval = null;
-            }
-        });
-
-        // Clean up
-        Livewire.hook('component.removed', (component) => {
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
-            }
-        });
-
-        // // Listen for when file is removed/reset
-        // Livewire.on('file-reset', () => {
-        //     const label = document.getElementById('groups_file_label');
-        //     if (label) {
-        //         label.textContent = 'No file chosen';
-        //     }
-        // });
-    });
-
-    // function updateFileName(input) {
-    //     console.log(input.id)
-    //     switch (input.id) {
-    //         case 'groups_file':
-    //             document.getElementById('groupsFileName').style.display = 'none';
-    //             document.getElementById('groupsInputSpiner').style.display = 'inline';
-
-    //             console.log('groups input');
-    //             break;
-    //     }
-
-    //     const label = input.nextElementSibling;
-    //     const fileName = input.files[0]?.name;
-    //     label.textContent = fileName;
-    // }
-    // function updateFileName(input) {
-    //     const fileName = input.files[0]?.name || 'No file chosen';
-    //     document.getElementById('groupsFileName').textContent = fileName;
-
-    //     // 🔥 Update Livewire property manually (without wire:model)
-    //     if (fileName !== 'No file chosen') {
-    //         //@this.set('groupsData', input.files[0]);
-    //         // @this.set('groupsFileName', fileName);
-    //         Livewire.dispatch('groupUp')
-    //     }
-    // }
-
-    function inputChange(inputName, fileNameId, spinnerId, file) {
-        const fileNameSpan = document.getElementById(fileNameId);
-        const spinner = document.getElementById(spinnerId);
-
-        if (!file) {
-            fileNameSpan.textContent = 'No file choosen.';
-            @this.set(inputName, null);
-            return;
+        :root {
+            --indigo-primary: #4e73df;
+            --indigo-hover: #224abe;
+            --indigo-soft: #f0f3ff;
         }
 
-        fileNameSpan.textContent = file.name;
-        fileNameSpan.hidden = true;
-        spinner.hidden = false;
+        /* Custom Palette */
+        .text-indigo { color: var(--indigo-primary) !important; }
+        .bg-soft-indigo { background-color: var(--indigo-soft) !important; }
+        .border-indigo { border-color: var(--indigo-primary) !important; }
+        .btn-indigo { background: var(--indigo-primary); color: white; border: none; }
+        .btn-indigo:hover { background: var(--indigo-hover); color: white; }
+        .btn-indigo-outline { border: 1px solid var(--indigo-primary); color: var(--indigo-primary); background: transparent; }
 
-        @this.upload(inputName, file,
-            (uploadedFilename) => {
-                // Success
-                spinner.hidden = true;
-                fileNameSpan.hidden = false;
-            },
-            (error) => {
-                // Error
-                spinner.hidden = true;
-                fileNameSpan.hidden = false;
-            }
-        );
-
-    }
-
-    function uploadGroupFile(input) {
-        const file = input.files[0];
-
-        switch (input.name){
-            case 'groupsData':
-                @this.set('groupsImportResult', null)
-                inputChange('groupsData', 'groupsFileName', 'groupsInputSpiner', file)
-                break;
-            case 'loanPhasesData':
-                @this.set('importResult', null)
-                inputChange('loanPhasesData', 'phasesFileName', 'phasesInputSpiner', file);
-                break;
-            case 'groupLoansData':
-                @this.set('groupLoansImportResult', null)
-                inputChange('groupLoansData', 'groupLoansFileName', 'groupLoansInputSpiner', file);
-                break;
-            case 'groupMembersData':
-                @this.set('groupMembersImportResult', null)
-                inputChange('groupMembersData', 'groupMembersFileName', 'groupMembersInputSpiner', file);
-                break;
-
+        /* Step Circle Styling */
+        .step-circle {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: #edf2f7; color: #a0aec0;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 8px; transition: all 0.3s ease;
+            border: 2px solid transparent;
         }
-    }
-
-    function removeFile(fileName) {
-        switch (fileName) {
-            case 'groupsData':
-                @this.set('groupsImportResult', null)
-                @this.set(fileName, null);
-                document.getElementById('groupsFileName').textContent = 'No file chosen';
-                document.getElementById('groupsForm').reset();
-                break;
-            case 'loanPhasesData':
-                @this.set(fileName, null);
-                @this.set('importResult', null)
-                document.getElementById('phasesFileName').textContent = 'No file chosen';
-                document.getElementById('loanPhasesForm').reset();
-                break;
-            case 'groupLoansData':
-                @this.set(fileName, null);
-                @this.set('groupLoansImportResult', null)
-                document.getElementById('groupLoansFileName').textContent = 'No file chosen';
-                document.getElementById('groupLoansForm').reset();
-                break;
-            case 'groupMembersData':
-                @this.set(fileName, null);
-                @this.set('groupMembersImportResult', null)
-                document.getElementById('groupMembersFileName').textContent = 'No file chosen';
-                document.getElementById('groupMembersForm').reset();
-                break;
-
+        .step-circle.active {
+            background: var(--indigo-primary); color: white;
+            box-shadow: 0 4px 6px rgba(78, 115, 223, 0.2);
         }
-    }
-</script>
 
+        /* Border accent for Requirements */
+        .border-left-indigo {
+            border-left: 4px solid var(--indigo-primary);
+        }
+
+        .transition-all { transition: all 0.2s ease-in-out; }
+
+        .rounded-xl { border-radius: 12px !important; }
+        .shadow-xs { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .bg-soft-success-light { background-color: rgba(40, 167, 169, 0.03); }
+        .border-info-light { border-color: rgba(23, 162, 184, 0.2) !important; }
+
+        .badge-outline-info {
+            color: #17a2b8;
+            border: 1px solid #17a2b8;
+            background: transparent;
+        }
+        .border-dashed {
+            border: 1px dashed rgba(0,0,0,0.1) !important;
+        }
+        .bg-light-info-subtle {
+            background-color: rgba(23, 162, 184, 0.03);
+        }
+
+        .bg-light-indigo-subtle {
+            background-color: rgba(102, 16, 242, 0.03);
+        }
+    </style>
 @endpush
-

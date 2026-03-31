@@ -3,31 +3,34 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use App\Models\TempApplication;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Cache;
-use App\Services\Loan\LoanPhaseService;
-use App\Services\Loan\TempApplicationService;
-use App\Services\Loan\LoanAnalysisService;
-use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
-use App\Services\Loan\DefaultAnalysisService;
-use App\Models\Member;
-use App\Models\Group;
-use App\Models\TempGroupMember;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
-use App\Models\TempApplicationApproval;
+use Illuminate\Validation\ValidationException;
+use App\Services\Loan\LoanPhaseService;
+use App\Services\Loan\TempApplicationService;
+use App\Services\Loan\LoanAnalysisService;
+use App\Services\Loan\DefaultAnalysisService;
+use App\Services\IdempotencyService;
+use App\Exports\ApplicationInstitutionalDataExport;
+use App\Jobs\SyncApplicationStatusToDrupal;
+use App\Models\GroupLoan;
+use App\Models\Member;
+use App\Models\Group;
+use App\Models\TempApplication;
+use App\Models\TempGroupMember;
 use App\Models\PhaseApplication;
 use Exception;
 use Mpdf\Tag\Th;
 use Throwable;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\ApplicationInstitutionalDataExport;
-use App\Jobs\SyncApplicationStatusToDrupal;
+use Barryvdh\DomPDF\Facade\Pdf;
+
 
 class ApplicationView extends Component
 {
@@ -35,20 +38,19 @@ class ApplicationView extends Component
     protected TempApplicationService $appService;
     protected DefaultAnalysisService $defaultService;
     protected LoanAnalysisService $analysisService;
+    protected IdempotencyService $idempotencyService;
 
     public $isDataLoaded = false;
 
     public $applicationId;
     public $county;
     public $constituency;
-    public $application;
     public $defaultMembers;
     public $groupMembers;
 
     // links
     public $suggestedMatches = [];
     public $isSearching = false;
-    public ?Group $linkedGroup;
     public ?PhaseApplication $phaseApplication;
 
     public $selectedPhaseForQuickAssign = '';
@@ -56,8 +58,8 @@ class ApplicationView extends Component
     public $isManualSearch = false;
     public $searchTerm = '';
 
-    #[Url(except: 'group-loan')]
-    public $activeTab = 'group-loan';
+    #[Url(except: 'all-details')]
+    public $activeTab = 'all-details';
 
     // Sidebar fields
     public $remarks = '';
@@ -74,89 +76,292 @@ class ApplicationView extends Component
     public $approvalAmount;
     public $approvalComments;
     public $groupIdentifier;
-    public $eligibility = [
-        'min' => 50000,
-        'max' => 100000,
-        'balance' => 0,
-        'can_borrow' => true
-    ];
-
-    public $assessmentData;
 
     // ward
     public $selectedWardId;
 
-    public function boot(LoanPhaseService $phaseService, LoanAnalysisService $analysisService, TempApplicationService $appService, DefaultAnalysisService $defaultService)
+    // next application summary
+    public $nextSummary = null;
+    public $phaseCompleted = false;
+    public $submissionUrl;
+
+    public $reviewType; // 'approval' or 'rejection'
+    public $rejectionReason;
+    public $reviewingApplicationId;
+
+    public $selectedRejectionKey;
+    public $rejectionComment;
+
+    public $rejectionReasons = [
+        'incomplete_information' => 'Incomplete or incorrect information',
+        'missing_documents'      => 'Required documents missing or invalid',
+        'eligibility_criteria'   => 'Does not meet eligibility criteria',
+        'duplicate_application'  => 'Duplicate application',
+        'insufficient_collateral'=> 'Insufficient collateral',
+        'poor_credit_history'    => 'Poor credit history',
+        'member_declined'        => 'Group member(s) declined participation',
+        'other'                  => 'Other reason',
+    ];
+
+    public $idempotencyKey;
+
+    public $payload = [];
+
+    public function boot(
+        LoanPhaseService $phaseService,
+        LoanAnalysisService $analysisService,
+        TempApplicationService $appService,
+        DefaultAnalysisService $defaultService,
+        IdempotencyService $idempotencyService
+        )
     {
         $this->phaseService = $phaseService;
         $this->appService = $appService;
         $this->defaultService = $defaultService;
         $this->analysisService = $analysisService;
+        $this->idempotencyService = $idempotencyService;
     }
 
     public function mount($constituency, $applicationId)
     {
         $this->constituency = $constituency->load(['county', 'wards']);
+
         $this->county = $this->constituency->county;
+
         $this->applicationId = $applicationId;
 
         $this->linkedGroup = null;
 
+        $this->idempotencyKey = "application_action_{$applicationId}";
+
         $this->defaultMembers = [];
 
         $this->groupMembers = null;
+    }
 
-        $this->loadApplication();
-        $this->isDataLoaded = true;
-        $this->approvalAmount =  $this->application->loan_amount;
+    #[Computed]
+    public function activePhases()
+    {
+        if (!is_null($this->application->phaseApplication)) return;
+        return $this->phaseService->getActivePhasesForConstituency(
+            $this->constituency->constituency_code
+        );
+    }
 
-        $this->generateGfs();
+    #[Computed]
+    public function application()
+    {
+        try {
+            return $this->appService->getEnrichedApplication(
+                $this->applicationId,
+                $this->constituency->constituency_code
+            );
+        } catch (\Throwable $th) {
+            abort(404, 'Application not found.');
+        }
+    }
+
+
+    #[Computed]
+    public function eligibility()
+    {
+        return $this->analysisService->getEligibilityData(
+            $this->application->phaseApplication?->linkedGroup,
+            $this->application->loan_amount
+        );
+    }
+
+    #[Computed]
+    public function groupMembers()
+    {
+        return $this->application->groupMembers;
+    }
+
+    #[Computed]
+    public function linkedGroup()
+    {
+        return $this->application->phaseApplication?->linkedGroup;
+    }
+
+    #[Computed]
+    public function processedExpenses()
+    {
+        return $this->appService->getProcessedExpenses($this->application);
+    }
+
+    #[Computed]
+    public function processedFiles()
+    {
+        return $this->appService->getProcessedFiles(
+            $this->application,
+            $this->county->slug ?? $this->constituency->county->slug,
+            $this->constituency->slug
+        );
+    }
+
+    private function isAppActionProcessing($payload) : bool
+    {
+        return ($this->idempotencyService->acquire($this->idempotencyKey, $payload));
     }
 
 
     public function refreshData()
     {
-        Cache::forget("app_enrichment_{$this->applicationId}");
-        unset($this->riskFlags);
-        unset($this->riskFlagsCount);
-        unset($this->riskCategory);
-        unset($this->riskCategory);
-        unset($this->activePhases);
-        unset($this->gfsCode);
-        reset($this->eligibility);
-
-        $this->appService->invalidateApplicationCache($this->application);
-        $this->loadApplication();
-        $this->generateGfs();
+        $this->appService->forgetApplication($this->applicationId);
+        unset($this->application);
     }
 
-    public function getStatusBadgeClass($status)
+    // fns
+    public function confirmRemoveFromPhase()
     {
-        $badges = [
-            'submitted' => 'secondary',
-            'under_review' => 'primary',
-            'approved' => 'success',
-            'rejected' => 'danger',
-            'disbursed' => 'warning',
-            'closed' => 'dark',
-        ];
-        return $badges[$status] ?? 'secondary';
+
+        try {
+            //phaseApplication.reviewPhase
+            if (is_null($this->application->phaseApplication)) return;
+
+            $phase = $this->application->phaseApplication->reviewPhase;
+
+            $applicationId = $this->application->phaseApplication->temp_application_id;
+
+            $this->phaseService->removeApplication($phase, $applicationId);
+
+            $this->appService->invalidateStatsCache($this->constituency->constituency_code);
+
+            $this->dispatch('close-modal', name: 'modal-remove-from-phase');
+
+            $this->dispatch('swal:toast',
+                title: 'Phase Unassigned 😊',
+                message: 'Application removed from phase.',
+                type: 'success'
+            );
+
+            $this->refreshData();
+
+        } catch (ValidationException $e) {
+            $this->dispatch('swal:toast',
+                title: 'Phase Assigned',
+                message: collect($e->errors())->flatten()->first(),
+                type: 'error'
+            );
+        } catch (\Exception $e) {
+            $this->dispatch('swal:toast',
+                title: 'Phase Assigned',
+                message: $e->getMessage(),
+                type: 'error'
+            );
+        }
     }
 
-    public function getStatusBadgeText($status)
+        /**
+     *  Attempt Link
+     */
+    public function findMatches()
     {
-        return $this->appService->getStatusText($status);
+        if ($this->application->phaseApplication === null){
+            $this->dispatch('swal:toast',
+                title: 'Find Match',
+                message: 'Assign application to a phase first.',
+                type: 'error'
+            );
+            return;
+        }
+
+        $this->isSearching = true;
+
+        $this->suggestedMatches = $this->appService->findMatchingGroups($this->application);
+
+        $this->isSearching = false;
+
+        $this->dispatch('open-modal', name: 'modal-group-linker');
     }
 
-    public function updating()
+    public function confirmLink($groupId)
     {
-        $this->loadApplication();
+        try {
+
+            $this->appService->linkToMasterGroup($this->application, $groupId);
+
+            $this->refreshData();
+
+            $this->reset('searchTerm');
+
+            $this->dispatch('close-modal', name: 'modal-group-linker');
+
+            $this->dispatch('swal:toast',
+                title: 'Group Link 🤩',
+                message: 'Group linked successfully!',
+                type: 'success'
+            );
+
+            $this->dispatch('app-updated')->to(SideNavBadge::class);
+
+        } catch (ValidationException $e) {
+            $this->dispatch('swal:toast',
+                title: 'Group Link Error 😕',
+                message: collect($e->errors())->flatten()->first(),
+                type: 'error'
+            );
+        } catch (\Exception $e) {
+            Log::error("Group Link Failed: ", [
+                $e->getMessage(),
+            ]);
+            $this->dispatch('swal:toast',
+                title: 'Group Link Error 😕',
+                message: 'Oops! Linking failed.',
+                type: 'error'
+            );
+        }
     }
 
-
-    public function updatedSelectedPhaseId($value)
+    public function markAsNoMatch()
     {
-        // $this->loadApplication();
+        $this->application->update([
+            'link_status' => 'attempted_no_match',
+            'loan_type' => 'Wezesha',
+        ]);
+
+        $this->refreshData();
+
+        $this->dispatch('close-modal', name: 'modal-group-linker');
+    }
+    /**
+     * Toggle between modes
+     */
+    public function toggleSearchMode()
+    {
+        $this->isManualSearch = !$this->isManualSearch;
+        $this->searchTerm = ''; // Reset search
+        if (!$this->isManualSearch) {
+            $this->findMatches(); // Refresh automatic suggestions
+        } else {
+            $this->suggestedMatches = []; // Clear suggestions for manual start
+        }
+    }
+
+    public function getStatusOptionsProperty()
+    {
+        return $this->appService->getConsStatusOptionsProperty();
+    }
+
+    public function getStatusLabel($value)
+    {
+        return collect($this->statusOptions)->firstWhere('value', $value)['name'] ?? $value;
+    }
+
+    public function getStatusClasses($status)
+    {
+        return $this->appService->getStatusClasses($status);
+    }
+
+    public function getFormattedRejectionReasonsProperty()
+    {
+        return collect($this->rejectionReasons)->map(function ($label, $key) {
+            return [
+                'id' => $key,
+                'name' => $label,
+                'color' => '#dc3545'
+            ];
+        })->values()->toArray();
     }
 
     public function updatedGroupCode($value)
@@ -222,132 +427,88 @@ class ApplicationView extends Component
 
             $this->appService->invalidateStatsCache($this->constituency->constituency_code);
             $this->reset('selectedPhaseId');
-            $this->dispatch('flash-success', message: 'Applications assigned to phase successfully');
-
+            $this->dispatch('swal:toast',
+                title: 'Phase Assigned',
+                message: 'Applications assigned to phase successfully.',
+                type: 'success'
+            );
             $this->refreshData();
         } catch (ValidationException $e) {
             foreach ($e->errors() as $field => $messages) {
                 foreach ($messages as $message) {
                     $this->addError($field, $message);
-                    $this->dispatch('flash-error', message: $message);
+                    $this->dispatch('swal:toast',
+                        title: 'Phase Assigned',
+                        message: $message,
+                        type: 'error'
+                    );
                 }
 
             }
         } catch (\Exception $e) {
-            $this->dispatch('flash-error', message: $e->getMessage());
+            $this->dispatch('swal:toast',
+                title: 'Phase Assigned',
+                message: $e->getMessage(),
+                type: 'error'
+            );
         }
 
-    }
-
-    public function confirmRemoveFromPhase()
-    {
-        try {
-            //phaseApplication.reviewPhase
-            if (is_null($this->application->phaseApplication)) return;
-            $phase = $this->application->phaseApplication->reviewPhase;
-            $applicationId = $this->application->phaseApplication->temp_application_id;
-
-            $this->phaseService->removeApplication($phase, $applicationId);
-            $this->appService->invalidateStatsCache($this->constituency->constituency_code);
-            $this->dispatch('flash-success', message: 'Application removed from phase');
-            $this->refreshData();
-
-        } catch (ValidationException $e) {
-            $this->dispatch('flash-error', message: collect($e->errors())->flatten()->first());
-        } catch (\Exception $e) {
-            $this->dispatch('flash-error', message: $e->getMessage());
-        }
     }
 
     public function removeFromPhase()
     {
-        $this->dispatch('confirm-action',
-            title: 'Remove from Phase?',
-            text: 'This will decouple the application from the current batch.',
-            icon: 'warning',
-            confirmText: 'Yes, Remove it!',
-            componentId: $this->getId(),
-            action: 'confirmRemoveFromPhase',
-            // params: $this->application->id // Any data the method needs
-        );
+        $this->dispatch('open-modal', name: 'modal-remove-from-phase');
     }
 
     public function removeLink()
     {
-        $this->dispatch('confirm-action',
-            title: 'Remove link?',
-            text: 'This will decouple the application from the current liked group.',
-            icon: 'warning',
-            confirmText: 'Yes, Remove it!',
-            componentId: $this->getId(),
-            action: 'confirmRemoveLink',
-            // params: $this->application->id // Any data the method needs
-        );
+        $this->dispatch('open-modal', name: 'modal-unlink-confirm');
     }
 
     public function confirmRemoveLink()
     {
-        $this->loadApplication();
-
         if (is_null($this->application->phaseApplication->group_id)) return;
 
         try {
             $this->appService->unLinkFromMasterGroup($this->application);
             $this->linkedGroup = null;
 
-            $this->eligibility = [
-                'min' => 50000,
-                'max' => 100000,
-                'balance' => 0,
-                'can_borrow' => true
-            ];
-            $this->dispatch('flash-success', message: 'Application Successfully unlinked from master group');
+            // $this->eligibility = [
+            //     'min' => 50000,
+            //     'max' => 100000,
+            //     'balance' => 0,
+            //     'can_borrow' => true
+            // ];
+
             $this->dispatch('app-updated')->to(SideNavBadge::class);
+
+            $this->dispatch('close-modal', name: 'modal-unlink-confirm');
+
+            $this->dispatch('swal:toast',
+                title: 'Group Unlink 😊',
+                message: 'Application Successfully unlinked from master group.',
+                type: 'success'
+            );
+
+            $this->reset(['groupCode', 'gfsCode']);
+
             $this->refreshData();
         } catch (ValidationException $e) {
-            $this->dispatch('flash-error', message: collect($e->errors())->flatten()->first());
-        } catch (\Exception $e) {
-            $this->dispatch('flash-error', message: $e->getMessage());
-        }
-        // $this->loadApplication();
-    }
-
-    #[Computed]
-    public function activePhases()
-    {
-        if (!is_null($this->application->phaseApplication)) return;
-        return $this->phaseService->getActivePhasesForConstituency(
-            $this->constituency->constituency_code
-        );
-    }
-
-    public function loadApplication()
-    {
-        $cacheKey = "app_enrichment_{$this->applicationId}";
-
-        $this->application = Cache::remember($cacheKey, now()->addMinute(2), function () {
-            return $this->appService->getEnrichedApplication(
-                $this->applicationId,
-                $this->constituency->constituency_code
+            $this->dispatch('swal:toast',
+                title: 'Group Unlink Error 😟',
+                message: collect($e->errors())->flatten()->first(),
+                type: 'Error'
             );
-        });
-
-        $this->groupMembers = $this->application->groupMembers;
-
-        //dd($this->application);
-        $this->linkedGroup = $this->application->phaseApplication?->linkedGroup;
-
-        $this->eligibility = $this->analysisService->getEligibilityData($this->linkedGroup, $this->application->loan_amount);
-
-
-
-        if ($this->application->link_status === 'linked' && !is_null($this->application->phaseApplication?->group_id)){
-
-            // dd($this->application->phaseApplication);
-            $this->groupCode = $this->linkedGroup?->code;
+        } catch (\Exception $e) {
+            Log::error("Group Unlink Error: ", [
+                $e->getMessage()
+            ]);
+            $this->dispatch('swal:toast',
+                title: 'Group Unlink Error 😟',
+                message: $e->getMessage(),
+                type: 'Error'
+            );
         }
-
-
     }
 
     public function generateGfs()
@@ -356,90 +517,27 @@ class ApplicationView extends Component
         $this->groupCode = $gfs['groupCode'];
         $this->gfsCode = $gfs['gfscode'];
 
-        if ($this->application->link_status === 'linked' && !is_null($this->application->phaseApplication?->group_id)){
-            $this->groupCode = $this->linkedGroup->code;
+        if ($this->application->link_status === 'linked' && !is_null($this->application->phaseApplication?->group_id)) {
+            $this->groupCode = $this->linkedGroup?->code;
         }
     }
 
-    /**
-     *  Attempt Link
-     */
-    public function findMatches()
+    #[Computed]
+    public function appGeneratedGfs()
     {
-        $this->loadApplication();
+        $gfs = $this->appService->generateGfsCode($this->application, $this->constituency);
 
-        if ($this->application->phaseApplication === null){
-            $this->dispatch('flash-error', message: "Assign application to a phase first");
-            return;
+        if ($this->application->link_status === 'linked' && !is_null($this->application->phaseApplication?->group_id)) {
+            $gfs['groupCode'] = $this->linkedGroup?->code;
         }
-        $this->isSearching = true;
-
-        $this->suggestedMatches = $this->appService->findMatchingGroups($this->application);
-
-        $this->isSearching = false;
-
-        $this->dispatch('open-modal', name: 'modal-group-linker');
+        return $gfs;
     }
-
-    public function confirmLink($groupId)
-    {
-        try {
-            $this->loadApplication();
-
-            $this->appService->linkToMasterGroup($this->application, $groupId);
-
-            $this->refreshData();
-
-            $this->dispatch('close-modal', name: 'modal-group-linker');
-            $this->dispatch('flash-success', message: 'Group linked successfully!');
-            $this->dispatch('app-updated')->to(SideNavBadge::class);
-            $this->reset('searchTerm');
-        } catch (ValidationException $e) {
-            $this->dispatch('flash-error', message: collect($e->errors())->flatten()->first());
-        } catch (\Exception $e) {
-            $this->dispatch('flash-error', message: $e->getMessage());
-        }
-    }
-
-    public function markAsNoMatch()
-    {
-        $this->application->update(['link_status' => 'attempted_no_match']);
-        $this->refreshData();
-        $this->dispatch('close-modal', name: 'modal-group-linker');
-    }
-
-    /**
-     * Toggle between modes
-     */
-    public function toggleSearchMode()
-    {
-        $this->isManualSearch = !$this->isManualSearch;
-        $this->searchTerm = ''; // Reset search
-        if (!$this->isManualSearch) {
-            $this->findMatches(); // Refresh automatic suggestions
-        } else {
-            $this->suggestedMatches = []; // Clear suggestions for manual start
-        }
-    }
-
-    // public function updated($property, $value)
-    // {
-    //     dd($property, $value);
-    //     // Log::info($property . ' was changed to ' . $value);
-    // }
-
-    // public function updating()
-    // {
-    //     dd('updating');
-    // }
-
 
     /**
      * Perform manual search as the user types
      */
     public function updatedSearchTerm()
     {
-        // $this->loadApplication();
 
         if (strlen($this->searchTerm) < 3) {
             $this->suggestedMatches = [];
@@ -453,44 +551,6 @@ class ApplicationView extends Component
         );
     }
 
-    public function getProcessedExpenses()
-    {
-        $expenses = $this->application->expenses;
-
-        // Handle JSON string
-        if (is_string($expenses)) {
-            $expenses = json_decode($expenses, true);
-        }
-
-        $processedExpenses = [];
-
-        if (is_array($expenses)) {
-            // Handle your specific structure: [{"cost_of_goods": 0, "rent": 1000}]
-            if (isset($expenses[0]) && is_array($expenses[0])) {
-                foreach ($expenses[0] as $name => $amount) {
-                    if ($amount > 0) {
-                        $processedExpenses[] = [
-                            'name' => ucfirst(str_replace('_', ' ', $name)),
-                            'amount' => $amount
-                        ];
-                    }
-                }
-            }
-            // Handle standard structure: [{"name": "Rent", "amount": 1000}]
-            else {
-                foreach ($expenses as $expense) {
-                    if (is_array($expense)) {
-                        $processedExpenses[] = [
-                            'name' => $expense['name'] ?? 'Expense',
-                            'amount' => $expense['amount'] ?? 0
-                        ];
-                    }
-                }
-            }
-        }
-
-        return $processedExpenses;
-    }
 
     public function syncApplication()
     {
@@ -507,21 +567,27 @@ class ApplicationView extends Component
             $this->application->update(['sync_status' => 'completed']);
 
             $this->dispatch('flash-success', message: 'Application synced successfully!');
-            $this->loadApplication(); // Reload the application data
         } catch (\Exception $e) {
             session()->flash('error', 'Failed to sync application: ' . $e->getMessage());
         }
     }
 
-    public function approve ()
+    public function approve()
     {
-        $this->loadApplication();
+        $this->reset(['approvalAmount']);
+
+        $this->resetErrorBag();
+
+        $this->generateGfs();
+
+        $this->approvalAmount =  $this->application->loan_amount ?? 0;
+
         $this->dispatch('open-modal', name: 'modal-approve');
     }
 
     public function confirmApproval()
     {
-        // Preliminary check for balance
+
         if (!$this->eligibility['can_borrow']) {
             $this->addError('approvalAmount', "This group has an outstanding balance of Kes " . number_format($this->eligibility['balance']));
             return;
@@ -585,68 +651,27 @@ class ApplicationView extends Component
             return;
         }
 
-        // dd('approve');
-        // $this->dispatch('close-modal', name: 'modal-approve');
-        $groupName = strtoupper($this->application->group_name);
-        $formattedAmount = number_format($this->approvalAmount, 2);
-        $fullGfsCode = $this->gfsCode . $this->groupCode; // The generated code
+        $this->submitApproval();
 
-
-        $this->dispatch('confirm-approve-action',
-            title       : 'Confirm Approval',
-            html        :  "<div class='text-left px-3'>
-                                <p class='mb-2'>You are approving an application for:</p>
-                                <h6 class='text-primary mb-3'><strong>{$groupName}</strong></h6>
-                                <table class='table table-sm table-bordered'>
-                                    <tr class='bg-light'>
-                                        <td><strong>Approved Amount:</strong></td>
-                                        <td class='text-success'><strong>KES {$formattedAmount}</strong></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Group Code:</strong></td>
-                                        <td>{$this->groupCode}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>GFS Code:</strong></td>
-                                        <td><small>{$fullGfsCode}</small></td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Phase:</strong></td>
-                                        <td>{$this->application->phaseApplication->reviewPhase->phase}</td>
-                                    </tr>
-                                </table>
-                            </div>",
-            icon        : 'question',
-            confirmText : 'Yes, Approve Now',
-            componentId : $this->getId(),
-            action      : 'submitApproval',
-            params      : null
-        );
-    }
-
-    private function getNext()
-    {
-        return PhaseApplication::select(['id', 'loan_phase_id', 'temp_application_id', 'status', 'amount_applied'])
-            ->with(['tempApplication' => function ($query) {
-                $query->select(['id', 'group_name', 'application_id']); // Include PK/FK for the link to work
-            }])
-            ->where('loan_phase_id', $this->application->phaseApplication->loan_phase_id)
-            ->where('status', 'pending')
-            ->where('id', '!=', $this->application->phaseApplication->id)
-            ->first();
     }
 
     public function submitApproval()
     {
-        try {
-            DB::transaction(function () {
-                $this->application->update([
-                    // 'status'           => 'under_hq_review',
-                    'ward_id'          => $this->selectedWardId ?? $this->application->ward_id,
-                    'risk_level'       => $this->assessmentData['overall_category'],
-                    'assessment_data'  => $this->assessmentData,
-                ]);
+        $wardName = '';
+        if (empty($this->application->ward_id)) {
+            $wardName = $this->constituency->wards->where('id', $this->selectedWardId)->first()->ward_name ?? 'N/A';
+        }
 
+        $result = false;
+        try {
+            $result = DB::transaction(function (){
+                $this->application->update([
+                    'ward_id'          => $this->selectedWardId ?? $this->application->ward_id,
+                    'ward_name'        => empty($this->application->ward_id) ? $this->constituency->wards->where('id', $this->selectedWardId)->first()->ward_name ?? 'N/A' : $this->application->ward_name,
+                    'risk_level'       => $this->riskAssessmentData['overall_category'],
+                    'assessment_data'  => $this->riskAssessmentData,
+                    'status'           => 'under_constituency_review',
+                ]);
 
                 $this->application->phaseApplication->update([
                     'temp_application_id' => $this->application->id,
@@ -665,247 +690,310 @@ class ApplicationView extends Component
                     ->causedBy(auth()->user())
                     ->withProperties([
                         'amount'     => $this->approvalAmount,
-                        'risk_level' => $this->assessmentData['overall_category'],
+                        'risk_level' => $this->riskAssessmentData['overall_category'],
                         'ip_address' => request()->ip()
                     ])
                     ->log("Recommended application for HQ review.");
 
+                return true;
             });
+        } catch (\Exception $e) {
+            Log::error("Constituency Approval Error: " . $e->getMessage());
+            dd($e->getMessage());
+            $this->dispatch('swal:toast',
+                title: 'Error Approving Application 😕',
+                message: 'Internal Server Error',
+                type: 'error'
+            );
+        }
 
-            SyncApplicationStatusToDrupal::dispatch($this->application->id);
-
+        if ($result) {
             $this->reset(['approvalAmount', 'approvalComments', 'groupCode', 'selectedWardId']);
 
-            $this->dispatch('flash-success', message: 'Applications approved successfully');
+            $this->dispatch('close-modal', name: 'modal-approve');
 
+            $this->dispatch('swal:toast',
+                title: 'Approval 🤩',
+                message: 'Applications approved successfully',
+                type: 'success'
+            );
+
+            $this->refreshData();
+
+            $this->navigateToNextAfterReview();
+        }
+    }
+
+    public function notify($type, $title, $message)
+    {
+        $this->dispatch('swal:toast', [
+            'type'    => $type, // 'success', 'error', 'warning', 'info'
+            'title'   => $title,
+            'message' => $message,
+        ]);
+    }
+
+    public function rejectApplication()
+    {
+        $this->reset(['selectedRejectionKey', 'rejectionComment']);
+
+        $this->resetErrorBag();
+
+        $this->dispatch('open-modal', name: 'modal-reject-application');
+    }
+
+public function getMemberFileData($data, $key = 'url')
+{
+    if (!$data) return null;
+
+    $decoded = is_array($data) ? $data : json_decode($data, true);
+
+    if (!isset($decoded[$key])) return null;
+
+    // If fetching the URL, ensure it is properly prefixed
+    if ($key === 'url') {
+        return str_starts_with($decoded[$key], 'http')
+            ? $decoded[$key]
+            : asset('storage/' . $decoded[$key]);
+    }
+
+    return $decoded[$key];
+}
+
+public function downloadMemberFile($memberId, $field)
+{
+    $member = \App\Models\TempGroupMember::findOrFail($memberId);
+
+    // Get the JSON data from the field
+    $data = $member->$field;
+
+    if (empty($data)) {
+        return $this->dispatch('notify', ['type' => 'error', 'message' => 'File data is missing.']);
+    }
+
+    // Handle both string JSON and already-cast arrays
+    $fileInfo = is_array($data) ? $data : json_decode($data, true);
+
+    if (!isset($fileInfo['path'])) {
+        return $this->dispatch('notify', ['type' => 'error', 'message' => 'File path not found.']);
+    }
+
+    // Check if file exists on the disk
+    if (!Storage::disk('public')->exists($fileInfo['path'])) {
+        return $this->dispatch('notify', ['type' => 'error', 'message' => 'The file does not exist on the server.']);
+    }
+
+    return Storage::disk('public')->download(
+        $fileInfo['path'],
+        $fileInfo['original_filename'] ?? 'document.pdf'
+    );
+}
+
+    public function confirmRejectApplication()
+    {
+        $this->validate([
+            'selectedRejectionKey' => [
+                'required',
+                Rule::in(array_keys($this->rejectionReasons)),
+            ],
+            'rejectionComment' => [
+                'required',
+                'string',
+                'min:20',
+                'max:500',
+                function ($attribute, $value, $fail) {
+                    $cleanValue = strtolower(str_replace(' ', '', $value));
+                    if (preg_match('/(.)\1{3,}/', $cleanValue)) {
+                        $fail('The explanation contains too many repetitive characters. Please provide a real reason.');
+                    }
+
+                    $uniqueChars = count(count_chars($cleanValue, 1));
+                    if ($uniqueChars < 6) {
+                        $fail('This reason looks too generic. Please provide more specific details.');
+                    }
+                    $words = explode(' ', strtolower(trim($value)));
+                    $uniqueWords = array_unique($words);
+                    if (count($words) > 4 && (count($uniqueWords) / count($words)) < 0.5) {
+                        $fail('Please provide a constructive sentence rather than repeating words.');
+                    }
+                },
+            ],
+        ], [
+            'selectedRejectionKey.in' => 'Please select a valid rejection category from the list.',
+            'selectedRejectionKey.required' => 'Please select a primary category for this rejection.',
+            'rejectionComment.required' => 'You must provide a detailed explanation for the applicant.',
+            'rejectionComment.min' => 'The explanation is too short. Please provide at least 20 characters of detail.',
+        ]);
+
+        try {
+            $result = DB::transaction(function () {
+
+                $phaseApplication = PhaseApplication::where('temp_application_id', $this->application->id)->first();
+
+                if ($phaseApplication) {
+                    $phaseApplication->update([
+                        'status' => 'rejected',
+                        'user_id' => auth()->id(),
+                        'level' => 'constituency',
+                        'action' => 'declined_at_constituency',
+                        'rejection_reason' => $this->selectedRejectionKey,
+                        'rejection_message' => $this->rejectionComment,
+                    ]);
+
+                    $this->application->update([
+                        'status' => 'rejected',
+                        'lms_to_loan_app_sync_status'  => 'pending',
+                    ]);
+
+                    activity()
+                        ->performedOn($this->application->phaseApplication) // The specific phase record
+                        ->causedBy(auth()->user())
+                        ->createdAt(now())
+                        ->withProperties([
+                            'type' => 'application_rejection',
+                            'attributes' => [
+                                'status' => 'rejected',
+                                'rejection_category' => $this->selectedRejectionKey, // e.g., 'missing_documents'
+                                'rejection_label' => $this->rejectionReasons[$this->selectedRejectionKey], // e.g., 'Required documents missing'
+                                'comment' => $this->rejectionComment,
+                                'application_number' => $this->application->application_number,
+                            ],
+                            'context' => [
+                                'ip_address' => request()->ip(),
+                                'user_agent' => request()->userAgent(),
+                            ]
+                        ])
+                        ->log("Application rejected due to: " . $this->rejectionReasons[$this->selectedRejectionKey]);
+
+                    SyncApplicationStatusToDrupal::dispatch($this->application->id)->afterCommit();
+
+                    return true;
+                }
+
+                return false;
+            });
+        } catch (Exception $e) {
+            $this->dispatch('swal:toast',
+                title: 'Invalid Action 😕',
+                message: 'Internal Server Error.',
+                type: 'error'
+            );
+            return false;
+        }
+
+        if ($result){
+            $this->reset(['selectedRejectionKey', 'rejectionComment']);
+
+            $this->resetErrorBag();
+
+            $this->dispatch('close-modal', name: 'modal-reject-application');
+
+            $this->notify('success', 'Rejection', 'Application has been declined.');
 
             $this->navigateToNextAfterReview();
 
             $this->refreshData();
+        } else {
 
-        } catch (\Exception $e) {
-            Log::error("Constituency Approval Error: " . $e->getMessage());
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Error Approving Application",
-                'text'  => 'Internal Server Error',
-            ]);
-        }
-    }
-
-    public function openRejectModal()
-    {
-        $this->loadApplication();
-
-        $this->dispatch('confirm-reject', [
-            'title' => 'Decline Application',
-            'componentId' => $this->getId(),
-            'action' => 'rejectApplication', // The method to call in this component
-            'params' => [
-                'applicationId' => $this->applicationId
-            ]
-        ]);
-    }
-
-    public function rejectApplication($params)
-    {
-        if (empty($params['reason']) || strlen($params['reason']) < 10) {
-            $this->dispatch('swal:error', ['message' => 'A valid rejection reason is required.']);
+            $this->notify('error', 'Invalid Application', 'ERROR: You have no access to this application.');
             return;
         }
-        $reason = $params['reason'];
-        $appId = $params['applicationId'];
+    }
 
-        // dd($appId);
-
-        DB::transaction(function () use ($reason) {
-
-            $phaseApplication = PhaseApplication::where('temp_application_id', $this->application->id)->first();
-
-            if ($phaseApplication) {
-                $phaseApplication->update([
-                    'status' => 'rejected',
-                    'user_id' => auth()->id(),
-                    'level' => 'constituency',
-                    'action' => 'declined_at_constituency',
-                    'rejection_reason' => $reason,
-                    'rejection_message' => $reason,
-                ]);
-
-                $this->application->update([
-                    'status' => 'rejected',
-                ]);
-
-                activity()
-                    ->performedOn($phaseApplication)
-                    ->causedBy(auth()->user())
-                    ->withProperties([
-                        'reason'     => $reason,
-                        'ip_address' => request()->ip()
-                    ])
-                    ->log("Declined application at constituency level.");
-
-                SyncApplicationStatusToDrupal::dispatch($this->application->id);
-
-                $this->dispatch('flash-success', message: 'Application has been declined.');
-
-                $this->navigateToNextAfterReview();
-
-                $this->refreshData();
-
-
-
-            } else {
-                // return and rollback
-                $this->dispatch('swal:modal', [
-                    'type'  => 'error',
-                    'title' => 'Invalid Application',
-                    'text'  => 'ERROR: You have no access to this application.',
-                ]);
-                return false;
-            }
-        });
-
-
+    private function getNext()
+    {
+        return PhaseApplication::select(['id', 'loan_phase_id', 'temp_application_id', 'status', 'amount_applied'])
+            ->with(['tempApplication' => function ($query) {
+                $query->select(['id', 'group_name', 'application_id']); // Include PK/FK for the link to work
+            }])
+            ->where('loan_phase_id', $this->application->phaseApplication->loan_phase_id)
+            ->where('status', 'pending')
+            ->where('id', '!=', $this->application->phaseApplication->id)
+            ->first();
     }
 
     private function navigateToNextAfterReview()
     {
         $nextApp = $this->getNext();
 
-        $nextUrl = route('const.app.app_phase_details', [
-            'county' => $this->county->slug,
-            'constituency' => $this->constituency->slug,
-            'phase' => $this->application->phaseApplication->reviewPhase->slug,
-        ]);
-
         if ($nextApp) {
-            $nextUrl = route('const.app.application-view', [
+            $this->phaseCompleted = false;
+
+            $this->nextSummary = [
+                'group_name' => $nextApp->tempApplication->group_name ?? 'N/A',
+                'app_id' => $nextApp->tempApplication->application_id ?? 'N/A',
+                'amount' => number_format($nextApp->loan_amount ?? 0),
+                'url' => route('const.app.application-view', [
+                    'county' => $this->county->slug,
+                    'constituency' => $this->constituency->slug,
+                    'applicationId' => $nextApp->tempApplication->application_id
+                ])
+            ];
+        } else {
+            $this->phaseCompleted = true;
+            $this->nextSummary = null;
+            $this->submissionUrl = route('const.app.app_phase_details', [
                 'county' => $this->county->slug,
                 'constituency' => $this->constituency->slug,
-                'applicationId' => $nextApp->tempApplication->application_id ?? null
+                'phase' => $this->application->phaseApplication->reviewPhase->slug,
             ]);
         }
 
-        $this->dispatch('approval-completed',
-            message: 'Application Declined successfully!',
-            nextId: $nextApp ? $nextApp->temp_application_id : null,
-            isPhaseComplete: is_null($nextApp),
-            nextUrl: $nextUrl,
-            // Pass the summary details for the next application
-            nextSummary: $nextApp ? [
-                'group_name' => $nextApp->tempApplication->group_name,
-                'app_id' =>   $nextApp->tempApplication->application_id,
-                'amount' =>   number_format($nextApp->amount_applied, 2)
-            ] : null
-        );
+        $this->dispatch('open-modal', name: 'modal-next-step');
     }
 
-    public function reviewRejection(){
-        $this->loadApplication();
-
-        $this->dispatch('review-rejection', [
-            'componentId' => $this->getId(),
-            'action' => 'confirmReviewRejection',
-            'reason' => $this->application->phaseApplication->rejection_reason,
-            'params' => [
-                'applicationId' => $this->application->id
-            ]
-        ]);
-    }
-
-    public function confirmReviewRejection($id)
+    public function reviewDecision()
     {
-        if (empty($id) || $id != $this->application->id) {
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Invalid Reason {$id}",
-                'text'  => 'A valid rejection reason is required.',
-            ]);
-            return false;
+        if (!$this->application || !$this->application->phaseApplication) {
+            $this->dispatch('swal:toast',
+                title: 'Invalid Action 😕',
+                message: 'No decision found to review.',
+                type: 'error'
+            );
+            return;
         }
 
-        // $this->loadApplication();
+        $status = $this->application->phaseApplication->status;
+
+        if ($status === 'rejected') {
+            $this->reviewType = 'rejection';
+            $this->rejectionReason = $this->application->phaseApplication->rejection_message ?? $this->application->phaseApplication->rejection_reason ?? 'No reason provided';
+        } elseif ($status === 'pending_submission_to_hq') {
+            $this->reviewType = 'approval';
+            $this->rejectionReason = null;
+        } else {
+            $this->dispatch('swal:toast',
+                title: 'Invalid Action 😕',
+                message: 'Current status does not allow for review.',
+                type: 'info'
+            );
+            return;
+        }
+
+        $this->reviewingApplicationId = $this->application->id;
+
+        $this->dispatch('open-modal', name: 'modal-review-decision');
+    }
+
+    public function confirmReviewDecision()
+    {
+        if (!$this->application || !$this->application->phaseApplication) {
+            $this->dispatch('swal:toast',
+                title: 'Invalid Action 😕',
+                message: 'No decision found to review.',
+                type: 'info'
+            );
+            return;
+        }
+
+        $currentStatus = $this->application->phaseApplication->status;
+
 
         try {
-            DB::transaction(function () {
-                $this->application->phaseApplication->update([
-                    'status' => 'pending',
-                    'user_id' => auth()->id(),
-                    'level' => 'constituency',
-                    'action' => 'review',
-                    'rejection_reason' => null,
-                    'rejection_message' => null,
-                ]);
-
+            $result  = DB::transaction(function () use ($currentStatus) {
                 $this->application->update([
-                    'status' => 'under_constituency_review',
-                ]);
-
-                activity()
-                    ->performedOn($this->application->phaseApplication)
-                    ->causedBy(auth()->user())
-                    ->withProperties([
-                        'ip_address' => request()->ip()
-                    ])
-                    ->log("Reviewed rejection reason at constituency level.");
-
-                $this->dispatch('swal:modal', [
-                    'type'               => 'success',
-                    'title'              => 'Success!',
-                    'text'               => 'Decision reviewed successfully.',
-                    'timer'              => 4000,
-                    'showConfirmButton'  => false,
-                ]);
-
-                $this->refreshData();
-            });
-            SyncApplicationStatusToDrupal::dispatch($this->application->id);
-        } catch (Exception $e) {
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Invalid Action",
-                'text'  => 'Internal Server Error.',
-            ]);
-            return false;
-        }
-
-
-    }
-
-
-    public function reviewApproval()
-    {
-        $this->loadApplication();
-
-        $this->dispatch('review-approval', [
-            'componentId' => $this->getId(),
-            'action' => 'confirmReviewApproval',
-            'params' => [
-                'applicationId' => $this->application->id
-            ]
-        ]);
-    }
-
-    public function confirmReviewApproval($id)
-    {
-        if (empty($id) || $id != $this->application->id) {
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Invalid Action",
-                'text'  => 'A valid application is required.',
-            ]);
-            return false;
-        }
-
-        // $this->loadApplication();
-
-        try {
-
-            DB::transaction(function () {
-                $this->application->update([
+                    'lms_to_loan_app_sync_status' => 'pending',
                     'status'           => 'under_constituency_review',
-                    'ward_id'          => null,
                     'risk_level'       => null,
                     'assessment_data'  => null,
                 ]);
@@ -920,6 +1008,8 @@ class ApplicationView extends Component
                     'comments'             => null,
                     'group_code'       => null,
                     'gfs_code'         => null,
+                    'rejection_reason' => null,
+                    'rejection_message' => null,
                 ]);
 
                 activity()
@@ -928,54 +1018,60 @@ class ApplicationView extends Component
                     ->withProperties([
                         'ip_address' => request()->ip()
                     ])
-                    ->log("Reviewed approval decision at constituency level.");
+                    ->log("Reviewed decision at constituency level.");
 
-                $this->dispatch('swal:modal', [
-                    'type'               => 'success',
-                    'title'              => 'Success!',
-                    'text'               => 'Decision reviewed successfully.',
-                    'timer'              => 4000,
-                    'showConfirmButton'  => false,
-                ]);
+                if ($currentStatus === 'rejected') {
+                    $this->application->update([
+                        'lms_to_loan_app_sync_status'  => 'pending',
+                    ]);
 
-                $this->refreshData();
+                    SyncApplicationStatusToDrupal::dispatch($this->application->id)->afterCommit();
+                }
+
+                return true;
             });
-
-
-
         } catch (Exception $e) {
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Invalid Action",
-                'text'  => 'Internal Server Error.',
-            ]);
+            $this->dispatch('swal:toast',
+                title: 'Invalid Action 😕',
+                message: 'Internal Server Error.',
+                type: 'error'
+            );
             return false;
         }
 
+        if ($result){
+            $this->dispatch('close-modal', name: 'modal-review-decision');
+
+            $this->dispatch('swal:toast',
+                title: 'Reviewed 🤩',
+                message: 'Decision reviewed successfully.',
+                type: 'success'
+            );
+
+            $this->refreshData();
+        } else {
+            $this->notify('error', 'Invalid Application', 'ERROR: You have no access to this application.');
+        }
     }
 
     public function linkGroup()
     {
-        // Trigger modal or logic to link group (as per your earlier plan)
         $this->dispatch('openLinker', id: $this->application->id);
     }
 
     #[Computed]
-    public function riskAssessment(): array
+    public function riskAssessmentData(): array
     {
-        $group = $this->linkedGroup ?? null;
-
-        $this->assessmentData = (array) $this->defaultService->calculateGroupRiskLevel(
-            $group,
+        return (array) $this->defaultService->calculateGroupRiskLevel(
+            $this->application->phaseApplication?->linkedGroup,
             $this->application->groupMembers
         );
-        return $this->assessmentData;
     }
 
     #[Computed]
     public function riskFlags()
     {
-        return $this->riskAssessment['reasons'] ?? [];
+        return $this->riskAssessmentData['reasons'] ?? [];
     }
 
     #[Computed]
@@ -987,7 +1083,7 @@ class ApplicationView extends Component
     #[Computed]
     public function riskCategory(): string
     {
-        return $this->riskAssessment['overall_category'] ?? 'Low Risk';
+        return $this->riskAssessmentData['overall_category'] ?? 'Low Risk';
     }
 
     public function getMemberConflictCountProperty()
@@ -1001,7 +1097,6 @@ class ApplicationView extends Component
 
     public function viewMember($memberId)
     {
-        $this->loadApplication();
         // Find the member within the already loaded collection
         $this->selectedMember = $this->application->groupMembers
             ->where('id', $memberId)
@@ -1012,7 +1107,6 @@ class ApplicationView extends Component
     }
 
     public function exportInstitutionalInfo(){
-        $this->loadApplication();
 
         try {
             return Excel::download(new ApplicationInstitutionalDataExport($this->application, $this->constituency), $this->application->group_name.'_institutional_information.xlsx');
@@ -1025,22 +1119,51 @@ class ApplicationView extends Component
         }
     }
 
-    public function rendered ()
+    public function downloadStatement($loanId)
     {
-        //dd('rendered');
+        $loan = GroupLoan::with(['group', 'loanPhase', 'loanReceipts'])
+            ->where('loan_status', 'financed')
+            ->findOrFail($loanId);
+
+        $pdf = Pdf::loadView('exports.loan-statement', [
+            'loan' => $loan
+        ])->setPaper('a4', 'portrait')->output();
+
+        return response()->streamDownload(
+            fn () => print($pdf),
+            "Statement_{$loan->id}.pdf"
+        );
+    }
+
+    #[Computed]
+    public function mn($id)
+    {
+
+    }
+
+    public function getMemberIdViewUrl($path)
+    {
+        if (empty($path)) {
+            return null;
+        }
+
+        $path = str_replace('storage/storage/', 'storage/', $path);
+        $path = str_replace('storage/app/public/', '', $path);
+        $path = ltrim($path, '/');
+
+        $encodedPath = base64_encode($path);
+
+        return route('const.app.application.file.member.download', [
+                'county' => $this->county->slug,
+                'constituency' => $this->constituency->slug,
+                'applicationId' => $this->application->application_id,
+                'action' => 'view',
+            ]) . '?path=' . $encodedPath;
     }
 
     public function render()
     {
-        return view('livewire.loan.app.application-view', [
-            'processedExpenses' => $this->appService->getProcessedExpenses($this->application),
-            'processedFiles'    => $this->appService->getProcessedFiles(
-                $this->application,
-                $this->county->slug ?? $this->constituency->county->slug,
-                $this->constituency->slug
-            ),
-            'groupOfficials' => $this->appService->getGroupOfficials($this->application),
-            'activePhases' => $this->activePhases(),
-        ]);
+        // dd($this->processedFiles);
+        return view('livewire.loan.app.application-view');
     }
 }

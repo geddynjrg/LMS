@@ -1,27 +1,46 @@
 @extends('layouts.main')
 
 @section('main-content')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
+    <div class="content-header pt-4">
         <div class="container-fluid">
-            <a class="float btn btn-sm btn-primary" href="{{ url()->previous() }}"><i class="fas fa-step-backward p-1"></i>Back</a>
-            <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1 class="m-0"><span class="text-bold">{{ ucwords(strtolower($county->county_name)) }} County</span> - <span class="text-cyan text-light">User - {{ ucwords(strtolower($user->name)) }}</span></h1>
-            </div><!-- /.col -->
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-right">
-                    <li class="breadcrumb-item "><a href="{{route('dashboard')}}">{{ $county->county_name }}</a></li>
-                    <li class="breadcrumb-item active">{{ ucwords(strtolower($user->name)) }}</li>
-                </ol>
-            </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div>
-        <!-- /.container-fluid -->
-    </div>
-    <!-- /.content-header -->
+            {{-- Navigation Row --}}
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
 
-    <!-- Main content -->
-    @livewire('view-user-data', ['county'=>$county, 'user'=>$user])
-    <!-- /.content -->
+                {{-- Left: Smart Back Button --}}
+                <div class="d-flex align-items-center">
+                    <a class="btn btn-white btn-sm shadow-sm border rounded-pill p-1 px-3"
+                       href="{{ url()->previous() == url()->current() ? route('dashboard') : url()->previous() }}"
+                    >
+                        <i class="fas fa-chevron-left mr-1"></i> Back
+                    </a>
+                </div>
+
+                {{-- Right: Minimalist Breadcrumbs --}}
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb bg-light border rounded-pill p-1 px-3 mb-0 shadow-sm" style="font-size: 0.85rem;">
+                        <li class="breadcrumb-item">
+                            <a href="{{ route('dashboard') }}" class="text-muted">
+                                <i class="fas fa-map-marker-alt mr-1"></i> {{ $county->county_name }}
+                            </a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a href="{{ route('users.viewusers', ['county' => $county->slug]) }}" class="text-muted">
+                                Users
+                            </a>
+                        </li>
+                        <li class="breadcrumb-item active text-primary font-weight-bold" aria-current="page">
+                            {{ $user->name }}
+                        </li>
+                    </ol>
+                </nav>
+            </div>
+
+            {{-- Main Livewire Component --}}
+            <div class="row">
+                <div class="col-12">
+                    @livewire('users.view-user-data', ['county'=>$county, 'user'=>$user])
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection

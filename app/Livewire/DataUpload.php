@@ -2,16 +2,25 @@
 
 namespace App\Livewire;
 
-use App\Models\Constituency;
 use Livewire\Component;
 use Livewire\WithFileUploads;
-use Maatwebsite\Excel\Facades\Excel;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Computed;
+use Illuminate\Support\Facades\Cache;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\LoanTemplateExport;
+use App\Exports\MembersTemplateExport;
+use App\Services\Loan\LoanPhaseService;
+use App\Models\Constituency;
+use App\Models\Group;
 
 class DataUpload extends Component
 {
     use WithFileUploads;
 
+    protected LoanPhaseService $loanPhaseService;
+
+    private $cacheTag = null;
     public Constituency $constituency;
     public $loanPhasesData;
     public $groupsData;
@@ -36,10 +45,14 @@ class DataUpload extends Component
     public $importProgressGroupMembers = 0;
     public $importMessageGroupMembers = '';
 
+    public function boot(LoanPhaseService $loanPhaseService)
+    {
+        $this->loanPhaseService = $loanPhaseService;
+    }
 
     public function mount(Constituency $constituency)
     {
-        $this->constituency = $constituency;
+        $this->constituency = $constituency->load(['wards']);
     }
 
     public function downloadTemplate($type)
@@ -55,6 +68,45 @@ class DataUpload extends Component
             return;
         }
 
+        $phases = $this->getPhases->pluck('phase')->toArray();
+
+        if ($type === 'groups') {
+            $wards = $this->constituency->wards->pluck('ward_name')->toArray();
+
+            if (empty($phases)){
+                $this->dispatch('swal:toast',
+                    title: 'Download failed 😕',
+                    message: 'There are no loans phase records. Ensure you completed step 1',
+                    type: 'error'
+                );
+                return;
+            }
+
+            return Excel::download(new LoanTemplateExport($wards, $phases), 'Group_Loan_Template.xlsx');
+        }
+
+        if ($type === 'members'){
+
+            $hasGroups = Group::whereHas('ward', function($q) {
+                $q->where('constituency_code', $this->constituency->constituency_code);
+            })->exists();
+
+            if (!$hasGroups){
+                $this->dispatch('swal:toast',
+                    title: 'Download failed 😕',
+                    message: 'There are no groups recorded. Ensure you completed step 2',
+                    type: 'error'
+                );
+                return;
+            }
+            return Excel::download(
+                new MembersTemplateExport(
+                    $phases
+                ),
+                'Member_Template.xlsx'
+            );
+        }
+
         $filename = $templates[$type];
         $filePath = public_path('templates/' . $filename);
 
@@ -65,15 +117,6 @@ class DataUpload extends Component
         }
     }
 
-
-    public function updatedGroupsData()
-    {
-        if ($this->groupsData) {
-            $this->groupsFileName = $this->groupsData->getClientOriginalName();
-        } else {
-            $this->groupsFileName = '';
-        }
-    }
 
     public function pollProgress()
     {
@@ -101,9 +144,20 @@ class DataUpload extends Component
     // Add file removal methods
     public function removeFile($field)
     {
+        switch ($field) {
+            case 'loanPhasesData':
+                $this->resetValidation('loanPhasesData');
+
+                // If you want to hide the previous Import Result when a new file is picked:
+                $this->importResult = null;
+                break;
+
+            default:
+                # code...
+                break;
+        }
         $this->$field = null;
     }
-
 
     public function loanPhasesForm()
     {
@@ -111,20 +165,13 @@ class DataUpload extends Component
             'loanPhasesData' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
-        $this->importResult = null;
-        $this->importProgress = 0;
-        $this->importMessage = 'Starting import...';
-
         try {
             $import = new \App\Imports\LoanPhasesImport($this->constituency->constituency_code);
             Excel::import($import, $this->loanPhasesData);
 
             // Final update
-            $this->importProgress = 100;
-            $this->importMessage = 'Import completed successfully!';
-
             $stats = $import->getImportStats();
-            $this->dispatch('import-completed', form: 'loanPhasesForm');
+
             $this->importResult = [
                 'success' => true,
                 'message' => "Successfully imported {$stats['imported']} new phase(s). {$stats['skipped']} row(s) skipped.",
@@ -133,11 +180,19 @@ class DataUpload extends Component
 
             $this->loanPhasesData = null;
 
+            $this->dispatch('swal:toast',
+                title: 'Data Upload 😊',
+                message: 'Phase Data Successfully Uploaded.',
+                type: 'success'
+            );
+
         } catch (\Exception $e) {
             $this->importResult = [
                 'success' => false,
                 'message' => 'Import Failed: ' . $e->getMessage(),
             ];
+
+            // $this->addError('loanPhasesData', 'The file could not be processed: ' . $e->getMessage());
 
             // Clear progress on error too
             $progressKey = "import_progress_{$this->constituency->constituency_code}";
@@ -145,109 +200,143 @@ class DataUpload extends Component
         }
     }
 
-    // Add this method to reset file after import
+    public function updatedLoanPhasesData()
+    {
+        $this->resetValidation('loanPhasesData');
+
+        $this->importResult = null;
+    }
+
+    public function updatedGroupsData()
+    {
+        $this->resetValidation('groupsData');
+        $this->groupsImportResult = null;
+    }
+
+    public function updatedGroupMembersData()
+    {
+        $this->resetValidation('groupMembersData');
+        $this->groupMembersImportResult = null;
+    }
+
     public function resetFile()
     {
         $this->loanPhasesData = null;
     }
 
+    #[Computed]
+    public function getPhases()
+    {
+        return $this->loanPhaseService->getPhasesForConstituencyByStatus($this->constituency->constituency_code, 'disbursed');
+    }
+
     public function groupsForm()
     {
-        ini_set('memory_limit', '512M');
-        ini_set('max_execution_time', 300); // 5 minutes
-
         $this->groupsImportResult = null;
+
         $this->validate([
             'groupsData' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
-
-        $this->importProgressGroups = 0;
-        $this->importMessageGroups = 'Starting import...';
-
-        // EMIT the import-started event
-        $this->dispatch('import-started');
-        // 👇 Start polling
-        $this->dispatch('start-groups-polling');
-
         try {
-            $import = new \App\Imports\GroupsImport($this->constituency->constituency_code);
+            $phases = $this->getPhases->pluck('phase')->map(fn($item) => strtolower($item))->toArray();
+
+            $import = new \App\Imports\LoanTemplateImport($this->constituency, $phases);
             Excel::import($import, $this->groupsData);
 
             // Final update
-            $this->importProgressGroups = 100;
-            $this->importMessageGroups = 'Import completed successfully!';
-            $this->dispatch('import-completed', form: 'groupsForm');
+            $result = $import->getImportResult();
 
-            $stats = $import->getImportStats();
-            $this->groupsImportResult = [
-                'success' => true,
-                'message' => "Successfully imported {$stats['imported']} new group(s). {$stats['skipped']} group(s) skipped (already exist).",
-                'stats' => $stats
-            ];
+            if ($result['success']) {
+                $this->groupsImportResult = [
+                    'success' => true,
+                    'message' => $result['message'],
+                    'stats' => [
+                        'imported' => $result['imported_count'],
+                        'skipped' => 0,
+                        'new' => $result['imported_new_groups_count'],
+                    ]
+                ];
 
-            $this->groupsData = null;
-            $this->dispatch('stop-groups-polling');
+                $this->groupsData = null;
+                $this->dispatch('swal:toast',
+                    title: 'Data Upload 😊',
+                    message: 'Groups Data Successfully Uploaded.',
+                    type: 'success'
+                );
+            } else {
+                $this->groupsImportResult = [
+                    'success' => false,
+                    'message' => $result['message'],
+                    'errors' => $result['errors'],
+                    'stats' => [
+                        'imported' => 0,
+                        'skipped' => 0,
+                        'new' => 0
+                    ]
+                ];
+
+                $this->dispatch('swal:toast',
+                    title: 'Data failed 😕',
+                    message: 'Groups upload data failed.' . $this->groupsImportResult['message'],
+                    type: 'error'
+                );
+            }
 
         } catch (\Exception $e) {
-            // $this->groupsImportResult = [
-            //     'success' => false,
-            //     'message' => $e->getMessage(),
-            // ];
-
-            // // Clear progress on error
-            // $progressKey = "import_progress_{$this->constituency->constituency_code}_groups";
-            // \Illuminate\Support\Facades\Cache::forget($progressKey);
-
             $errorMessage = $e->getMessage();
             $parsedErrors = $this->parseValidationErrors($errorMessage);
+
             $this->groupsImportResult = [
                 'success' => false,
                 'message' => $errorMessage,
                 'errors' => $parsedErrors['errors'],
                 'total_errors' => $parsedErrors['total'],
-                'display_errors' => $parsedErrors['display']
+                'display_errors' => $parsedErrors['display'],
+                'stats' => [
+                    'imported' => 0,
+                    'skipped' => 0,
+                    'new' => 0,
+                ]
             ];
-
-            // Stop polling on error too
-            $this->dispatch('stop-groups-polling');
-
-            // Clear progress on error
-            $this->clearGroupsProgress();
         }
     }
-
 
     private function parseValidationErrors($errorMessage)
     {
         $errors = [];
 
-        // Remove the first line "Validation errors found:" if it exists
+        // 1. Remove the header prefix if it exists
         $errorMessage = preg_replace('/^Validation errors found:\s*\n?/', '', $errorMessage);
 
-        // Split by lines and process each one
-        $lines = explode("\n", $errorMessage);
+        // 2. SPLIT FIX: Split only when a newline is followed by "Row "
+        // This keeps multi-line details (Current/Existing Group) within the same array item.
+        $blocks = preg_split('/\n(?=Row \d+:)/', $errorMessage);
 
-        foreach ($lines as $line) {
-            $line = trim($line);
+        foreach ($blocks as $block) {
+            $block = trim($block);
+            if (empty($block)) continue;
 
-            // Skip empty lines and the "and X more errors" summary line
-            if (empty($line) || str_contains($line, '... and') || str_contains($line, 'more errors')) {
+            // Check for the summary line (usually at the very end)
+            if (str_contains($block, '... and') || str_contains($block, 'more errors')) {
+                $errors[] = [
+                    'row' => 'Info',
+                    'message' => $block
+                ];
                 continue;
             }
 
-            // Match "Row X: Error description" pattern
-            if (preg_match('/^Row (\d+): (.+)$/', $line, $match)) {
+            // Match "Row X: Error description" - and grab EVERYTHING after the colon
+            // using 's' modifier to allow dot (.) to match newlines
+            if (preg_match('/^Row (\d+): (.+)$/s', $block, $match)) {
                 $errors[] = [
                     'row' => $match[1],
                     'message' => trim($match[2])
                 ];
-            }
-            // If it doesn't match the Row pattern but has content, include it as unknown row
-            elseif (!empty($line)) {
+            } else {
                 $errors[] = [
-                    'row' => 'Unknown',
-                    'message' => $line
+                    'row' => '?',
+                    'message' => $block
                 ];
             }
         }
@@ -314,36 +403,50 @@ class DataUpload extends Component
 
     public function groupMembersForm()
     {
-        ini_set('memory_limit', '512M');
-        ini_set('max_execution_time', 300);
-
         $this->validate([
             'groupMembersData' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
 
-        $this->importProgressGroupMembers = 0;
-        $this->importMessageGroupMembers = 'Starting members import...';
-
-        $this->dispatch('import-started');
-        $this->dispatch('start-groups-polling');
-
         try {
-            $import = new \App\Imports\MembersImport($this->constituency->constituency_code);
+            $phases = $this->getPhases->pluck('phase')->map(fn($item) => strtolower($item))->toArray();
+
+            $import = new \App\Imports\MembersTemplateImport($this->constituency, $phases);
             Excel::import($import, $this->groupMembersData);
 
-            $this->importProgressGroupMembers = 100;
-            $this->importMessageGroupMembers = 'Import completed successfully!';
-            $this->dispatch('import-completed', form: 'groupMembersForm');
+            $result = $import->getImportResult();
 
-            $stats = $import->getImportStats();
-            $this->groupMembersImportResult = [
-                'success' => true,
-                'message' => "Successfully imported {$stats['imported_members']} new member(s) and {$stats['imported_group_members']} group association(s).",
-                'stats' => $stats
-            ];
+            if ($result['success']) {
+                $this->groupMembersImportResult = [
+                    'success' => true,
+                    'message' => $result['message'],
+                    'stats' => [
+                        'imported' => $result['imported_count'],
+                        'skipped' => 0,
+                        'new' => $result['new_members_created']
+                    ]
+                ];
 
-            $this->groupMembersData = null;
-            $this->dispatch('stop-groups-polling');
+                // Optional: Clear the file input
+                $this->groupMembersData = [];
+
+                $this->dispatch('swal:toast',
+                    title: 'Members Data Upload 😊',
+                    message: 'Member Data Uploaded Successfully.',
+                    type: 'success'
+                );
+
+            } else {
+                $this->groupMembersImportResult = [
+                    'success' => false,
+                    'message' => $result['message'],
+                    'errors' => $import->getErrors() ?? [],
+                    'stats' => [
+                        'imported' => 0,
+                        'skipped' => 0,
+                        'new' => 0
+                    ]
+                ];
+            }
 
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();
@@ -355,10 +458,42 @@ class DataUpload extends Component
                 'total_errors' => $parsedErrors['total'],
                 'display_errors' => $parsedErrors['display']
             ];
-
-            $this->dispatch('stop-groups-polling');
-            $this->clearGroupsProgress();
         }
+    }
+
+    private function getExistingGroups()
+    {
+        $this->cacheTag = config('cache.tags.groups.constituency') . $this->constituency->constituency_code;
+
+        $cacheKey = "groups_data";
+
+        $existingGroups = Cache::tags([$this->cacheTag])->get($cacheKey);
+
+        if (!$existingGroups) {
+            $groups = Group::whereHas('ward', function($q) {
+                $q->where('constituency_code', $this->constituency->constituency_code);
+            })
+            ->with('ward')
+            ->get()
+            ->map(function($group) {
+                return [
+                    'code' => $group->code,
+                    'name' => $group->name,
+                    'ward' => $group->ward->ward_name ?? '',
+                    'reg_number' => $group->reg_number ?? ''
+                ];
+            })
+            ->toArray();
+
+            if (empty($groups)){
+                return null;
+            }
+
+            Cache::tags([$this->cacheTag])->put($cacheKey, $groups, now()->addMinutes(2));
+
+            $existingGroups = $groups;
+        }
+        return $existingGroups;
     }
 
     /**

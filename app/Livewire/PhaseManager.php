@@ -34,12 +34,16 @@ class PhaseManager extends Component
     #[Url(except: '')]
     public $search;
 
+    #[Url(except: '')]
+    public $statusFilter;
+
     public $perPage = 15;
 
     public $constituency;
     public $selectedPhase = null;
 
-    public $activeTab = 'tab-pending';
+    #[Url(except: 'pending')]
+    public $activeTab = 'pending';
 
     // Phase creation
     public $phaseName = '';
@@ -60,6 +64,25 @@ class PhaseManager extends Component
     // Selection
     public $selectedApplications = [];
     public $selectAll = false;
+
+    public $selectedPhaseId;
+
+    #[Url(except: '')]
+    public $sortField = 'name';
+
+    public $sortDirection = 'asc';
+
+    public function sortBy($field)
+    {
+        if ($this->sortField === $field) {
+            $this->sortDirection = $this->sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            $this->sortField = $field;
+            $this->sortDirection = 'asc';
+        }
+
+        $this->resetPage();
+    }
 
     public function boot(LoanPhaseService $phaseService, TempApplicationService $appService)
     {
@@ -98,6 +121,12 @@ class PhaseManager extends Component
     }
 
     #[Computed]
+    public function completedCount()
+    {
+        return ($this->summary['total_phases'] ?? 0) - ($this->pendingCount + $this->processingCount);
+    }
+
+    #[Computed]
     public function declinedCount()
     {
         return $this->summary['declined'] ?? 0;
@@ -109,24 +138,57 @@ class PhaseManager extends Component
         return $this->summary['disbursed'] ?? 0;
     }
 
-    public function phases()
+    #[Computed]
+    public function getStatusClasses($value): string
+    {
+        return $this->appService->getStatusClasses($value);
+    }
+
+    public function getStatusOptionsProperty()
     {
         $statusMap = [
-            'tab-pending'    => 'draft',
-            'tab-processing' => 'submitted_to_hq',
-            'tab-approved'   => 'approved',
-            'tab-declined'   => 'declined',
-            'tab-disbursed'  => 'disbursed',
+            'approved'                  => ['label' => 'Approved'],
+            'in_training'               => ['label' => 'In Training'],
+            'disbursed'                 => ['label' => 'Disbursed'],
         ];
-        $status = $statusMap[$this->activeTab] ?? 'draft';
 
-        return $this->phaseService->getDetailedPhases(
+        return collect($statusMap)->map(fn($data, $value) => [
+            'value'    => $value,
+            'name'  => $data['label'],
+        ])->values()->all();
+    }
+
+    public function getStatusName($value)
+    {
+        return collect($this->statusOptions)->firstWhere('value', $value)['name'] ?? $value;
+    }
+
+    public function phases()
+    {
+
+        $statusMap = [
+            'pending'    => ['draft'],
+            'processing' => ['submitted_to_hq'],
+            'completed'   => ['rejected', 'approved', 'in_training', 'disbursed'],
+        ];
+
+        $status = $statusMap[$this->activeTab] ?? ['draft'];
+
+        return $this->phaseService->getDetailedPhasesQuery(
             $this->constituency->constituency_code,
-            $this->search,
-            (int)$this->perPage,
             $status,
-            $this->getPage()
+            $this->getFilters(),
+            $this->sortField,
+            $this->sortDirection
         );
+    }
+
+    private function getFilters(): array
+    {
+        return [
+            'search' => $this->search,
+            'status' => $this->statusFilter,
+        ];
     }
 
     public function updatedSearch($value)
@@ -138,7 +200,7 @@ class PhaseManager extends Component
 
     public function createNewPhase()
     {
-        $this->dispatch('open-modal', name: 'create-phase-modal');
+        $this->dispatch('open-modal', name: 'create-new-phase-modal');
     }
 
     public function createPhase()
@@ -152,87 +214,106 @@ class PhaseManager extends Component
         try {
             $result = $this->phaseService->createPhase($validated, $this->constituency->constituency_code);
 
-            $this->dispatch('close-modal', name: 'create-phase-modal');
+            $this->dispatch('close-modal', name: 'create-new-phase-modal');
             $this->reset(['phaseName', 'reviewVenue']);
 
+            $this->dispatch('swal:toast',
+                title: 'Phase Created 😊',
+                message: 'Phase created successfully',
+                type: 'success'
+            );
 
-            $this->dispatch('flash-success', message: 'Phase created successfully');
             $this->dispatch('app-updated')->to(SideNavBadge::class);
+
             $this->refreshData();
         } catch (ValidationException $e) {
             foreach ($e->errors() as $field => $messages) {
                 foreach ($messages as $message) {
                     $this->addError($field, $message);
                 }
-                $this->dispatch('flash-error', message: 'Please correct the errors in the form.');
             }
         } catch (\Exception $e) {
-            $this->dispatch('flash-error', message: $e->getMessage());
+            $this->dispatch('swal:toast',
+                title: 'Error 😕',
+                message: "Could not create new phase. Please try again or contact support.",
+                type: 'error'
+            );
         }
     }
 
-    public function deletePhase($id)
+    public function deletePhase($phaseId)
     {
-        $phase = $this->phaseService->getPhaseStats($id);
+        $this->selectedPhaseId = $phaseId;
+
+        $this->dispatch('open-modal', name: 'confirm-deletePhase-modal');
+    }
+
+    public function confirmDeletePhase()
+    {
+        $phase = $this->phaseService->getPhaseStats($this->selectedPhaseId);
 
         if (!$phase){
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Error Deleting Phase",
-                'text'  => 'Phase Invalid',
-            ]);
-            return false;
+            $this->dispatch('swal:toast',
+                title: 'Invalid Phase 😕',
+                message: "Could not delete phase. Please try again or contact support.",
+                type: 'error'
+            );
+
+            $this->reset('selectedPhaseId');
+
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+
+            return;
         }
 
         if ($phase->total_apps > 0){
-             $this->dispatch('swal:modal', [
-                'type'  => 'info',
-                'title' => "Deleting Phase",
-                'text'  => "You have {$phase->total_apps} application(s) in this phase, you need to remove them first",
-            ]);
-            return false;
-        } else {
-            $this->dispatch('confirm-action',
-                title: "Delete {$phase->phase}",
-                text: 'This will decouple all application from this current phase.',
-                icon: 'warning',
-                confirmText: 'Yes, Remove it!',
-                componentId: $this->getId(),
-                action: 'confirmDeletePhase',
-                params: $phase->id
+
+            $this->dispatch('swal:toast',
+                title: 'Deleting Phase 😕',
+                message: "You have {$phase->total_apps} application(s) in this phase, you need to remove them first",
+                type: 'error'
             );
+
+            $this->reset('selectedPhaseId');
+
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+
+            return;
         }
 
-    }
+        try {
+            DB::transaction(function () use ($phase) {
+                $phase->delete();
+            });
 
-    public function confirmDeletePhase($id)
-    {
-        $phase = $this->phaseService->getPhase($id);
+            $this->reset('selectedPhaseId');
 
-        if (!$phase){
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Error Deleting Phase",
-                'text'  => 'Phase Invalid',
-            ]);
-            return false;
-        }
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
 
-        DB::transaction(function () use ($phase) {
-            $phase->delete();
-
-             $this->dispatch('swal:modal', [
-                'type'               => 'success',
-                'title'              => 'Success!',
-                'text'               => 'Phase Deleted successfully.',
-                'timer'              => 3000,
-                'showConfirmButton'  => false,
-            ]);
+            $this->dispatch('swal:toast',
+                title: 'Phase Deleted 😊',
+                message: 'Phase Removed successfully',
+                type: 'success'
+            );
 
             $this->dispatch('app-updated')->to(SideNavBadge::class);
+
             $this->refreshData();
-        });
+        } catch (\Throwable $th) {
+            $this->dispatch('swal:toast',
+                title: 'Deleting Phase 😕',
+                message: "Could Not delete phase. Please Try again later.",
+                type: 'error'
+            );
+
+            $this->reset('selectedPhaseId');
+
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+
+        }
+
     }
+
 
     public function openAddAppsModal($id)
     {
@@ -271,14 +352,14 @@ class PhaseManager extends Component
 
     public function resetFilters()
     {
-        $this->reset(['search']);
+        $this->reset(['search', 'statusFilter']);
         $this->resetPage();
     }
 
     public function render()
     {
         return view('livewire.loan.app.phase-manager', [
-            'phases' => $this->phases(),
+            'phases' => $this->phases()->paginate((int)$this->perPage),
             'summary' => $this->summary,
             'processingPhases' => $this->processingCount,
             'pendingApplications' => $this->pendingCount,

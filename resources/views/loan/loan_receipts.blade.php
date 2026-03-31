@@ -1,31 +1,40 @@
 @extends('layouts.main')
 
 @section('main-content')
-    <!-- Content Header (Page header) -->
-    <div class="content-header">
+    <div class="content-header pt-4">
         <div class="container-fluid">
-            <a class="float btn btn-sm btn-primary" href="{{ url()->previous() }}"><i class="fas fa-step-backward p-1"></i>Back</a>
-            <div class="row mb-2">
-            <div class="col-sm-6">
-                <h1 class="m-0"><span class="text-bold">{{ ucwords(strtolower($constituency->constituency_name)) }} Constituency</span> - <span class="text-cyan text-light">Loan Receipts</span></h1>
-            </div><!-- /.col -->
-            <div class="col-sm-6">
-                <ol class="breadcrumb float-sm-right">
-                    <li class="breadcrumb-item "><a href="{{route('dashboard')}}">{{ $county->county_name }}</a></li>
-                     <li class="breadcrumb-item "> <a href="{{route('const.dashboard',[
-                    'county' => $county->slug,
-                    'constituency' => $constituency->slug
-                    ])}}">{{ ucwords(strtolower($constituency->constituency_name)) }} Constituency</a></li>
-                    <li class="breadcrumb-item active">Loan Receipts</li>
-                </ol>
-            </div><!-- /.col -->
-            </div><!-- /.row -->
-        </div>
-        <!-- /.container-fluid -->
-    </div>
-    <!-- /.content-header -->
+            {{-- Navigation Row --}}
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
 
-    <!-- Main content -->
-    @livewire('loan-receipts', ['county'=>$county, 'constituency'=>$constituency])
-    <!-- /.content -->
+                {{-- Left: Smart Back Button --}}
+                <div class="d-flex align-items-center">
+                    <a class="btn btn-white btn-sm shadow-sm border rounded-pill p-1 px-3"
+                       href="{{ url()->previous() == url()->current() ? route('const.app.app_dashboard', ['county' => $county->slug, 'constituency' => $constituency->slug]) : url()->previous() }}"
+                       >
+                        <i class="fas fa-chevron-left mr-1"></i> Back
+                    </a>
+                </div>
+
+                {{-- Right: Minimalist Breadcrumbs --}}
+                <nav aria-label="breadcrumb">
+                    <ol class="breadcrumb bg-light border rounded-pill p-1 px-3 mb-0 shadow-sm" style="font-size: 0.85rem;">
+                        <li class="breadcrumb-item">
+                            <a href="{{ route('dashboard') }}" class="text-muted">
+                                <i class="fas fa-map-marker-alt mr-1"></i> {{ $county->county_name }}
+                            </a>
+                        </li>
+                        <li class="breadcrumb-item">
+                            <a href="{{ route('const.dashboard', ['county' => $county->slug, 'constituency' => $constituency->slug]) }}" class="text-muted">
+                                {{ ucwords(strtolower($constituency->constituency_name)) }}
+                            </a>
+                        </li>
+                        <li class="breadcrumb-item active font-weight-bold">Loan Reciepts</li>
+                    </ol>
+                </nav>
+            </div>
+
+            {{-- Main Livewire Component --}}
+             @livewire('loan-receipts', ['constituency'=>$constituency])
+        </div>
+    </div>
 @endsection

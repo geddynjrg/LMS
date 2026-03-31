@@ -143,7 +143,7 @@
                     <ul class="list-group list-group-unbordered mb-3">
                         <li class="list-group-item py-2">
                             <b class="text-secondary"><i class="fas fa-fingerprint mr-1"></i> GFS Code</b>
-                            <a class="float-right text-dark font-weight-bold">{{$group->gfs_code}}</a>
+                            <a class="float-right text-dark font-weight-bold">{{$group->currentLoan->gfs_code ?? 'N/A'}}</a>
                         </li>
                         <li class="list-group-item py-2">
                             <b class="text-secondary"><i class="far fa-id-card mr-1"></i> Reg No.</b>
@@ -173,7 +173,7 @@
                         </div>
                         <div class="d-flex mt-2">
                             <i class="fas fa-briefcase text-orange mt-1 mr-2"></i>
-                            <p class="text-sm mb-0"><strong>{{$group->activity}}</strong></p>
+                            <p class="text-sm mb-0"><strong>{{$group->currentLoan->sector ?? 'N/A'}}</strong></p>
                         </div>
                     </div>
 
@@ -208,14 +208,14 @@
                     </div>
 
                     @can('update group')
-                        <button wire:click="editGroupData()" class="btn btn-primary btn-block btn-sm mt-3 shadow-sm">
+                        {{-- <button wire:click="editGroupData()" class="btn btn-primary btn-block btn-sm mt-3 shadow-sm">
                             <span wire:loading.remove wire:target="editGroupData">
                                 <i class="far fa-edit"></i> Edit Group Data
                             </span>
                             <span wire:loading wire:target="editGroupData">
                                 <i class="fas fa-spinner fa-spin"></i>
                             </span>
-                        </button>
+                        </button> --}}
                     @endcan
                 </div>
             </div>
@@ -232,7 +232,7 @@
                         <div class="col-6 border-right">
                             <small class="text-muted d-block uppercase font-weight-bold" style="font-size: 10px;">Group Category</small>
                             <span class="badge badge-primary shadow-sm mt-1 px-2 py-1">
-                                <i class="fas fa-users-cog mr-1"></i> {{$group->category}}
+                                <i class="fas fa-users-cog mr-1"></i> {{$group->currentLoan->category ?? 'N/A'}}
                             </span>
                         </div>
                         <div class="col-6 pl-3">
@@ -329,7 +329,7 @@
                                             </h6>
                                             <div class="btn-group">
                                                 {{-- PDF Download Button --}}
-                                                <x-modal-trigger
+                                                {{-- <x-modal-trigger
                                                     class="shadow-sm"
                                                     target="exportMemberList({{ $individualLoan->id }})"
                                                     label="Download PDF"
@@ -337,7 +337,7 @@
                                                     icon="fas fa-file-pdf"
                                                     variant="outline-danger"
                                                     defaultLabel="loading..."
-                                                />
+                                                /> --}}
 
                                                 {{-- Context-aware Add Member Button --}}
                                                 @can('create member')

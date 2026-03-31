@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
+use App\Models\TempApplication;
+use App\Models\LoanPhase;
 use App\Models\Constituency;
 use App\Models\County;
 use App\Models\Group;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use App\Models\TempApplication;
-use App\Models\LoanPhase;
-use Illuminate\Support\Str;
 class LoansController extends Controller
 {
     public function groupLoans(Request $request, County $county, Constituency $constituency)
@@ -93,7 +94,7 @@ class LoansController extends Controller
     public function app_loans(Request $request, County $county, Constituency $constituency)
     {
         // return View('loan.app.loans', [
-        //     'county' => $county, 
+        //     'county' => $county,
         //     'constituency' => $constituency,
         // ]);
     }
@@ -124,44 +125,97 @@ class LoansController extends Controller
         ]);
     }
 
-    // Method to handle file download
     public function app_loan_files_download(Request $request, County $county, Constituency $constituency, $applicationId, $action = 'download')
     {
         try {
-            // Get file path from query parameter (base64 encoded)
             $encodedPath = $request->query('path');
 
             if (!$encodedPath) {
                 abort(400, 'File path is required');
             }
 
-            $decodedPath = base64_decode($encodedPath);
+            $this->verifyApplicationExists($applicationId);
 
-            $application = TempApplication::where('application_id', $applicationId)->exists();
+            $decodedPath = trim(base64_decode($encodedPath));
+            $decodedPath = ltrim($decodedPath, '/');
 
-            if (!$application) {
-                abort(404, 'Application not found');
-            }
+            $finalPath = $this->getFilePath($decodedPath);
 
-            // Set appropriate headers for download
-            $filename = basename($decodedPath);
-
-
-            $path = storage_path('app/public/' . $decodedPath);
-
-            if (!file_exists($path)) {
-                abort(404, "File not found on server disk.");
-            }
-
-            if ($action === 'view') {
-                return response()->file($path, [
-                    'Content-Disposition' => 'inline; filename="'.$filename.'"'
+            if (!$finalPath) {
+                Log::error('File not found in storage', [
+                    'application_id' => $applicationId,
+                    'decoded_path' => $decodedPath
                 ]);
+                abort(404, 'File not found');
             }
 
-            return response()->download($path, $filename);
+            $filename = basename($finalPath);
+
+            return $this->viewOrDownloadFile($finalPath, $filename, $action);
+
+        } catch (Exception $e) {
+            Log::error('Loan File Download Error: ' . $e->getMessage());
+            abort(404, 'File Error');
+        }
+    }
+
+    private function verifyApplicationExists($applicationId)
+    {
+        if (!TempApplication::where('application_id', $applicationId)->exists()) {
+            abort(404, 'Application not found');
+        }
+    }
+
+    private function getFilePath($decodedPath)
+    {
+        if (Storage::disk('local')->exists($decodedPath)) {
+            return Storage::disk('local')->path($decodedPath);
+        } elseif (Storage::disk('public')->exists($decodedPath)) {
+            return Storage::disk('public')->path($decodedPath);
+        }
+        return null;
+    }
+
+    private function viewOrDownloadFile($filePath, $filename, $action = 'download')
+    {
+        if ($action === 'view') {
+            return response()->file($filePath, [
+                'Content-Disposition' => 'inline; filename="'.$filename.'"'
+            ]);
+        }
+
+        return response()->download($filePath, $filename);
+    }
+
+    public function app_member_files_download(Request $request, County $county, Constituency $constituency, $applicationId, $action = 'download')
+    {
+        try {
+            $encodedPath = $request->query('path');
+
+            if (!$encodedPath) {
+                abort(400, 'File path is required');
+            }
+
+            $this->verifyApplicationExists($applicationId);
+
+            $decodedPath = ltrim(base64_decode($encodedPath), '/');
+
+            $filename = basename($decodedPath);
+            $cleanPath = preg_replace('#^(storage/|public/)#', '', $decodedPath);
+
+            $foundPath = $this->getFilePath($cleanPath);
+
+            if (!$foundPath) {
+                abort(404, "File not found: The document exists in the database but the file is missing from storage.");
+            }
+
+            return $this->viewOrDownloadFile($foundPath, $filename, $action);
 
         } catch (\Exception $e) {
+            \Log::error('Member File Download Error:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             abort(404, 'File not found');
         }
     }

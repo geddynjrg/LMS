@@ -191,12 +191,12 @@
                                 @endif
                             </tbody>
                         </table>
-
+{{--
                         <!-- Loading placeholder that shows until DataTable is ready -->
                         <div id="table-loading-placeholder" class="text-center py-5">
                             <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;"></div>
                             <div class="mt-3 text-muted">Loading members data...</div>
-                        </div>
+                        </div> --}}
                     </div>
                 </div>
             </div>

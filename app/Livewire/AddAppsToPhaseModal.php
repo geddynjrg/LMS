@@ -3,14 +3,14 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use App\Models\Application; // Adjust to your model path
 use Livewire\WithPagination;
+use Livewire\Attributes\On;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
+use App\Models\LoanPhase;
+use App\Models\Application;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
-use Livewire\Attributes\On;
-use App\Models\LoanPhase;
-use Illuminate\Support\Facades\Route;
-
 class AddAppsToPhaseModal extends Component
 {
     use WithPagination;
@@ -71,11 +71,12 @@ class AddAppsToPhaseModal extends Component
         }
 
         if (!$this->phase){
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Error Deleting Phase",
-                'text'  => 'Phase Invalid',
-            ]);
+
+            $this->dispatch('swal:toast',
+                title: 'Phase Invalid 😕',
+                message: "Error Invalid Phase",
+                type: 'error'
+            );
             return false;
         }
 
@@ -92,21 +93,33 @@ class AddAppsToPhaseModal extends Component
             );
 
             $this->isOpen = false;
-            $this->dispatch('swal:modal', [
-                'title' => 'Success',
-                'text' => count($applicationIds) . ' applications assigned.',
-                'type' => 'success'
-            ]);
+
+            $this->dispatch('swal:toast',
+                title: 'Assign 🤩',
+                message: count($applicationIds) . ' applications assigned.',
+                type: 'success'
+            );
 
             $this->dispatch('refreshPhaseData')->to(PhaseManager::class);
             $this->dispatch('refresh-phase-app-data')->to(ApplicationPhaseDetails::class);
-        } catch (\Throwable $th) {
-            $this->dispatch('swal:modal', [
-                'type'  => 'error',
-                'title' => "Error Deleting Phase",
-                'text'  => "Phase Invalid{$th->getMessage()}",
-            ]);
-            return false;
+        } catch (ValidationException $e) {
+            foreach ($e->errors() as $field => $messages) {
+                foreach ($messages as $message) {
+                    $this->addError($field, $message);
+                    $this->dispatch('swal:toast',
+                        title: 'Phase Assigned',
+                        message: $message,
+                        type: 'error'
+                    );
+                }
+
+            }
+        } catch (\Exception $e) {
+            $this->dispatch('swal:toast',
+                title: 'Phase Assigned',
+                message: $e->getMessage(),
+                type: 'error'
+            );
         }
     }
 

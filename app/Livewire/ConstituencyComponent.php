@@ -10,11 +10,13 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Services\Loan\LoanAnalysisService;
+use App\Services\Cache\AppCacheService;
 use Livewire\Attributes\Computed;
 
 class ConstituencyComponent extends Component
 {
     protected LoanAnalysisService $analysisService;
+    protected AppCacheService $cacheService;
 
     public Constituency $constituency;
     public $stats = [];
@@ -25,36 +27,55 @@ class ConstituencyComponent extends Component
     public $womenGroups, $youthGroups, $pwdGroups, $defaultedLoans;
     public $totalAmountDue, $totalArrears, $averageDefaultMonths, $defaultRate, $recentApplications;
 
-    public function boot(LoanAnalysisService $analysisService)
+    public $countyFilter = '';
+    public $constituencyFilter = '';
+    public $wardFilter = '';
+
+    public function boot(
+        LoanAnalysisService $analysisService,
+        AppCacheService $cacheService
+    )
     {
         $this->analysisService = $analysisService;
+        $this->cacheService = $cacheService;
     }
 
     public function mount(Constituency $constituency)
     {
-        $this->constituency = $constituency->load('county');
-        $this->loadData();
+        $this->countyFilter = $constituency->county_code;
+        $this->constituencyFilter = $constituency->constituency_code;
+
+        $this->constituency = $constituency->load('wards');
     }
 
-    public function loadData()
+    #[Computed]
+    public function getStats()
     {
-        $data = $this->analysisService->getConstituencyStats($this->constituency);
+        $filters = $this->getFilters();
+
+        $cacheKey = md5(json_encode($filters));
+
+        $data = $this->cacheService->rememberDashboardStats(
+            $cacheKey,
+            fn () => $this->analysisService->getDashboardStats($filters),
+            $this->constituency->constituency_code
+        );
 
         // Calculate derived rates that don't need caching
         $data['outstandingBalance'] = $data['totalAmountIssued'] - $data['totalAmountRepaid'];
         $data['repaymentProgressRate'] = $data['totalAmountIssued'] > 0
             ? round(($data['totalAmountRepaid'] / $data['totalAmountIssued']) * 100, 2) : 0;
 
-        $this->stats = $data;
+        return $data;
     }
 
     #[Computed]
     public function kpis()
     {
-        $approved = $this->stats['totalAmountApproved'] ?? 0;
-        $issued = $this->stats['totalAmountIssued'] ?? 0;
-        $repaid = $this->stats['totalAmountRepaid'] ?? 0;
-        $progress = $this->stats['repaymentProgressRate'] ?? 0;
+        $approved = $this->getStats['totalAmountApproved'] ?? 0;
+        $issued = $this->getStats['totalAmountIssued'] ?? 0;
+        $repaid = $this->getStats['totalAmountRepaid'] ?? 0;
+        $progress = $this->getStats['repaymentProgressRate'] ?? 0;
 
         return [
             [
@@ -83,7 +104,7 @@ class ConstituencyComponent extends Component
             ],
             [
                 'title' => 'Outstanding',
-                'val' => $this->stats['outstandingBalance'] ?? 0,
+                'val' => $this->getStats['outstandingBalance'] ?? 0,
                 'color' => 'dark',
                 'icon' => 'fa-balance-scale',
                 'desc' => 'Current liability',
@@ -95,50 +116,31 @@ class ConstituencyComponent extends Component
     #[Computed]
     public function performance()
     {
-        $recovery_rate = $this->stats['recoveryRate'] ?? 0;
-        $due = $this->stats['totalAmountDue'] ?? 0;
-        $repaid = $this->stats['totalAmountRepaid'] ?? 0;
+        $recovery_rate = $this->getStats['recoveryRate'] ?? 0;
+        $due = $this->getStats['totalAmountDue'] ?? 0;
+        $repaid = $this->getStats['totalAmountRepaid'] ?? 0;
 
         return [
             'recovery_rate' => $recovery_rate,
-            'arrears' => $this->stats['totalArrears'],
+            'arrears' => $this->getStats['totalArrears'],
             'due' => $due,
             'repaid' => $repaid,
             'deficit' => max(0, $due - $repaid),
-            'gap_percentage' => 100 - min($recovery_rate, 100),
+            'gap_percentage' => $recovery_rate <= 0 ? 0 : (100 - min($recovery_rate, 100)),
             'arrears_ratio' => $due > 0 ? round((($due - $repaid) / $due) * 100, 1) : 0,
-            'progress_rate' => $this->stats['repaymentProgressRate'] ?? 0,
-            'financial_rate' => $this->stats['financialDefaultRate'],
-        ];
-    }
-
-    #[Computed]
-    public function riskProfile2()
-    {
-        $rate = $this->stats['defaultRate'] ?? 0;
-        $isHighRisk = $rate > 10;
-
-        return [
-            'count' => $this->stats['defaultedLoansCount'] ?? 0,
-            'avg_lag' => $this->stats['averageDefaultMonths'] ?? 0,
-            'rate' => $rate,
-            'is_high_risk' => $isHighRisk,
-            'bg_class' => $isHighRisk ? 'bg-light-danger' : 'bg-light-info',
-            'icon' => $isHighRisk ? 'fa-exclamation-circle text-danger' : 'fa-check-circle text-info',
-            'message' => $isHighRisk
-                ? 'Immediate intervention required for delinquent groups.'
-                : 'Default rate is within acceptable institutional limits.'
+            'progress_rate' => $this->getStats['repaymentProgressRate'] ?? 0,
+            'financial_rate' => $this->getStats['financialDefaultRate'],
         ];
     }
 
     #[Computed]
     public function riskProfile()
     {
-        $rate = $this->stats['defaultRate'] ?? 0;
+        $rate = $this->getStats['defaultRate'] ?? 0;
         $isHighRisk = $rate > 10;
         return [
-            'count' => $this->stats['defaultedLoansCount'] ?? 0,
-                'avg_lag' => $this->stats['averageDefaultMonths'] ?? 0,
+            'count' => $this->getStats['defaultedLoansCount'] ?? 0,
+                'avg_lag' => $this->getStats['averageDefaultMonths'] ?? 0,
                 'rate' => $rate,
                 'is_high_risk' => $isHighRisk,
             'rate' => $this->performance['financial_rate'],  // main number
@@ -157,36 +159,36 @@ class ConstituencyComponent extends Component
     #[Computed]
     public function demographics()
     {
-        $totalGroups = $this->stats['totalGroups'] ?? 0;
-        $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
+        $totalGroups = $this->getStats['totalGroups'] ?? 0;
+        $totalIssued = $this->getStats['totalAmountIssued'] ?? 0;
 
         return [
             [
                 'label' => 'Women Groups',
-                'val' => $this->stats['womenGroups'] ?? 0,
-                'amount' => $this->stats['womenAmount'],
+                'val' => $this->getStats['womenGroups'] ?? 0,
+                'amount' => $this->getStats['womenAmount'],
                 'color' => 'pink',
                 'icon' => 'fa-female',
                 'cat' => 'Women'
             ],
             [
                 'label' => 'Youth Groups',
-                'val' => $this->stats['youthGroups'] ?? 0,
-                'amount' => $this->stats['youthAmount'],
+                'val' => $this->getStats['youthGroups'] ?? 0,
+                'amount' => $this->getStats['youthAmount'],
                 'color' => 'orange',
                 'icon' => 'fa-child',
                 'cat' => 'Youth'
             ],
             [
                 'label' => 'PWD Groups',
-                'val' => $this->stats['pwdGroups'] ?? 0,
-                'amount' => $this->stats['pwdAmount'],
+                'val' => $this->getStats['pwdGroups'] ?? 0,
+                'amount' => $this->getStats['pwdAmount'],
                 'color' => 'purple',
                 'icon' => 'fa-wheelchair',
                 'cat' => 'PWD'
             ],
             [
-                'label' => 'Registry Size',
+                'label' => 'Unique Groups',
                 'val' => $totalGroups,
                 'amount' => $totalIssued,
                 'color' => 'primary',
@@ -196,41 +198,69 @@ class ConstituencyComponent extends Component
         ];
     }
 
-    /**
- * Maps sector names to Bootstrap colors
- */
-private function getSectorColor($sector)
-{
-    return match (trim($sector)) {
-        'Trade'         => 'primary', // Blue
-        'Service'       => 'info',    // Light Blue
-        'Manufacturing' => 'indigo',  // Purple/Dark Blue
-        'Agriculture'   => 'success', // Green
-        default         => 'secondary', // Gray for "Others"
-    };
-}
+    #[Computed]
+    public function wardsOptions()
+    {
+        return $this->constituency->wards->map(fn($w) => [
+                'id' => $w->id,
+                'name' => ucwords($w->ward_name),
+            ])
+            ->toArray();
+    }
 
-/**
- * Maps sector names to FontAwesome icons
- */
-private function getSectorIcon($sector)
-{
-    return match (trim($sector)) {
-        'Trade'         => 'fa-store',
-        'Service'       => 'fa-concierge-bell',
-        'Manufacturing' => 'fa-industry',
-        'Agriculture'   => 'fa-leaf',
-        default         => 'fa-ellipsis-h', // Generic icon for "Others"
-    };
-}
+    public function resetFilters()
+    {
+        $this->reset(['wardFilter']);
+    }
+
+    public function refreshData()
+    {
+        $this->cacheService->flashCache('dashboard', 'constituency_stats',  $this->constituency->constituency_code);
+
+        unset($this->getStats, $this->kpis, $this->performance, $this->riskProfile, $this->demographics, $this->economicSectors);
+
+        unset($this->getStats, $this->kpis, $this->performance, $this->riskProfile, $this->demographics, $this->economicSectors);
+    }
+
+
+    private function getFilters(): array
+    {
+        return [
+            'county_code' => $this->countyFilter,
+            'constituency_code' => $this->constituencyFilter,
+            'ward_id' => $this->wardFilter,
+        ];
+    }
+
+    private function getSectorColor($sector)
+    {
+        return match (trim($sector)) {
+            'Trade'         => 'primary',
+            'Service'       => 'info',
+            'Manufacturing' => 'indigo',
+            'Agriculture'   => 'success',
+            default         => 'secondary',
+        };
+    }
+
+
+    private function getSectorIcon($sector)
+    {
+        return match (trim($sector)) {
+            'Trade'         => 'fa-store',
+            'Service'       => 'fa-concierge-bell',
+            'Manufacturing' => 'fa-industry',
+            'Agriculture'   => 'fa-leaf',
+            default         => 'fa-ellipsis-h',
+        };
+    }
 
     #[Computed]
     public function economicSectors()
     {
-        $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
-        $breakdown = $this->stats['sector_breakdown'] ?? collect();
+        $totalIssued = $this->getStats['totalAmountIssued'] ?? 0;
+        $breakdown = $this->getStats['sector_breakdown'] ?? collect();
 
-        // Dynamically build the list from whatever sectors exist in the DB
         return $breakdown->map(function($data, $sectorName) use ($totalIssued) {
             return [
                 'label' => $sectorName,
@@ -241,58 +271,6 @@ private function getSectorIcon($sector)
                 'icon' => $this->getSectorIcon($sectorName),
             ];
         });
-    }
-
-    private function runComprehensiveAnalysis($loans)
-    {
-        $res = [
-            'active_count' => 0,
-            'default_count' => 0,
-            'due_sum' => 0,
-            'arrears_sum' => 0,
-            'avg_default_months' => 0
-        ];
-
-        $totalMonthsBehind = 0;
-
-        foreach ($loans as $loan) {
-            if (!$loan->disbursement_date) continue;
-
-            $disbursed = Carbon::parse($loan->disbursement_date);
-            $graceEnd = $disbursed->copy()->addMonths(6);
-
-            // Only assess loans where the grace period has ended
-            if (now()->gt($graceEnd)) {
-                $res['active_count']++;
-
-                // Calculate how many months they should have been paying (capped at 24)
-                $monthsInRepayment = min(floor($graceEnd->diffInMonths(now())), 24);
-
-                if ($monthsInRepayment > 0) {
-                    $monthlyInstallment = $loan->amount_issued / 24;
-                    $shouldHavePaid = $monthlyInstallment * $monthsInRepayment;
-
-                    $res['due_sum'] += $shouldHavePaid;
-
-                    $arrears = $shouldHavePaid - $loan->amount_repaid;
-
-                    if ($arrears > 0) {
-                        $res['arrears_sum'] += $arrears;
-                        $res['default_count']++;
-
-                        // Track how many months they are behind
-                        $monthsBehind = ceil($arrears / $monthlyInstallment);
-                        $totalMonthsBehind += $monthsBehind;
-                    }
-                }
-            }
-        }
-
-        $res['averageDefaultMonths'] = $res['default_count'] > 0
-            ? round($totalMonthsBehind / $res['default_count'], 1)
-            : 0;
-
-        return $res;
     }
 
     private function getMembersCount()

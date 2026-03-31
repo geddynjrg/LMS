@@ -95,10 +95,10 @@
                     @endif
 
                     <div class="form-group text-right">
-                        <button type="button" class="btn btn-danger mr-2"
+                        {{-- <button type="button" class="btn btn-danger mr-2"
                                 onclick="confirm('Are you sure you want to delete this member?') && $wire.deleteMember()">
                             <i class="fas fa-trash mr-1"></i>Delete Member
-                        </button>
+                        </button> --}}
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save mr-1"></i>Update Member
                         </button>

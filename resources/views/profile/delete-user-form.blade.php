@@ -30,7 +30,7 @@
                         <div class="mt-1 form-group row">
                             <label for="password" class="col-sm-3 col-form-label">New Password:</label>
                             <div class="col-sm-9">
-                                <input type="password" class="form-control" 
+                                <input type="password" class="form-control"
                                     autocomplete="current-password"
                                     placeholder="{{ __('Password') }}"
                                     x-ref="password"
@@ -40,11 +40,11 @@
                             </div>
                         </div>
                         <div class="float-right text-end">
-                            <x-button class="ms-3 btn-danger" 
+                            {{-- <x-button class="ms-3 btn-danger"
                                 wire:click="deleteUser"
                                 wire:loading.attr="disabled">
                                 {{ __('Delete Account') }}
-                            </x-button>
+                            </x-button> --}}
                         </div>
                     </div>
                 </div>

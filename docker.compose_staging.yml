@@ -1,0 +1,178 @@
+name: uwezo-lms
+
+services:
+  # ────────────────────────────────────────────────────────────────
+  # Main Laravel Application (served via shared NGINX proxy)
+  # ────────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: uwezo-lms-app
+    container_name: uwezo-lms-app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./.env:/var/www/html/.env
+      - storage_data:/var/www/html/storage
+    depends_on:
+      lms-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      REDIS_PASSWORD:   ${REDIS_PASSWORD:-null}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - uwezo_network
+
+  # ────────────────────────────────────────────────────────────────
+  # Queue Worker
+  # ────────────────────────────────────────────────────────────────
+#   worker:
+#     build:
+#       context: .
+#       dockerfile: Dockerfile
+#     container_name: uwezo-lms-worker
+#     restart: unless-stopped
+#     command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
+#     volumes:
+#       - ./.env:/var/www/html/.env
+#     #   - .:/var/www/html
+#     depends_on:
+#       - db
+#       - redis
+#       - app
+#     environment:
+#       APP_ENV:       ${APP_ENV:-production}
+#       APP_DEBUG:     ${APP_DEBUG:-false}
+#       DB_HOST:       db
+#       REDIS_HOST:    redis
+#     networks:
+#       - uwezo_network
+
+  # ────────────────────────────────────────────────────────────────
+  # Horizon Dashboard & Supervisor
+  # ────────────────────────────────────────────────────────────────
+  horizon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uwezo-lms-horizon
+    restart: unless-stopped
+    command: php artisan horizon
+    volumes:
+      - ./.env:/var/www/html/.env
+    depends_on:
+      app:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      APP_ENV:       ${APP_ENV:-production}
+      QUEUE_CONNECTION: redis
+    networks:
+      - uwezo_network
+
+  # ────────────────────────────────────────────────────────────────
+  # Scheduler (for Laravel scheduled tasks)
+  # ────────────────────────────────────────────────────────────────
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: uwezo-lms-scheduler
+    restart: unless-stopped
+    command: php artisan schedule:work --verbose --no-interaction
+    volumes:
+      - ./.env:/var/www/html/.env
+      - storage_data:/var/www/html/storage
+    #   - .:/var/www/html
+    depends_on:
+      - lms-db
+      - redis
+      - app
+    networks:
+      - uwezo_network
+
+  # ────────────────────────────────────────────────────────────────
+  # Database
+  # ────────────────────────────────────────────────────────────────
+  lms-db:
+    image: mariadb:11.4
+    container_name: uwezo-lms-db
+    restart: unless-stopped
+    command:
+      - --max-allowed-packet=1G
+      - --wait-timeout=28800
+      - --net_read_timeout=600
+      - --net_write_timeout=600
+      - --bind-address=0.0.0.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE:      ${DB_DATABASE}
+      MYSQL_USER:          ${DB_USERNAME}
+      MYSQL_PASSWORD:      ${DB_PASSWORD}
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./init-db:/docker-entrypoint-initdb.d
+    # Localhost-only access (safe on server)
+    ports:
+      - "127.0.0.1:3308:3306"
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "--protocol=tcp", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      uwezo_network:
+        aliases:
+          - lms-db
+
+  # ────────────────────────────────────────────────────────────────
+  # phpMyAdmin (admin tool – localhost only)
+  # ────────────────────────────────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin:5
+    container_name: uwezo-lms-phpmyadmin
+    restart: unless-stopped
+    depends_on:
+      - lms-db
+    ports:
+      - "127.0.0.1:8081:80"
+    environment:
+      PMA_HOST: lms-db
+      PMA_PORT: 3306
+      UPLOAD_LIMIT: 300M
+    networks:
+      - uwezo_network
+
+  # ────────────────────────────────────────────────────────────────
+  # Redis
+  # ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:alpine
+    container_name: uwezo-lms-redis
+    restart: unless-stopped
+    # No public ports needed
+    networks:
+      - uwezo_network
+
+# ────────────────────────────────────────────────────────────────
+# Volumes & Networks
+# ────────────────────────────────────────────────────────────────
+volumes:
+  dbdata:
+  storage_data: # Persists your Laravel storage (logs, uploads)
+
+networks:
+  uwezo_network:
+    external: true
+    name: uwezo_default

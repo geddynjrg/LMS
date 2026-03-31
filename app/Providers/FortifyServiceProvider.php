@@ -6,6 +6,9 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use App\Actions\Fortify\UpdateUserPassword;
 use App\Actions\Fortify\UpdateUserProfileInformation;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -32,6 +35,24 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
+        Fortify::authenticateUsing(function (Request $request) {
+            $user = User::where('email', $request->email)->first();
+
+            if ($user && Hash::check($request->password, $user->password)) {
+                // Check if the user is deactivated (assuming status is a boolean)
+                if (!$user->status) {
+                    throw ValidationException::withMessages([
+                        Fortify::username() => __('Your account has been deactivated. Please contact the administrator.'),
+                    ]);
+                }
+
+                return $user;
+            }
+        });
+
+        Fortify::verifyEmailView(function () {
+            return view('auth.verify-email');
+        });
 
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());

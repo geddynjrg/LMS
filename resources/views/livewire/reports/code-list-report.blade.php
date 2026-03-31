@@ -118,7 +118,7 @@
                         <th class="bg-gradient-cyan">Category</th>
                         <th class="bg-gradient-cyan">Amount Approved (as per approved) codelist</th>
                         <th class="bg-gradient-cyan">Actual Amount Issued (KShs)</th>
-                        <th class="bg-gradient-cyan text-wrap">Variance in Amounts (Approved and Issued)</th>
+                        <th class="col-2 bg-gradient-cyan text-wrap">Variance in Amounts (Approved and Issued)</th>
                         <th class="bg-gradient-cyan">Amount Due (KShs) ( consider time of loan disbursement and grace period)</th>
                         <th class="bg-gradient-cyan">Cummulative Amount repaid (KShs)</th>
                         <th class="bg-gradient-cyan">Amount cummulatively  in arrears (KShs)</th>
@@ -151,7 +151,7 @@
                     @foreach ($phases as $phase)
                         @foreach ($levelOrder as $level)
                             @php
-                                $levelLoans = $phase->grouploans->where('level', $level);
+                                $levelLoans = $phase->grouploans->where('loan_type', $level);
                             @endphp
 
                             @if($levelLoans->isNotEmpty())
@@ -165,9 +165,9 @@
                                         <td class="bg-gray">{{ $i++ }}</td>
                                         <td>{{ $grouploan->disbursement_date ?? 'N/A' }}</td>
                                         <td>{{ $grouploan->group->name ?? 'N/A' }}</td>
-                                        <td>{{ $grouploan->group->gfs_code ?? 'N/A' }}</td>
-                                        <td>{{ $grouploan->group->activity ?? 'N/A' }}</td>
-                                        <td>{{ $grouploan->group->category ?? 'N/A' }}</td>
+                                        <td>{{ $grouploan->gfs_code ?? 'N/A' }}</td>
+                                        <td>{{ $grouploan->sector ?? 'N/A' }}</td>
+                                        <td>{{ $grouploan->category ?? 'N/A' }}</td>
                                         <td>{{ number_format($grouploan->amount_approved) }}</td>
                                         <td>{{ number_format($grouploan->amount_issued) }}</td>
                                         <td>{{ number_format($grouploan->variance) }}</td>

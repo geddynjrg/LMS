@@ -19,10 +19,6 @@
                             @if(isset($county))
                                 <a class="brand-text">{{ $county->county_name}} County</a>
                             @endif
-                            @if(isset($currentConstituency) && $currentConstituency !== null)
-                                <br>
-                                <a class="text-lime text-sm brand-text">{{ ucwords(strtolower($currentConstituency->constituency_name)) }}</a>
-                            @endif
                         @endhasrole
                     @endauth
                 </div>
@@ -69,7 +65,6 @@
                             <a href="{{ route('hq.submissions.apps.index') }}" class="nav-link {{ Route::is('hq.apps.index') ? 'active' : '' }}">
                                 <i class="fas fa-file-alt nav-icon text-xs"></i>
                                 <p>All Applications</p>
-                                <span class="badge badge-light border ml-auto">{{ 5 }}</span>
                             </a>
                         </li>
 
@@ -77,20 +72,15 @@
                             <a href="{{ route('hq.submissions.tasks.phases') }}" class="nav-link {{ Route::is('hq.tasks.phases') ? 'active' : '' }}">
                                 <i class="fas fa-tasks nav-icon text-xs"></i>
                                 <p>Approval Tasks</p>
-                                @if(true)
-                                    <span class="badge badge-warning ml-auto pulse-animation">
-                                    3 phases
-                                    </span>
-                                @endif
                             </a>
                         </li>
 
-                        <li class="nav-item">
+                        {{-- <li class="nav-item">
                             <a href="#" class="nav-link {{ Route::is('hq.tasks.assessment-logs') ? 'active' : '' }}">
                                 <i class="fas fa-database nav-icon text-xs"></i>
                                 <p>Assessment Logs</p>
                             </a>
-                        </li>
+                        </li> --}}
                     </ul>
                 </li>
 
@@ -102,17 +92,17 @@
                     </a>
                     <ul class="nav nav-treeview">
                         <li class="nav-item">
-                            <a href="{{ route('hq.loans.repayments') }}" class="nav-link {{ Route::is('hq.loans.repayments') ? 'active' : '' }}">
+                            <a href="{{ route('hq.loans.group_loans') }}" class="nav-link {{ Route::is('hq.loans.group_loans') ? 'active' : '' }}">
                                 <i class="fas fa-history nav-icon text-xs"></i>
-                                <p>All Repayments</p>
+                                <p>Group Loans</p>
                             </a>
                         </li>
-                        <li class="nav-item">
+                        {{-- <li class="nav-item">
                             <a href="{{ route('hq.loans.phases') }}" class="nav-link {{ Route::is('hq.loans.phases') ? 'active' : '' }}">
                                 <i class="fas fa-layer-group nav-icon text-xs"></i>
                                 <p>Loan Phases</p>
                             </a>
-                        </li>
+                        </li> --}}
                         <li class="nav-item">
                             <a href="{{ route('hq.loans.receipts') }}" class="nav-link {{ Route::is('hq.loans.receipts') ? 'active' : '' }}">
                                 <i class="fas fa-receipt nav-icon text-xs"></i>
@@ -129,22 +119,22 @@
                         <p>Groups <i class="right fas fa-angle-left"></i></p>
                     </a>
                     <ul class="nav nav-treeview">
-                        <li class="nav-item">
+                        {{-- <li class="nav-item">
                             <a href="{{ route('hq.groups.dashboard') }}" class="nav-link {{ Route::is('hq.groups.dashboard') ? 'active' : '' }}">
                                 <i class="fas fa-chart-pie nav-icon text-xs"></i>
-                                <p>Groups Dashboard</p>
+                                <p>Beneficiary Groups</p>
                             </a>
-                        </li>
+                        </li> --}}
                         <li class="nav-item">
                             <a href="{{ route('hq.groups.index') }}" class="nav-link {{ Route::is('hq.groups.index') ? 'active' : '' }}">
                                 <i class="fas fa-list nav-icon text-xs"></i>
-                                <p>All Registered Groups</p>
+                                <p>Beneficiary Groups</p>
                             </a>
                         </li>
                     </ul>
                 </li>
 
-                <li class="nav-item {{ Route::is('hq.members*') ? 'menu-open' : '' }}">
+                {{-- <li class="nav-item {{ Route::is('hq.members*') ? 'menu-open' : '' }}">
                     <a href="#" class="nav-link {{ Route::is('hq.members*') ? 'active shadow-sm' : '' }}">
                         <i class="nav-icon fas fa-user-friends"></i>
                         <p>Members <i class="right fas fa-angle-left"></i></p>
@@ -170,7 +160,7 @@
                             </a>
                         </li>
                     </ul>
-                </li>
+                </li> --}}
 
                 <li class="nav-item">
                     <a href="{{ route('hq.reports.index') }}" class="nav-link {{ Route::is('hq.reports.*') ? 'active shadow-sm' : '' }}">
@@ -223,7 +213,7 @@
                         Str::slug($currentConstituency->slug),
                         ])}}" class="nav-link {{ Route::currentRouteName() == 'const.groups.multi-group-members' ? 'active':''}}">
                         <i class="fas fa-users nav-icon"></i>
-                        <p>Multi Group Members</p>
+                        <p>Contagious Members</p>
                         </a>
                     </li>
                     </ul>
@@ -247,7 +237,7 @@
                         </a>
                     </li>
                     @can ('create loan application')
-                    <li class="nav-item">
+                    {{-- <li class="nav-item">
                         <a href="{{route('const.loans.application', [
                         Str::slug($county->slug),
                         Str::slug($currentConstituency->slug),
@@ -255,9 +245,9 @@
                         <i class="fas fa-wallet nav-icon"></i>
                         <p>Loan Application</p>
                         </a>
-                    </li>
+                    </li> --}}
                     @endcan
-                    <li class="nav-item">
+                    {{-- <li class="nav-item">
                         <a href="{{route('const.loans.applicants', [
                         Str::slug($county->slug),
                         Str::slug($currentConstituency->slug),
@@ -265,7 +255,7 @@
                         <i class="fas fa-wallet nav-icon"></i>
                         <p>Applied Loans</p>
                         </a>
-                    </li>
+                    </li> --}}
                     <li class="nav-item">
                         <a href="{{route('const.loans.grouploans', [
                         Str::slug($county->slug),
@@ -284,7 +274,7 @@
                         <p>Receipts</p>
                         </a>
                     </li>
-                    <li class="nav-item">
+                    {{-- <li class="nav-item">
                         <a href="{{route('const.loans.loanmembers', [
                         Str::slug($county->slug),
                         Str::slug($currentConstituency->slug),
@@ -292,7 +282,7 @@
                         <i class="fas fa-hand-holding-usd nav-icon"></i>
                         <p>Loaned Members</p>
                         </a>
-                    </li>
+                    </li> --}}
                     </ul>
                 </li>
                 <li class="nav-item {{ $nav == 'app' ? 'menu-open':''}}">
@@ -399,7 +389,7 @@
                         <p>Loan Subm Form (F.5)</p>
                         </a>
                     </li>
-                    <li class="nav-item">
+                    {{-- <li class="nav-item">
                         <a href="{{route('const.reports.disbursement', [
                             Str::slug($county->slug),
                             Str::slug($currentConstituency->slug),
@@ -413,7 +403,7 @@
                         <i class="fas fa-file nav-icon"></i>
                         <p>Sectorial Analysis</p>
                         </a>
-                    </li>
+                    </li> --}}
                 </ul>
                 </li>
                 {{-- <li class="nav-item {{ Route::is('const.monitoring*')? 'menu-open':''}}">
@@ -463,14 +453,14 @@
                         <p>View Users</p>
                     </a>
                     </li>
-                    @can('create user')
+                    {{-- @can('create user')
                         <li class="nav-item">
                         <a href="{{route('users.adduser', [Str::slug($county->slug),])}}" class="nav-link {{ Route::currentRouteName() == 'users.adduser' ? 'active':''}}">
                             <i class="fas fa-user-plus nav-icon"></i>
                             <p>Add Users</p>
                         </a>
                         </li>
-                    @endcan
+                    @endcan --}}
                 </ul>
             </li>
 

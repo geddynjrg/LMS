@@ -17,6 +17,7 @@
             justify-content: center;
             min-height: 100vh;
         }
+        .text-uwezo-primary { color: #b72a9f !important; }
     </style>
 </head>
 <body class="hold-transition">

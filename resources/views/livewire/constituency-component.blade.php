@@ -1,12 +1,48 @@
 <section class="content">
     <div class="container-fluid">
-        <div wire:loading.delay.shortest>
-            <div class="loading-overlay">
-                <div class="d-flex flex-column align-items-center">
-                    <div class="dancing-loader mb-3"></div>
-                    <h5 class="text-primary font-weight-bold animate__animated animate__pulse animate__infinite">
-                        Refreshing Data...
-                    </h5>
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm border-0">
+                    <div class="card-body p-3">
+                        <div class="row align-items-center">
+
+                            <div class="col-md-auto">
+                                <span class="text-muted small font-weight-bold text-uppercase">
+                                    <i class="fas fa-filter mr-1"></i> Filters
+                                </span>
+                            </div>
+
+                            <div class="col-md-3" wire:key="wards-n-wrapper-{{ $constituencyFilter }}">
+                                <x-dropdown-search
+                                    wire:key="dropdown-{{ count($this->wardsOptions) }}"
+                                    model="wardFilter"
+                                    :options="$this->wardsOptions"
+                                    optionLabel="name"
+                                    optionValue="id"
+                                    placeholder="Select Ward"
+                                    icon="fas fa-map-signs"
+                                />
+                            </div>
+
+                            <div class="col-md-auto ml-auto text-right">
+                                <div class="btn-group">
+                                    <x-loading-button
+                                        target="refreshData"
+                                        class="btn-refresh-premium btn-sm"
+                                        icon="fas fa-sync-alt"
+                                        label="Refresh"
+                                    />
+                                    <x-loading-button
+                                        target="resetFilters"
+                                        class="btn-refresh-premium btn-sm"
+                                        icon="fas fa-times"
+                                        label="Clear Filters"
+                                    />
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -45,13 +81,13 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <h3 class="card-title font-weight-bold text-dark mb-0">
-                                    <i class="fas fa-chart-line text-pink mr-2"></i>Collection Efficiency
+                                    <i class="fas fa-chart-line mr-2"></i>Collection Efficiency
                                 </h3><br>
-                                <span class="text-xs text-muted mb-0">Assessment of actual vs. scheduled recovery</span>
+                                <span class="text-xs text-gray-600 mb-0">Assessment of actual vs. scheduled recovery</span>
                             </div>
                             <div class="text-right">
-                                <span class="badge {{ $performance['recovery_rate'] >= 0 ? 'bg-info' : 'bg-danger' }} rounded-pill px-3 shadow-sm">
-                                    {{ $performance['recovery_rate'] }}% Performance
+                                <span class="badge {{ $this->performance['recovery_rate'] >= 0 ? 'bg-primary' : 'bg-success' }} rounded-pill px-3 shadow-sm">
+                                    {{ $this->performance['recovery_rate'] }}% Performance
                                 </span>
                             </div>
                         </div>
@@ -65,22 +101,23 @@
                                         <svg viewBox="0 0 100 100" class="gauge-svg">
                                             <circle class="gauge-base" cx="50" cy="50" r="45"></circle>
                                             <circle class="gauge-progress" cx="50" cy="50" r="45"
-                                                style="stroke-dashoffset: {{ 283 - (283 * min($performance['recovery_rate'], 100) / 100) }};
-                                                    stroke: {{ $performance['recovery_rate'] >= 90 ? '#28a745' : ($performance['recovery_rate'] >= 70 ? '#ffc107' : '#dc3545') }};">
+                                                style="stroke-dashoffset: {{ 283 - (283 * min($this->performance['recovery_rate'], 100) / 100) }};
+                                                {{-- 811d70 db17ba dc3545--}}
+                                                    stroke: {{ $this->performance['recovery_rate'] >= 90 ? '#811d70' : ($this->performance['recovery_rate'] >= 60 ? '#db17ba' : '#e53c80') }};">
                                             </circle>
                                         </svg>
                                         <div class="gauge-center-content">
-                                            @if($performance['recovery_rate'] >= 100)
-                                                <i class="fas fa-level-up-alt text-pink fa-2x animate-bounce"></i>
-                                            @elseif($performance['recovery_rate'] >= 80)
-                                                <i class="fas fa-minus text-warning fa-2x"></i>
+                                            @if($this->performance['recovery_rate'] >= 70)
+                                                <i class="fas fa-level-up-alt fa-2x animate-bounce"></i>
+                                            @elseif($this->performance['recovery_rate'] >= 40)
+                                                <i class="fas fa-minus text-primary fa-2x"></i>
                                             @else
                                                 <i class="fas fa-level-down-alt text-danger fa-2x animate-pulse"></i>
                                             @endif
-                                            <span class="d-block font-weight-bold mt-1 text-lg">{{ $performance['recovery_rate'] }}%</span>
+                                            <span class="d-block font-weight-bold mt-1 text-lg">{{ $this->performance['recovery_rate'] }}%</span>
                                         </div>
                                     </div>
-                                    <small class="text-uppercase text-muted font-weight-bold mt-2 d-block" style="letter-spacing: 1px; font-size: 10px;">
+                                    <small class="text-uppercase text-gray-600 font-weight-bold mt-2 d-block">
                                         Recovery Performance
                                     </small>
                                 </div>
@@ -88,34 +125,34 @@
 
                             <div class="col-md-7 pl-md-4">
                                 <div class="mb-3">
-                                    <span class="text-xs text-muted text-uppercase font-weight-bold d-block mb-1">Status Summary</span>
+                                    <span class="text-xs text-gray-600 text-uppercase font-weight-bold d-block mb-1">Status Summary</span>
                                     @if($this->performance['recovery_rate'] >= 100)
-                                        <div class="alert alert-soft-success py-2 px-3 border-0 mb-0">
-                                            <small class="font-weight-bold text-pink"><i class="fas fa-check-circle mr-1"></i> SURPLUS RECOVERY</small>
+                                        <div class="alert alert-soft-primary py-2 px-3 border-0 mb-0">
+                                            <small class="font-weight-bold"><i class="fas fa-check-circle mr-1"></i> SURPLUS RECOVERY</small>
                                         </div>
                                     @else
-                                        <div class="alert alert-soft-danger py-2 px-3 border-0 mb-0">
-                                            <small class="font-weight-bold text-danger"><i class="fas fa-exclamation-circle mr-1"></i> DEFICIT: KES {{ number_format($this->performance['deficit']) }}</small>
+                                        <div class="alert alert-soft-info py-2 px-3 border-0 mb-0">
+                                            <small class="font-weight-bold text-info"><i class="fas fa-exclamation-circle mr-1"></i> DEFICIT: KES {{ number_format($this->performance['deficit']) }}</small>
                                         </div>
                                     @endif
                                 </div>
 
                                 <ul class="list-group list-group-unbordered">
                                     <li class="list-group-item border-0 d-flex justify-content-between align-items-center py-2">
-                                        <span class="text-muted small">Expected Payments</span>
+                                        <span class="text-gray-600 small">Expected Payments</span>
                                         <span class="font-weight-bold text-dark">KES {{ number_format($this->performance['due']) }}</span>
                                     </li>
                                     <li class="list-group-item border-0 d-flex justify-content-between align-items-center py-2">
-                                        <span class="text-muted small">Total Collections</span>
-                                        <span class="font-weight-bold text-pink">KES {{ number_format($this->performance['repaid']) }}</span>
+                                        <span class="text-gray-600 small">Total Collections</span>
+                                        <span class="font-weight-bold">KES {{ number_format($this->performance['repaid']) }}</span>
                                     </li>
                                     <li class="list-group-item border-0 pt-3 mt-2 border-top">
                                         <div class="d-flex justify-content-between mb-1 small text-uppercase font-weight-bold">
-                                            <span class="text-muted">Collection Gap</span>
-                                            <span class="text-danger">{{ $this->performance['gap_percentage'] }}% Missing</span>
+                                            <span class="text-gray-600">Collection Gap</span>
+                                            <span class="text-primary">{{ $this->performance['gap_percentage'] }}% Missing</span>
                                         </div>
                                         <div class="progress rounded-pill shadow-xs" style="height: 6px;">
-                                            <div class="progress-bar bg-danger" style="width: {{ $this->performance['gap_percentage'] }}%"></div>
+                                            <div class="progress-bar bg-primary" style="width: {{ $this->performance['gap_percentage'] }}%"></div>
                                         </div>
                                     </li>
                                 </ul>
@@ -127,11 +164,11 @@
                     <div class="card-footer bg-light border-0 py-2">
                         <div class="row text-center small">
                             <div class="col-6 border-right">
-                                <span class="text-muted d-block text-uppercase" style="font-size: 9px;">Total Progress</span>
+                                <span class="text-gray-600 d-block text-uppercase" style="font-size: 9px;">Total Progress</span>
                                 <span class="font-weight-bold">{{ $this->performance['progress_rate'] }}%</span>
                             </div>
                             <div class="col-6">
-                                <span class="text-muted d-block text-uppercase" style="font-size: 9px;">Arrears Ratio</span>
+                                <span class="text-gray-600 d-block text-uppercase" style="font-size: 9px;">Arrears Ratio</span>
                                 <span class="font-weight-bold text-danger">{{ $this->performance['arrears_ratio'] }}%</span>
                             </div>
                         </div>
@@ -149,7 +186,7 @@
                     <div class="card-body pt-0">
                         <div class="d-flex justify-content-around mb-4">
                             <div class="text-center">
-                                <h3 class="font-weight-bold text-maroon mb-0">{{ $this->riskProfile['count'] }}</h3>
+                                <h3 class="font-weight-bold text-danger mb-0">{{ $this->riskProfile['count'] }}</h3>
                                 <small class="text-muted text-uppercase">Groups at Risk</small>
                             </div>
                             <div class="text-center border-left pl-4">
@@ -158,36 +195,31 @@
                             </div>
                         </div>
 
-                        <div class="p-4 rounded-xl shadow-sm {{ $riskProfile['bg_class'] }} mb-4">
+                        <div class="p-4 rounded-xl shadow-sm">
                             <div class="d-flex align-items-center">
                                 <div class="mr-4 flex-shrink-0">
                                     <div class="bg-white rounded-circle p-3 shadow">
-                                        <i class="fas {{ $riskProfile['icon'] }} fa-2x {{ $riskProfile['text_color'] }}"></i>
+                                        <i class="fas {{ $this->riskProfile['icon'] }} fa-2x text-primary"></i>
                                     </div>
                                 </div>
                                 <div class="flex-grow-1">
-                                    <h6 class="mb-1 font-weight-bold text-uppercase small {{ $riskProfile['text_color'] }}">
+                                    <h6 class="mb-1 font-weight-bold text-uppercase">
                                         Portfolio at Risk (PAR)
                                     </h6>
-                                    <p class="display-5 mb-0 font-weight-bolder {{ $riskProfile['text_color'] }}">
-                                        {{ number_format($performance['financial_rate'], 1) }}%
+                                    <p class="display-5 mb-0 font-weight-bold text-gray-900">
+                                        {{ number_format($this->performance['financial_rate'], 1) }}%
                                     </p>
-                                    <small class="d-block {{ $riskProfile['text_color'] }} opacity-85">
-                                        {{ $riskProfile['message'] ?? 'of disbursed funds currently overdue' }}
-                                    </small>
-                                    Overdue: KES {{ number_format(max($performance['due'] - $performance['repaid'], 0)) }}
-                                    out of KES {{ number_format($performance['due']) }} expected
+                                    <b class="d-block text-xs">
+                                        {{ $this->riskProfile['message'] ?? 'of disbursed funds currently overdue' }}
+                                    </b>
+                                    Overdue: KES {{ number_format(max($this->performance['due'] - $this->performance['repaid'], 0)) }}
+                                    out of KES {{ number_format($this->performance['due']) }} expected
                                 </div>
                             </div>
                         </div>
-
-                        <a href="#" class="btn btn-block btn-outline-danger btn-sm mt-3 border-dashed">
-                            <i class="fas fa-file-download mr-1"></i> Export Delinquency Report
-                        </a>
                     </div>
                 </div>
             </div>
-
         </div>
 
         <hr class="my-4">
@@ -195,7 +227,7 @@
         <div class="row mt-4">
             @foreach($this->demographics as $d)
                 @php
-                    $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
+                    $totalIssued = $this->getStats['totalAmountIssued'] ?? 0;
                     // Calculate share of money, capped at 100%
                     $percentage = ($totalIssued > 0 && $d['cat'])
                         ? min(100, round(($d['amount'] / $totalIssued) * 100))
@@ -203,7 +235,7 @@
                 @endphp
 
                 <div class="col-lg-3 col-6">
-                    <a href="{{ $d['cat'] ? route('const.groups.index', ['county' => $constituency->county->slug, 'constituency' => $constituency->slug, 'categoryFilter' => $d['cat']]) : '#' }}" wire:navigate
+                    <a href="{{ $d['cat'] ? route('const.groups.index', ['county' => $constituency->county->slug, 'constituency' => $constituency->slug, 'categoryFilter' => $d['cat']]) : '#' }}"
                     class="text-decoration-none">
                         <div class="card card-hover shadow-sm border-0 mb-3">
                             <div class="card-body p-3">
@@ -253,13 +285,13 @@
             @foreach($this->economicSectors as $s)
                 @php
                     // We use the same total baseline for the percentage
-                    $totalIssued = $this->stats['totalAmountIssued'] ?? 0;
+                    $totalIssued = $this->getStats['totalAmountIssued'] ?? 0;
                     $percentage = $s['percentage']; // Already calculated in the Computed Property
                 @endphp
 
                 <div class="col-lg-3 col-6">
                     {{-- Link to filtered groups by sector --}}
-                    <a href="{{ route('const.groups.index', ['county' => $constituency->county->slug, 'constituency' => $constituency->slug, 'sectorFilter' => $s['label']]) }}" wire:navigate
+                    <a href="{{ route('const.groups.index', ['county' => $constituency->county->slug, 'constituency' => $constituency->slug, 'sectorFilter' => $s['label']]) }}"
                     class="text-decoration-none">
                         <div class="card card-hover shadow-sm border-0 mb-3">
                             <div class="card-body p-3">
@@ -303,7 +335,7 @@
                         <h6 class="mb-0 font-weight-bold text-dark">
                             <i class="fas fa-file-signature mr-2 text-warning"></i> Incoming Applications
                         </h6>
-                        <span class="badge badge-warning-light text-xs">{{ count($this->stats['newApplications']) }} New</span>
+                        <span class="badge badge-warning-light text-xs">{{ count($this->getStats['newApplications']) }} New</span>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -316,7 +348,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse($this->stats['newApplications'] as $app)
+                                    @forelse($this->getStats['newApplications'] as $app)
                                     <tr class="position-relative" onclick="Livewire.navigate('{{ route('const.app.application-view', [$constituency->county->slug, $constituency->slug, $app->application_id]) }}')"
                                         style="cursor: pointer;">
 
@@ -373,15 +405,15 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse($this->stats['approvedPhases'] as $phase)
+                                    @forelse($this->getStats['approvedPhases'] as $phase)
                                     <tr>
                                         <td class="py-3">
-                                            <span class="font-weight-bold text-dark d-block">Phase #{{ $phase->id }}</span>
-                                            <span class="text-xs text-muted">{{ $phase->phase_name }}</span>
+                                            <span class="font-bold text-gray-900 d-block">{{ ucwords($phase->phase) }}</span>
+                                            <span class="text-xs text-muted">{{ $phase->phase_ref }}</span>
                                         </td>
-                                        <td class="py-3 text-sm">KES {{ number_format($phase->total_amount) }}</td>
+                                        <td class="py-3 text-sm">KES {{ number_format($phase->total_amount_approved) }}</td>
                                         <td class="py-3">
-                                            <span class="badge badge-pill badge-success text-xs">Ready for Disbursement</span>
+                                            <span class="text-xs">Ready for Disbursement</span>
                                         </td>
                                     </tr>
                                     @empty
@@ -394,56 +426,5 @@
                 </div>
             </div>
         </div>
-
-
-
-        <div class="text-center mt-4">
-            <button
-                wire:click="refreshStats"
-                wire:loading.attr="disabled"
-                class="btn btn-primary shadow-sm px-4">
-
-                <span wire:loading.remove>
-                    <i class="fas fa-sync-alt mr-2"></i> Refresh Data
-                </span>
-
-                <span wire:loading>
-                    <i class="fas fa-spinner fa-spin mr-2"></i> Refreshing Dashboard...
-                </span>
-            </button>
-        </div>
-        {{-- <p class="text-xs text-muted mt-2">
-            <i class="far fa-clock mr-1"></i>
-            Data last cached at {{ $lastUpdated ?? 'N/A' }}.
-            Click refresh to sync live records.
-        </p> --}}
     </div>
 </section>
-
-@push('styles')
-<style>
-    /* Gauge Styles */
-    .gauge-container { position: relative; width: 150px; height: 150px; margin: 0 auto; }
-    .gauge-svg { transform: rotate(-90deg); width: 100%; height: 100%; }
-    .gauge-base { fill: none; stroke: #f1f5f9; stroke-width: 8; }
-    .gauge-progress {
-        fill: none; stroke-width: 8; stroke-linecap: round;
-        stroke-dasharray: 283; transition: stroke-dashoffset 1s ease;
-    }
-    .gauge-center-content {
-        position: absolute; top: 50%; left: 50%;
-        transform: translate(-50%, -50%); width: 100%;
-    }
-
-    /* Animations */
-    .animate-bounce { animation: bounce 2s infinite; }
-    .animate-pulse { animation: pulse 2s infinite; }
-    @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateY(0);} 40% {transform: translateY(-5px);} 60% {transform: translateY(-3px);} }
-    @keyframes pulse { 0% {opacity: 1;} 50% {opacity: 0.5;} 100% {opacity: 1;} }
-
-    /* Soft Alerts */
-    .alert-soft-success { background-color: #f0fdf4; color: #166534; }
-    .alert-soft-danger { background-color: #fef2f2; color: #991b1b; }
-</style>
-
-@endpush

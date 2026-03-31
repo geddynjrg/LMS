@@ -1,29 +1,48 @@
-/.phpunit.cache
-/node_modules
-/public/build
-/public/hot
+# --- IDE & OS Specific ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+desktop.ini
+
+# --- Laravel Core ---
+/vendor/
+/node_modules/
 /public/storage
+/public/hot
 /storage/*.key
-/vendor
+/storage/framework/cache/data/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs/*.log
+/storage/debugbar/
+
+# --- Environment & Sensitive Files ---
 .env
 .env.backup
 .env.production
+.env.local
+.env.staging
+
+# --- Docker & Build Tools ---
 .phpunit.result.cache
-Homestead.json
-Homestead.yaml
-auth.json
-npm-debug.log
-yarn-error.log
-/.fleet
-/.idea
-/.vscode
+/public/build
+/.vite-inspect
 
+# --- Project Specific Logs & Temporary Files ---
+# These were appearing in your git status
+storage/logs/backup_clean_command.log
+storage/logs/backup_command.log
+storage/logs/loan_command.log
+storage/logs/laravel.log
 
-/mysql_data
-/dbdata
+# --- Compiled Assets ---
+public/js/*.js
+public/css/*.css
+mix-manifest.json
 
-/init-db/*.sql
-/init-db/*.gz
-
-.DS_Store
-Thumbs.db
+# --- Testing ---
+.phpunit.cache/
+/tests/Browser/screenshots/
+/tests/Browser/console/

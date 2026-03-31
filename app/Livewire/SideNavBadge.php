@@ -32,7 +32,8 @@ class SideNavBadge extends Component
 
         // Run a different query based on the 'type' you passed in
         return (int) match ($this->type) {
-            'not_linked'   => $query->where('link_status', 'not_attempted')->count(),
+            // 'in_constituency_review' => DB::table('phase_applications')->where('status', 'pending')->count(),
+            'not_linked'   => $query->where('status', 'under_constituency_review')->count(),
             'pending_loan' => DB::table('loan_phases')->where('status', 'pending')->count(),
             'new_groups'   => DB::table('groups')->where('active', 0)->count(),
             'constituency_tasks' => DB::table('loan_phases')

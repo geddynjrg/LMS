@@ -42,7 +42,7 @@ class VerifyApiKey
         }
 
         // Validate API key
-        if ($apiKey !== $validApiKey) {
+        if (!hash_equals($validApiKey, $apiKey)) {
             Log::warning('Invalid API Key', [
                 'ip' => $request->ip(),
                 'provided_key' => '***' . substr($apiKey, -8),

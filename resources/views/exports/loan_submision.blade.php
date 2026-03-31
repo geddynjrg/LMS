@@ -19,9 +19,9 @@
     @endphp
     @foreach ($phases as $phase)
       @php
-        $newLoans = $phase->grouploans->where('level', 'New');
-        $resubmissionLoans = $phase->grouploans->where('level', 'Resubmission');
-        $refinancingLoans = $phase->grouploans->where('level', 'Refinancing');
+        $newLoans = $phase->grouploans->where('loan_type', 'New');
+        $resubmissionLoans = $phase->grouploans->where('loan_type', 'Resubmission');
+        $refinancingLoans = $phase->grouploans->where('loan_type', 'Refinancing');
       @endphp
       <!-- new groups -->
       @if($newLoans->isNotEmpty())
@@ -33,10 +33,10 @@
           <tr>
             <td class="bg-gray">{{ $i++ }}</td>
             <td>{{$grouploan->disbursement_date}} </td>
-            <td>{{$grouploan->group->name}} </td>
-            <td>{{$grouploan->group->gfs_code}} </td>
-            <td>{{$grouploan->group->activity}} </td>
-            <td>{{$grouploan->group->category}} </td>
+            <td>{{$grouploan->group_name}} </td>
+            <td>{{$grouploan->gfs_code}} </td>
+            <td>{{$grouploan->sector}} </td>
+            <td>{{$grouploan->category}} </td>
             <td>{{number_format($grouploan->amount_approved)}} </td>
             <td>{{$grouploan->cheque_no}} </td>
             <td>{{number_format($grouploan->amount_issued)}} </td>
@@ -63,10 +63,10 @@
           <tr>
             <td class="bg-gray">{{ $i++ }}</td>
             <td>{{$grouploan->disbursement_date}} </td>
-            <td>{{$grouploan->group->name}} </td>
-            <td>{{$grouploan->group->gfs_code}} </td>
-            <td>{{$grouploan->group->activity}} </td>
-            <td>{{$grouploan->group->category}} </td>
+            <td>{{$grouploan->group_name}} </td>
+            <td>{{$grouploan->gfs_code}} </td>
+            <td>{{$grouploan->sector}} </td>
+            <td>{{$grouploan->category}} </td>
             <td>{{number_format($grouploan->amount_approved)}} </td>
             <td>{{$grouploan->cheque_no}} </td>
             <td>{{number_format($grouploan->amount_issued)}} </td>
@@ -76,9 +76,9 @@
         <tr class="bg-gray ">
           <td></td>
           <td class="text-center" colspan="5"> SubTotal {{$phase->phase}} - Resubmission</td>
-          <td>{{number_format($newLoans->sum('amount_approved'))}}</td>
+          <td>{{number_format($resubmissionLoans->sum('amount_approved'))}}</td>
           <td></td>
-          <td>{{number_format($newLoans->sum('amount_issued'))}}</td>
+          <td>{{number_format($resubmissionLoans->sum('amount_issued'))}}</td>
           <td></td>
         </tr>
       @endif
@@ -93,10 +93,10 @@
           <tr>
             <td class="bg-gray">{{ $i++ }}</td>
             <td>{{$grouploan->disbursement_date}} </td>
-            <td>{{$grouploan->group->name}} </td>
-            <td>{{$grouploan->group->gfs_code}} </td>
-            <td>{{$grouploan->group->activity}} </td>
-            <td>{{$grouploan->group->category}} </td>
+            <td>{{$grouploan->group_name}} </td>
+            <td>{{$grouploan->gfs_code}} </td>
+            <td>{{$grouploan->sector}} </td>
+            <td>{{$grouploan->category}} </td>
             <td>{{number_format($grouploan->amount_approved)}} </td>
             <td>{{$grouploan->cheque_no}} </td>
             <td>{{number_format($grouploan->amount_issued)}} </td>
@@ -106,9 +106,9 @@
         <tr class="bg-gray ">
           <td></td>
           <td class="text-center" colspan="5"> SubTotal {{$phase->phase}} - Refinancing</td>
-          <td>{{number_format($newLoans->sum('amount_approved'))}}</td>
+          <td>{{number_format($refinancingLoans->sum('amount_approved'))}}</td>
           <td></td>
-          <td>{{number_format($newLoans->sum('amount_issued'))}}</td>
+          <td>{{number_format($refinancingLoans->sum('amount_issued'))}}</td>
           <td></td>
         </tr>
       @endif

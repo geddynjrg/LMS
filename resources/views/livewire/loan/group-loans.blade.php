@@ -1,233 +1,554 @@
 <section class="content">
     <div class="container-fluid">
-        <h5 class="mt-4 mb-2">Group loans Summary </h5>
-        <div class="row">
-            <div class="col-md-3 col-sm-6 col-12">
-                <div class="info-box bg-gradient-info">
-                    <span class="info-box-icon"><i class="fa fa-calendar-check"></i></span>
-
-                    <div class="info-box-content">
-                    <span class="info-box-text">Approved Applications</span>
-                    <span class="info-box-number">{{ $applications }}</span>
-
-                    <div class="progress">
-                        <div class="progress-bar" style="width: 100%"></div>
+        <!-- row -->
+        <div class="card shadow-none border-left-info mb-4" style="border-left: 5px solid #17a2b8;">
+            <div class="card-body py-3">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h1 class="mb-0 font-bold text-3xl text-gray-900">
+                            <i class="fas fa-clipboard-list text-info mr-2"></i>
+                            {{ ucwords(strtolower($constituency->constituency_name)) }} Constituency
+                        </h1>
+                        <p class="mt-1 text-gray-600">Disbursed Loans.</p>
                     </div>
-                    <span class="progress-description">
-
-                    </span>
+                    <div class="col-md-4 text-md-right mt-3 mt-md-0">
+                        <x-loading-button
+                            target="refreshData"
+                            class="btn-refresh-premium"
+                            icon="fas fa-sync-alt"
+                            label="Refresh Data"
+                        />
                     </div>
-                    <!-- /.info-box-content -->
                 </div>
-                <!-- /.info-box -->
-            </div>
-            <!-- /.col -->
-            <div class="col-md-3 col-sm-6 col-12">
-                <div class="info-box bg-gradient-success">
-                    <span class="info-box-icon"><i class="fa fa-hand-holding-usd"></i></span>
-
-                    <div class="info-box-content">
-                    <span class="info-box-text">Total Disbursed</span>
-                    <span class="info-box-number">Ksh {{ number_format(($amount_issued),2)}} </span>
-
-                    <div class="progress">
-                        <div class="progress-bar" style="width: {{ $amount_issued > 0 ? number_format(($amount_issued/$amount_issued)*100, 2) : 0}}%"></div>
-                    </div>
-                    <span class="progress-description">
-
-                    </span>
-                    </div>
-                    <!-- /.info-box-content -->
-                </div>
-                <!-- /.info-box -->
-            </div>
-            <!-- /.col -->
-            <div class="col-md-3 col-sm-6 col-12">
-                <div class="info-box bg-gradient-warning">
-                    <span class="info-box-icon"><i class="fa fa-envelope-open-text text-white"></i></span>
-
-                    <div class="info-box-content">
-                    <span class="info-box-text">Total Repayment</span>
-                    <span class="info-box-number">Ksh {{ number_format(($amount_repaid),2)}}</span>
-
-                    <div class="progress">
-                        <div class="progress-bar" style="width: {{ $amount_issued > 0 ? number_format(($amount_repaid/$amount_issued)*100, 2) : 0}}%"></div>
-                    </div>
-                    <span class="progress-description text-sm">
-                        {{ $amount_issued > 0 ? number_format(($amount_repaid/$amount_issued)*100, 2) : 0}}% Return rate
-                    </span>
-                    </div>
-                    <!-- /.info-box-content -->
-                </div>
-                <!-- /.info-box -->
-            </div>
-            <!-- /.col -->
-            <div class="col-md-3 col-sm-6 col-12">
-                <div class="info-box bg-gradient-danger">
-                    <span class="info-box-icon"><i class="fa fa-search-dollar"></i></span>
-
-                    <div class="info-box-content">
-                    <span class="info-box-text">Balance</span>
-                    <span class="info-box-number">Ksh {{ $amount_issued > 0 ? number_format(($amount_issued - $amount_repaid),2) : 0}} </span>
-
-                    <div class="progress">
-                        <div class="progress-bar" style="width: {{ $amount_issued > 0 ? number_format((($amount_issued - $amount_repaid)/$amount_issued)*100, 2) : 0}}%"></div>
-                    </div>
-                    <span class="progress-description text-sm">
-                        {{ $amount_issued > 0 ? number_format((($amount_issued - $amount_repaid)/$amount_issued)*100, 2) : 0}}% of disbursed
-                    </span>
-                    </div>
-                    <!-- /.info-box-content -->
-                </div>
-                <!-- /.info-box -->
             </div>
         </div>
-        <!-- row -->
 
-        <div class="card">
-            <div class="card-header">
-              <h3 class="card-title">Group Loans information data</h3>
+        <div class="row mb-4">
+            @foreach($this->getStats as $key => $kpi)
+                <div class="col-lg-3 col-6 mb-3 mb-lg-0">
+                    <div class="card card-hover shadow-sm border-left-success h-100 py-2">
+                        <div class="card-body py-1">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <span class="text-xs font-weight-bold  d-block text-primary text-uppercase mb-1">{{ $kpi['title'] }}</span>
+                                    <span class="h5 mb-1 font-weight-bold text-gray-900">KES {{ number_format($kpi['val']) }}</span>
+                                </div>
+                                <div class="icon-circle bg-light-info text-primary">
+                                    <i class="fas {{ $kpi['icon'] }}"></i>
+                                </div>
+                            </div>
+                            <hr class="my-2">
+
+                            <div class="col">
+                                <small class="text-xs text-gray-500">{{ $kpi['desc'] }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+
+        <div class="card card-outline card-info shadow-sm border-0 mt-4" style="border-radius: 12px;">
+            <div class="card-header bg-white border-bottom-0 py-3">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
+
+                    <h3 class="card-title mb-3 mb-md-0 mr-md-4">
+                        <i class="fas fa-list text-primary mr-2"></i> Group Loans
+                    </h3>
+                    <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-md-end flex-md-grow-1" style="gap: 15px;">
+
+                        <div class="input-group premium-input-group order-2 transition-all"
+                            x-data="{ focused: false }"
+                            :class="{ 'premium-focus': focused }"
+                            style="min-width: 250px; max-width: 350px;">
+
+                            <input type="text"
+                                wire:model.live.debounce.500ms="search"
+                                @focus="focused = true"
+                                @blur="focused = false"
+                                class="form-control border-right-0 shadow-none text-sm"
+                                placeholder="Search Applications..."
+                                style="height: 32px; border-radius: 10px 0 0 10px; font-size: 0.8rem; border-color: #ced4da; padding-left: 12px;">
+
+                            <div class="input-group-append">
+                                <span class="input-group-text bg-white border-left-0 py-0"
+                                    style="border-radius: 0 10px 10px 0; height: 32px; width: 35px; justify-content: center; transition: 0.2s;">
+                                    <i class="fas fa-search text-muted"
+                                    :class="focused ? 'text-brand animate__animated animate__pulse' : ''"
+                                    style="font-size: 0.8rem;"></i>
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex order-1 order-sm-2" style="gap: 8px;">
+                            <div class="btn-group">
+                                <x-loading-button
+                                    title="refresh data"
+                                    target="refreshData"
+                                    class="btn-default"
+                                    icon="fas fa-sync-alt"
+                                    label=""
+                                />
+                                <x-loading-button
+                                    title="clear filters"
+                                    target="resetFilters"
+                                    class="btn-default"
+                                    icon="fas fa-filter"
+                                    label=""
+                                />
+                            </div>
+
+                            {{-- <x-loading-button
+                                target="exportReceipts"
+                                class="btn-outline-dark"
+                                icon="fas fa-file-excel"
+                                label="Export Data"
+                                loadingLabel="..."
+                            />
+
+                            <x-loading-button
+                                target="addReceipt"
+                                class="btn-outline-primary"
+                                icon="fas fa-plus"
+                                label="New Receipt"
+                                loadingLabel="..."
+                            /> --}}
+                        </div>
+                    </div>
+
+                </div>
             </div>
-            <!-- /.card-header -->
 
-            <div wire:ignore class="card-body">
-                <table id="example1" class="table table-bordered table-striped">
-                    <thead class="bg-gradient-cyan">
-                         <tr>
-                            <th>#</th>
-                            <th>Group</th>
-                            <th>Ward</th>
-                            <th>Phase</th>
+            <div class="card-body">
+                {{-- Filters --}}
+                <div class="row mb-3">
+                    {{-- County Filter --}}
+                    {{-- <div class="col-sm-2 col-6">
+                        <label class="small font-weight-bold text-muted ml-1">COUNTY</label>
+                        <x-dropdown-search
+                            wire:key="dropdown-n-countyFilter-{{ count($countyOptions) }}"
+                            model="countyFilter"
+                            :options="$countyOptions"
+                            optionLabel="name"
+                            optionValue="id"
+                            placeholder="Select County"
+                            icon="fas fa-map-marker-alt"
+                        />
+                    </div>
+                    <div class="col-sm-2 col-6" wire:key="constituency-n-wrapper-{{ $countyFilter }}">
+                        @if(!empty($constituencyOptions))
+                            <label class="small font-weight-bold text-muted ml-1">CONSTITUENCY</label>
+                            <x-dropdown-search
+                                wire:key="dropdown-{{ $countyFilter }}-{{ count($constituencyOptions) }}"
+                                model="constituencyFilter"
+                                :options="$constituencyOptions"
+                                optionLabel="name"
+                                optionValue="id"
+                                placeholder="Select Constituency"
+                                icon="fas fa-map-signs"
+                            />
+                        @else
+                            <label class="small text-muted ml-1 opacity-50">CONSTITUENCY</label>
+                            <div class="form-control bg-light border-0 d-flex align-items-center" style="height: 48px; border-radius: 12px;">
+                                <div wire:loading wire:target="updatedCountyFilter" class="spinner-border spinner-border-sm text-primary mr-2"></div>
+                                <small class="text-muted" wire:loading.remove wire:target="updatedCountyFilter">Select a county first...</small>
+                                <small class="text-muted" wire:loading wire:target="updatedCountyFilter">Loading constituencies...</small>
+                            </div>
+                        @endif
+                    </div> --}}
+                    <div class="col-sm-3 col-6">
+                        <div class="form-group">
+                            <label class="small font-weight-bold text-uppercase text-muted">Ward</label>
+                            <x-dropdown-search
+                                model="wardFilter"
+                                :options="$this->wardsOptions"
+                                optionLabel="name"
+                                optionValue="id"
+                                placeholder="Select"
+                                icon="fas fa-landmark"
+                            />
+                        </div>
+                    </div>
+                    <div class="col-sm col-6">
+                        <div class="form-group">
+                            <label class="small font-weight-bold text-uppercase text-muted">Loan Phase</label>
+                            <x-dropdown-search
+                                model="phaseFilter"
+                                :options="$this->phasesOptions"
+                                icon="fas fa-route"
+                                optionLabel="phase"
+                                optionValue="slug"
+                                placeholder="Choose Phase"
+                            />
+                        </div>
+                    </div>
+                    <div class="col-sm-3 col-6">
+                        <div class="form-group">
+                            <label class="small font-weight-bold text-uppercase text-muted">Status</label>
 
-                            <th>Status</th>
-                            <th>Disbursement Date</th>
-                            <th>Amount Issued</th>
-                            <th>Amount repaid</th>
-                            <th>Balance</th>
-                            <th>Action</th>
-                         </tr>
-                    </thead>
-                    <tbody>
-                        @php
-                            $i = 1;
-                        @endphp
-                        @foreach ($grouploans as $grouploan)
-                        <tr>
-                            <td>{{ $i++ }}</td>
-                            <td class="col-2 text-capitalize">{{ strtolower($grouploan->group->name) }}</td>
-                            <td class="text-capitalize">{{ strtolower($grouploan->group->ward->ward_name) }}</td>
-                            <td>{{ $grouploan->loanPhase->phase }}-{{ $grouploan->level}}</td>
+                            <x-dropdown-search
+                                model="statusFilter"
+                                :options="$this->statusOptions"
+                                optionLabel="name"
+                                optionValue="value"
+                                placeholder="select"
+                                icon="fas fa-check-circle"
+                            />
+                        </div>
+                    </div>
+                    <div class="col-sm col-6">
+                        <label class="small font-weight-bold text-uppercase text-muted">Disbursed From</label>
+                        <div class="position-relative">
+                            {{-- Slate Icon --}}
+                            <div class="position-absolute d-flex align-items-center justify-content-center"
+                                style="left: 12px; top: 0; bottom: 0; width: 25px; z-index: 5; pointer-events: none;">
+                                <i class="fas fa-calendar-alt icon-premium" style="font-size: 0.9rem;"></i>
+                            </div>
 
-                            <td>{{ $grouploan->status }}</td>
-                            <td>{{ $grouploan->disbursement_date }}</td>
-                            <td class="text-bold">{{ $amount_issued > 0 ? number_format($grouploan->amount_issued) : 0 }}</td>
-                            <td class="text-bold">{{ $amount_issued > 0 ? number_format($grouploan->amount_repaid) : 0 }}</td>
-                            @if (($grouploan->amount_issued - $grouploan->amount_repaid) <= 0)
-                                <td class="text-bold text-success">{{ number_format($grouploan->amount_issued - $grouploan->amount_repaid) }}</td>
-                                @else
-                                <td class="text-bold">{{ number_format($grouploan->amount_issued - $grouploan->amount_repaid) }}</td>
-                            @endif
-                            <td>
-                                <a href="{{route('const.loans.grouploan', [
-                                    'county' => $county->slug,
-                                    'constituency' => $constituency->slug,
-                                    'group'=>$grouploan->group->slug],
-                                    )}}" class="text-bold bg-fuchsia p-2 rounded-lg" href="#">View
-                                </a>
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                    <tfoot>
-                        <tr>
-                            <th>#</th>
-                            <th>Group</th>
-                            <th>Ward</th>
-                            <th>Phase</th>
+                            <input type="date"
+                                wire:model.live="dateFrom"
+                                onclick="this.showPicker()"
+                                max="{{ date('Y-m-d') }}"
+                                class="form-control shadow-none border-light-subtle custom-date-input"
+                                style="height: 48px; border-radius: 12px; padding-left: 45px; cursor: pointer; transition: 0.2s;">
+                        </div>
+                    </div>
+                    <div class="col-sm col-6">
+                        <label class="small font-weight-bold text-uppercase text-muted">Disbursed To</label>
+                        <div class="position-relative">
+                            {{-- Slate Icon --}}
+                            <div class="position-absolute d-flex align-items-center justify-content-center"
+                                style="left: 12px; top: 0; bottom: 0; width: 25px; z-index: 5; pointer-events: none;">
+                                <i class="fas fa-calendar-alt icon-premium" style="font-size: 0.9rem;"></i>
+                            </div>
 
-                            <th>Status</th>
-                            <th>Disbursement Date</th>
-                            <th>Amount Issued</th>
-                            <th>Amount repaid</th>
-                            <th>Balance</th>
-                            <th>Action</th>
-                        </tr>
-                    </tfoot>
-                </table>
+                            <input type="date"
+                                wire:model.live="dateTo"
+                                onclick="this.showPicker()"
+                                max="{{ date('Y-m-d') }}"
+                                min="{{ $dateFrom }}"
+                                class="form-control shadow-none border-light-subtle custom-date-input"
+                                style="height: 48px; border-radius: 12px; padding-left: 45px; cursor: pointer; transition: 0.2s;">
+                        </div>
+                    </div>
+                    <div class="col-sm-2 col-6">
+                        <label class="small font-weight-bold text-uppercase text-muted">Display</label>
+                        <x-dropdown-search
+                            model="perPage"
+                            :options="$this->perPageOptions"
+                            icon="fas fa-list-ol"
+                            optionLabel="name"
+                            optionValue="id"
+                            placeholder="10 per page"
+                        />
+                    </div>
+                </div>
+
+                <div class="position-relative">
+                    <div wire:loading.delay.shortest
+                        wire:target="activeTab, nextPage, previousPage, gotoPage, updatedSearch, refreshData, sortBy, updatedWardFilter, updatedPhaseFilter, updatedDateFrom, updatedDateTo, updatedStatusFilter"
+                        class="position-absolute w-100 h-100 d-flex justify-content-center align-items-center"
+                        style="background: rgba(255, 255, 255, 0.6);
+                                backdrop-filter: blur(4px);
+                                z-index: 1050;
+                                top: 0;
+                                left: 0;
+                                transition: all 0.3s ease;
+                                display: none !important;">
+
+                        <div class="text-center bg-white p-4 rounded-lg shadow-lg border" style="min-width: 180px;">
+
+                            <div class="mb-3">
+                                <i class="fas fa-circle-notch fa-spin fa-2x text-primary"></i>
+                            </div>
+                            <p class="m-0 text-uppercase tracking-wider font-weight-bold text-dark" style="font-size: 0.75rem; letter-spacing: 1px;">
+                                Loading...
+                            </p>
+                            <small class="text-gray-500">Updating Registry</small>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive p-0"
+                        style="max-height: 650px; transition: opacity 0.3s ease;"
+                        wire:key="hq-applications">
+                        <table id="table-data" class="table align-middle mb-0 p-0 table-head-fixed">
+                            <thead>
+                                <tr>
+                                    <x-table-header
+                                        field="groupName"
+                                        :sortField="$sortField"
+                                        :sortDirection="$sortDirection"
+                                    >
+                                        Group
+                                    </x-table-header>
+                                    <x-table-header
+                                        field="ward"
+                                        :sortField="$sortField"
+                                        :sortDirection="$sortDirection"
+                                    >
+                                        Ward
+                                    </x-table-header>
+                                    <x-table-header
+                                        field="phase"
+                                        :sortField="$sortField"
+                                        :sortDirection="$sortDirection"
+                                    >
+                                        Phase
+                                    </x-table-header>
+                                    <x-table-header
+                                        field="status"
+                                        :sortField="$sortField"
+                                        :sortDirection="$sortDirection"
+                                    >
+                                        Status
+                                    </x-table-header>
+                                    <x-table-header
+                                        field="disbursement_date"
+                                        :sortField="$sortField"
+                                        :sortDirection="$sortDirection"
+                                    >
+                                        Disbursement
+                                    </x-table-header>
+                                    <x-table-header
+                                        field="issued"
+                                        :sortField="$sortField"
+                                        :sortDirection="$sortDirection"
+                                    >
+                                        Issued
+                                    </x-table-header>
+                                    <x-table-header
+                                        field="repaid"
+                                        :sortField="$sortField"
+                                        :sortDirection="$sortDirection"
+                                    >
+                                        Repaid
+                                    </x-table-header>
+                                    <x-table-header
+                                        field="balance"
+                                        :sortField="$sortField"
+                                        :sortDirection="$sortDirection"
+                                    >
+                                        Balance
+                                    </x-table-header>
+                                    <x-table-header :sortable="false">
+                                        Action
+                                    </x-table-header>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($this->groupLoans as $groupLoan)
+                                    <tr wire:key="app-row-{{ $groupLoan->gl_id }}" class="animate__animated animate__fadeIn" style="animation-delay: {{ $loop->index * 0.1 }}s;">
+                                        <td class="px-4 py-3">
+                                            <span class="text-sm text-gray-900">{{ $groupLoan->name }}</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="text-sm text-gray-900">{{ $groupLoan->ward_name }}</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="text-sm text-gray-900">{{ ucwords($groupLoan->phase) }}</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            @if ($groupLoan->status === 'completed')
+                                                <span class="bg-blue-50 border-blue-200 text-blue-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                                                    Cleared
+                                                </span>
+                                            @elseif($groupLoan->status === 'active')
+                                                <span class="bg-amber-50 border-amber-200 text-amber-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                                                    Performing
+                                                </span>
+                                            @else
+                                                <span class="bg-red-50 border-red-200 text-red-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                                                    Defaulted
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="text-sm text-gray-900">{{ $groupLoan->disbursement_date }}</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="text-sm text-gray-900">{{ number_format($groupLoan->amount_issued ?? 0, 2) }}</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="text-sm text-gray-900">{{ number_format($groupLoan->amount_repaid ?? 0,2) }}</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <span class="text-sm text-gray-900">{{ number_format($groupLoan->balance ?? 0, 2) }}</span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <x-modal-trigger
+                                                target="viewGroupLoan({{ $groupLoan->gl_id }})"
+                                                label=""
+                                                title="View Loan"
+                                                icon="fas fa-eye"
+                                                variant="outline-primary"
+                                                defaultLabel=""
+                                            />
+                                        </td>
+                                    </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="8" class="text-center py-4">
+                                        <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                                        <h5 class="text-sm text-gray-500">No Groups found</h5>
+                                        @if($search || $wardFilter || $phaseFilter || $dateFrom || $dateTo)
+                                            <x-loading-button
+                                                target="resetFilters"
+                                                class="btn-refresh-premium"
+                                                icon="fas fa-filter"
+                                                label="Refresh Data"
+                                            />
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer clearfix bg-transparent">
+                <div class="pagination-sm">
+                    {{ $this->groupLoans()->links() }}
+                </div>
             </div>
         </div>
     </div>
+
+    <x-action-modal
+        id="loan-info-modal"
+        title=" {{$selectedGroupLoan? $selectedGroupLoan->group->name . '(' . $selectedGroupLoan->loanPhase->phase .')' : ''}} RECEIPTS"
+        type="primary"
+        icon="fas fa-money-check-alt"
+        size="modal-xl"
+        x-on:open-modal.window="if($event.detail.name === 'loan-info-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'loan-info-modal') $($el).modal('hide')"
+    >
+
+            @if($selectedGroupLoan)
+                <div class="loan-entry mb-5 position-relative pl-4 border-left" style="border-left: 2px solid #e9ecef !important;">
+                <div class="position-absolute" style="left: -9px; top: 0;">
+                    <i class="fas fa-circle text-{{ $selectedGroupLoan->total_arrears <= 0 ? 'success' : 'danger' }}"
+                        style="font-size: 14px; background: white; padding: 2px; box-shadow: 0 0 0 3px white;"></i>
+                </div>
+
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <span class="badge badge-soft-dark text-uppercase mb-1" style="font-size: 0.65rem;">
+                            {{ ucwords($selectedGroupLoan->loanPhase->phase ?? 'PHASE NOT DEFINED') }}
+                        </span>
+                        <h6 class="font-weight-bold mb-0 text-lg">KES {{ number_format($selectedGroupLoan->amount_issued, 0) }}</h6>
+                        <class="text-muted">
+                            <i class="far fa-calendar-check mr-1"></i> Disbursed: {{ date('D, j M Y', strtotime($selectedGroupLoan->disbursement_date)) }}
+                        </class=>
+                    </div>
+
+                    <div class="text-right d-flex flex-column align-items-end">
+                        <button wire:click="downloadStatement({{ $selectedGroupLoan->id }})"
+                                wire:loading.attr="disabled"
+                                class="btn btn-sm btn-white border shadow-sm mb-2 hover-shadow transition-all">
+
+                            <span wire:loading.remove wire:target="downloadStatement({{ $selectedGroupLoan->id }})">
+                                <i class="fas fa-file-pdf text-danger mr-1"></i>
+                            </span>
+
+                            <span wire:loading wire:target="downloadStatement({{ $selectedGroupLoan->id }})" class="spinner-border spinner-border-sm text-primary mr-1" role="status"></span>
+
+                            <span class="font-weight-bold">Print Statement</span>
+                        </button>
+
+                        @php
+                            $percent = $selectedGroupLoan->amount_issued > 0 ? ($selectedGroupLoan->amount_repaid / $selectedGroupLoan->amount_issued) * 100 : 0;
+                        @endphp
+                        <span class="badge badge-{{ $percent >= 100 ? 'success' : ($percent > 50 ? 'warning' : 'danger') }}-light py-1 px-2">
+                            {{ number_format($percent, 1) }}% Recovered
+                        </span>
+                    </div>
+                </div>
+
+                <div class="bg-light rounded p-3 mb-3 border-0">
+                    <div class="row">
+                        <div class="col-6 col-md-3 mb-2 mb-md-0">
+                            <label class="text-muted text-uppercase mb-0" style="font-size: 0.6rem;">Amount Paid</label>
+                            <p class="font-weight-bold text-success mb-0">KES {{ number_format($selectedGroupLoan->amount_repaid, 0) }}</p>
+                        </div>
+                        <div class="col-6 col-md-3 mb-2 mb-md-0 border-left">
+                            <label class="text-muted text-uppercase mb-0" style="font-size: 0.6rem;">Balance</label>
+                            <p class="font-weight-bold mb-0">KES {{ number_format($selectedGroupLoan->amount_issued - $selectedGroupLoan->amount_repaid, 0) }}</p>
+                        </div>
+                        <div class="col-6 col-md-3 border-left">
+                            <label class="text-muted text-uppercase mb-0" style="font-size: 0.6rem;">Arrears</label>
+                            <p class="font-weight-bold text-{{ $selectedGroupLoan->total_arrears > 0 ? 'danger' : 'dark' }} mb-0">KES {{ number_format($selectedGroupLoan->total_arrears, 0) }}</p>
+                        </div>
+                        <div class="col-6 col-md-3 border-left">
+                            <label class="text-muted text-uppercase mb-0" style="font-size: 0.6rem;">Receipt Count</label>
+                            <p class="font-weight-bold mb-0">{{ $selectedGroupLoan->loanReceipts->count() }} Transactions</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div x-data="{ open: false }">
+                    <button @click="open = !open"
+                            class="btn btn-link btn-sm p-0 text-decoration-none shadow-none text-muted font-weight-bold">
+                        <i class="fas mr-1" :class="open ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                        <span x-text="open ? 'Hide Transaction Details' : 'View Transaction Details'"></span>
+                    </button>
+
+                    <div x-show="open" x-collapse x-cloak>
+                        <div class="table-responsive mt-2 border rounded bg-white shadow-sm">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="bg-light text-uppercase">
+                                    <tr>
+                                        <th class="border-0 pl-3">Receipt No</th>
+                                        <th class="border-0">Date</th>
+                                        <th class="border-0">Reference</th>
+                                        <th class="border-0 text-right pr-3">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-dark">
+                                    @forelse ($selectedGroupLoan->loanReceipts as $repayment)
+                                        <tr>
+                                            <td class="pl-3 font-weight-bold">{{ $repayment->receipt_number }}</td>
+                                            <td>{{ date('j M, Y', strtotime($repayment->transaction_date)) }}</td>
+                                            <td class="text-muted">{{ $repayment->reference_number }}</td>
+                                            <td class="text-right pr-3 font-weight-bold text-success">
+                                                {{ number_format($repayment->amount, 0) }}
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="text-center py-3 text-muted">No receipts found for this loan.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                                @if($selectedGroupLoan->loanReceipts->isNotEmpty())
+                                <tfoot class="bg-light font-weight-bold">
+                                    <tr>
+                                        <td colspan="3" class="text-right pl-3">TOTAL REPAID:</td>
+                                        <td class="text-right pr-3 text-primary">
+                                            {{ number_format($selectedGroupLoan->total_active_repayments, 0) }}
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                                @endif
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+
+                <x-pill-button
+                    label="Close"
+                    target="closeGroupLoanModal"
+                    color="primary"
+                    icon="fas fa-edit"
+                    data-dismiss="modal"
+                    class="mx-1 shadow-sm btn-refresh-premium"
+                />
+            </div>
+        </x-slot>
+    </x-action-modal>
 </section>
-@push('scripts')
-    <script src="{{asset('plugins/jszip/jszip.min.js')}}"></script>
-    <script src="{{asset('plugins/pdfmake/pdfmake.min.js')}}"></script>
-    <script src="{{asset('plugins/pdfmake/vfs_fonts.js')}}"></script>
-    <script src="{{asset('plugins/datatables-buttons/js/buttons.html5.min.js')}}"></script>
-    <script src="{{asset('plugins/datatables-buttons/js/buttons.print.min.js')}}"></script>
-    <script src="{{asset('plugins/datatables-buttons/js/buttons.colvis.min.js')}}"></script>
-
-    <script>
-        $(function () {
-            var text = @this.constituency +' Constituency Group Loans Information Summary';
-            const table = new DataTable('#example1', {
-                responsive: true,
-                lengthChange: true,
-                autoWidth: false,
-                buttons: [
-                        {
-                            extend: 'print',
-                            title: text,
-                            text: 'Print',
-                            exportOptions: {
-                                columns: [':not(:last-child)']
-                            },
-                            footer: true
-                        },
-                        {
-                            extend: 'csv',
-                            title: text,
-                            text: 'CSV',
-                            exportOptions: {
-                                columns: [':not(:last-child)']
-                            },
-                            footer: true
-                        },
-                        {
-                            extend: 'pdf',
-                            title: text,
-                            text: 'Pdf',
-                            exportOptions: {
-                                columns: [':not(:last-child)']
-                            },
-                            footer: true
-                        },
-                        {
-                            extend: 'excelHtml5',
-                            title: text,
-                            text: 'Excel',
-                            exportOptions: {
-                                columns: [':not(:last-child)']
-                            },
-                            footer: true
-                        },
-
-                    ],
-                columnDefs: [
-                    {
-                        searchable: false,
-                        orderable: false,
-                        targets: 0
-                    }
-                ],
-
-                processing: true,
-            });
-
-            table.draw();
-
-            var buttonContainer = table.buttons().container();
-            $('#example1_wrapper .col-md-6:eq(0)').append(buttonContainer);
-        });
-
-    </script>
-@endpush
