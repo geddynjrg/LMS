@@ -37,6 +37,14 @@ storage/logs/backup_command.log
 storage/logs/loan_command.log
 storage/logs/laravel.log
 /storage/backups/
+/= 
+/CACHED
+/FROM
+/[internal]
+/[stage-0
+/transferring
+/writing
+/exporting
 
 # --- Compiled Assets ---
 public/js/*.js
