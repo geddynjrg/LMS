@@ -43,9 +43,9 @@ class SecureApiAccess
             return $this->unauthorizedResponse('invalid_api_key', 'Invalid API key');
         }
 
-        // 2. Check IP Whitelist
-        $allowedIps = config('app.allowed_ips', []);
-        if (!empty($allowedIps) && !in_array($clientIp, $allowedIps)) {
+        // 2. Check IP Whitelist (exact match or CIDR, e.g. 172.18.0.0/16)
+        $allowedIps = array_filter(config('app.allowed_ips', []));
+        if (!empty($allowedIps) && !$this->isIpAllowed($clientIp, $allowedIps)) {
             Log::warning('IP Not in Whitelist', [
                 'client_ip' => $clientIp,
                 'allowed_ips' => $allowedIps
@@ -65,6 +65,47 @@ class SecureApiAccess
         ]);
 
         return $next($request);
+    }
+
+    private function isIpAllowed(string $clientIp, array $allowedIps): bool
+    {
+        foreach ($allowedIps as $allowed) {
+            $allowed = trim((string) $allowed);
+            if ($allowed === '') {
+                continue;
+            }
+            if ($allowed === $clientIp) {
+                return TRUE;
+            }
+            if (str_contains($allowed, '/') && $this->ipMatchesCidr($clientIp, $allowed)) {
+                return TRUE;
+            }
+        }
+
+        return FALSE;
+    }
+
+    private function ipMatchesCidr(string $ip, string $cidr): bool
+    {
+        if (!str_contains($cidr, '/')) {
+            return FALSE;
+        }
+
+        [$subnet, $bits] = explode('/', $cidr, 2);
+        $bits = (int) $bits;
+
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $ipLong = ip2long($ip);
+            $subnetLong = ip2long($subnet);
+            if ($ipLong === FALSE || $subnetLong === FALSE || $bits < 0 || $bits > 32) {
+                return FALSE;
+            }
+            $mask = $bits === 0 ? 0 : (-1 << (32 - $bits));
+
+            return ($ipLong & $mask) === ($subnetLong & $mask);
+        }
+
+        return FALSE;
     }
 
     private function isAllowedUserAgent($userAgent, $allowedPatterns): bool

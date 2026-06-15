@@ -18,6 +18,7 @@ use App\Services\IdempotencyService;
 use App\Services\Cache\ApplicationCacheService;
 use App\Services\Cache\AppCacheService;
 use App\Jobs\SyncApplicationStatusToDrupal;
+use App\Jobs\SendDisbursementNotifications;
 
 class TempApplicationService
 {
@@ -230,8 +231,17 @@ class TempApplicationService
             ->when($filters['date_from'] ?? null, fn($q, $d) => $q->whereDate('created_at', '>=', $d))
             ->when($filters['date_to'] ?? null, fn($q, $d) => $q->whereDate('created_at', '<=', $d))
             ->with([
-                'phaseApplication:id,temp_application_id,loan_phase_id,status,is_trained',
-                'phaseApplication.reviewPhase:id,phase,status,slug' // Load only needed columns
+                'phaseApplication' => function ($query) {
+                    $query->select(
+                        'id',
+                        'phase_applications.temp_application_id',
+                        'phase_applications.loan_phase_id',
+                        'phase_applications.status',
+                        'phase_applications.is_trained',
+                        'phase_applications.training_certificate_path'
+                    );
+                },
+                'phaseApplication.reviewPhase:id,phase,status,slug',
             ])
             ->when($sortField, function ($q) use ($sortField, $sortDirection) {
                 switch($sortField) {
@@ -590,6 +600,20 @@ class TempApplicationService
                 'loan_type' => 'Endeleza',
             ]);
         });
+    }
+
+    public function markAsNoMatch(TempApplication $application): void
+    {
+        if (is_null($application->phaseApplication)) {
+            throw ValidationException::withMessages([
+                'application' => 'Assign the application to a phase before verification.',
+            ]);
+        }
+
+        $application->update([
+            'link_status' => 'attempted_no_match',
+            'loan_type' => 'Wezesha',
+        ]);
     }
 
     public function unLinkFromMasterGroup(TempApplication $application): void
@@ -1231,23 +1255,189 @@ class TempApplicationService
 
             SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
 
+            SendDisbursementNotifications::dispatch($app->id, SendDisbursementNotifications::TYPE_DISBURSED)->afterCommit();
+
             $this->idempotencyService->release($idempotencyKey);
         });
     }
 
+    /**
+     * Mark all trained, pending-disbursement groups in a phase as disbursed.
+     *
+     * Each group is disbursed at its approved amount using a shared cheque prefix.
+     */
+    public function disburseEligibleApplicationsInPhase(
+        int $phaseId,
+        string $chequePrefix,
+        ?string $comment = null,
+    ): array {
+        $applications = PhaseApplication::with([
+            'linkedGroup:id,name,code,identifier',
+            'tempApplication:id,application_id',
+        ])
+            ->where('loan_phase_id', $phaseId)
+            ->where('is_trained', true)
+            ->whereIn('status', ['in_training', 'pending_disbursement'])
+            ->orderBy('id')
+            ->get();
+
+        $results = [
+            'success' => 0,
+            'failed' => 0,
+            'errors' => [],
+        ];
+
+        $normalizedPrefix = strtoupper(trim($chequePrefix));
+
+        foreach ($applications as $application) {
+            $applicationId = $application->tempApplication?->application_id ?? (string) $application->id;
+            $idempotencyKey = "application_action_{$application->id}";
+
+            if (!$this->idempotencyService->acquire($idempotencyKey, ['action' => 'batch_disburse'])) {
+                $results['failed']++;
+                $results['errors'][] = "{$applicationId}: already processing";
+                continue;
+            }
+
+            try {
+                $group = $application->linkedGroup;
+                if (!$group) {
+                    throw new \RuntimeException('Linked group not found');
+                }
+
+                $identifier = $group->identifier
+                    ?: $this->generateIdentifier($group->name, $group->code);
+                $groupCode = strtoupper((string) ($group->code ?: $application->id));
+                $chequeNumber = $normalizedPrefix . '-' . $groupCode;
+
+                $this->approveApplicationDisbursement($application->id, $idempotencyKey, [
+                    'app_amount_issued' => $application->amount_approved,
+                    'app_cheque_number' => $chequeNumber,
+                    'app_group_identifier' => $identifier,
+                    'app_disbursement_comment' => $comment ?? '',
+                ]);
+
+                $results['success']++;
+            } catch (\Throwable $e) {
+                $this->idempotencyService->release($idempotencyKey);
+                $results['failed']++;
+                $results['errors'][] = "{$applicationId}: {$e->getMessage()}";
+            }
+        }
+
+        return $results;
+    }
+
     public function confirmTraining(int $id)
     {
-        $application = PhaseApplication::findOrFail($id);
+        $application = PhaseApplication::with('tempApplication')->findOrFail($id);
 
-        DB::transaction(function () use ($application){
-            $application->update([
+        DB::transaction(function () use ($application) {
+            $phaseUpdates = [
                 'is_trained' => true,
-            ]);
+                'training_completed_at' => now(),
+            ];
+
+            if ($application->status === 'in_training') {
+                $phaseUpdates['status'] = 'pending_disbursement';
+            }
+
+            $application->update($phaseUpdates);
+
+            if ($application->tempApplication) {
+                $application->tempApplication->update([
+                    'status' => 'pending_disbursement',
+                    'lms_to_loan_app_sync_status' => 'pending',
+                    'updated_at' => now(),
+                ]);
+
+                SyncApplicationStatusToDrupal::dispatch($application->tempApplication->id)->afterCommit();
+            }
 
             activity()
                 ->performedOn($application)
                 ->causedBy(auth()->user())
-                ->log("Application set trained");
+                ->log('Application marked as training complete; pending disbursement');
+
+            try {
+                app(TrainingCertificateService::class)->generateOnTrainingComplete(
+                    $application->fresh(['loanPhase', 'tempApplication'])
+                );
+            } catch (\Throwable $certificateError) {
+                \Illuminate\Support\Facades\Log::warning('Training certificate generation skipped', [
+                    'phase_application_id' => $application->id,
+                    'error' => $certificateError->getMessage(),
+                ]);
+            }
+
+            \App\Jobs\SendTrainingCompletionNotifications::dispatch($application->id)->afterCommit();
+        });
+    }
+
+    /**
+     * Mark every in-training group in a phase as training complete.
+     *
+     * @return array{success:int, failed:int, errors:list<string>}
+     */
+    public function confirmAllTrainingInPhase(int $phaseId): array
+    {
+        $applications = PhaseApplication::query()
+            ->where('loan_phase_id', $phaseId)
+            ->where('status', 'in_training')
+            ->where('is_trained', false)
+            ->orderBy('id')
+            ->pluck('id');
+
+        $results = ['success' => 0, 'failed' => 0, 'errors' => []];
+
+        foreach ($applications as $applicationId) {
+            try {
+                $this->confirmTraining($applicationId);
+                $results['success']++;
+            } catch (\Throwable $e) {
+                $results['failed']++;
+                $results['errors'][] = "Application {$applicationId}: {$e->getMessage()}";
+            }
+        }
+
+        return $results;
+    }
+
+    public function recordDisbursementFailure(int $selectedAppId, string $idempotencyKey, array $data): void
+    {
+        DB::transaction(function () use ($selectedAppId, $idempotencyKey, $data) {
+            $app = PhaseApplication::with('tempApplication:id,application_id')
+                ->findOrFail($selectedAppId);
+
+            $app->update([
+                'status' => 'disbursement_failed',
+                'disbursement_failure_reason' => $data['failure_reason'],
+                'disbursement_failure_notes' => $data['failure_notes'] ?? null,
+            ]);
+
+            if ($app->tempApplication) {
+                $app->tempApplication->update([
+                    'status' => 'disbursement_failed',
+                    'lms_to_loan_app_sync_status' => 'pending',
+                    'updated_at' => now(),
+                ]);
+
+                SyncApplicationStatusToDrupal::dispatch($app->tempApplication->id)->afterCommit();
+            }
+
+            activity()
+                ->performedOn($app)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'failure_reason' => $data['failure_reason'],
+                    'failure_notes' => $data['failure_notes'] ?? null,
+                ])
+                ->event('disbursement_not_completed')
+                ->log('Constituency officer marked disbursement as not completed');
+
+            SendDisbursementNotifications::dispatch($app->id, SendDisbursementNotifications::TYPE_NOT_DISBURSED)->afterCommit();
+
+            $this->idempotencyService->release($idempotencyKey);
         });
     }
 

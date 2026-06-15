@@ -245,7 +245,7 @@ class MembersTemplateImport implements
             3  => ['name' => 'Group Name',           'required' => true],
             4  => ['name' => 'GFS Code',             'required' => true],
             5  => ['name' => 'Member Name',          'required' => true],
-            6  => ['name' => 'Member ID',            'required' => false],
+            6  => ['name' => 'Member ID',            'required' => true],
             7  => ['name' => 'Member Role',          'required' => true],
             8  => ['name' => 'Phone Number',         'required' => true],
             9  => ['name' => 'Gender',               'required' => true],
@@ -372,15 +372,20 @@ class MembersTemplateImport implements
 
     private function validateIDNumber($ID, $rowNumber, $row)
     {
+        if (strlen($ID) > 10) {
+            $this->errors[] = "Row {$rowNumber}: ID number '{$ID}' must not exceed 10 characters.";
+            return;
+        }
+
         $digitsOnly = preg_replace('/[^0-9]/', '', $ID);
         $digitCount = strlen($digitsOnly);
 
         if ($digitCount < 7 || $digitCount > 8) {
             $this->errors[] = "Row {$rowNumber}: ID number '{$ID}' must be 7 or 8 digits. Found {$digitCount} digit(s).";
+            return;
         }
 
-        $this->checkForDuplicateIDsInDoc($ID, $rowNumber, $row);
-
+        $this->checkForDuplicateIDsInDoc($digitsOnly, $rowNumber, $row);
     }
 
     private function validateGfs($value, $rowNumber, $row)

@@ -41,11 +41,11 @@
             </div>
             <div class="col-sm col-6 mb-3">
                 <x-stat-card
-                    label="Processing at HQ"
+                    label="In Processing"
                     :value="$processingPhases"
                     icon="fa-paper-plane"
                     color="info"
-                    text="Phases being processed under HQ"
+                    text="Submitted to HQ through training"
                 />
             </div>
             <div class="col-sm col-6 mb-3">

@@ -89,16 +89,17 @@
                         </div>
                     </td>
                     <td class="px-4 py-3">
-                        <span class="{{ $this->getStatusClasses($phase->status) }} border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
-                            {{ $this->getStatusName($phase->status) }}
+                        @php $displayStatus = $this->getPhaseDisplayStatus($phase); @endphp
+                        <span class="{{ $displayStatus['class'] }} border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                            {{ $displayStatus['label'] }}
                         </span>
                     </td>
                     <td class="px-4 py-3">
                         <a href="{{ route('const.app.app_phase_details', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
-                            class="btn btn-refresh-premium btn-sm border shadow-sm"
-                            title="View Batch Details"
+                            class="btn btn-white btn-sm border shadow-sm"
+                            title="Manage Batch"
                             >
-                                <i class="fas fa-eye mr-1"></i> View
+                                <i class="fas fa-folder-open text-primary mr-1"></i> Manage
                         </a>
                     </td>
                 </tr>
@@ -115,7 +116,7 @@
                                 class="px-4 mr-1 shadow-sm btn-refresh-premium"
                             />
                         @else
-                            <h6 class="text-gray-600">No Processing Phases at the moment.</h6>
+                            <h6 class="text-gray-600">No Completed Phases at the moment.</h6>
                         @endif
                     </td>
                 </tr>

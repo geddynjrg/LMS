@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\LoanApplicationController;
+use App\Http\Controllers\Api\LocationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -16,6 +17,7 @@ use App\Http\Controllers\Api\LoanApplicationController;
 */
 
 Route::prefix('/v1')->middleware('api.key', 'secure.api')->group(function () {
+    Route::get('/locations/wards', [LocationController::class, 'wards']);
     Route::post('/application', [LoanApplicationController::class, 'store']);
     Route::get('/application/{id}', [LoanApplicationController::class, 'show']);
     // Route::put('/application/{id}', [LoanApplicationController::class, 'update']);

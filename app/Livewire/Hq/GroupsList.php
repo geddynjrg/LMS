@@ -202,14 +202,7 @@ class GroupsList extends Component
             return;
         }
 
-        $this->wardsOptions = $this->locationService->getAllWards()
-            ->where('constituency_code', $constituencyCode)
-            ->map(fn($w) => [
-                'id' => $w->id,
-                'name' => Str::ucfirst(Str::lower($w->ward_name)),
-            ])
-            ->values()
-            ->toArray();
+        $this->wardsOptions = $this->locationService->mapWardsForSelect($constituencyCode);
     }
 
     public function sortBy($field)

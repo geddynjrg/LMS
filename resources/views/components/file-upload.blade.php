@@ -15,7 +15,7 @@
         progress: 0,
         localFileName: '',
 
-        resetAll() {
+        clearFile() {
             this.errorMessage = '';
             this.progress = 0;
             this.uploading = false;
@@ -38,13 +38,14 @@
             if (file.size > maxBytes) {
                 this.errorMessage = `This file is too large (${(file.size / (1024 * 1024)).toFixed(2)}MB). Maximum allowed is ${maxSizeMB}MB.`;
                 this.uploading = false;
+                e.target.value = '';
                 return false;
             }
             return true;
         }
     }"
     x-on:livewire-upload-start="errorMessage = ''; uploading = true; progress = 0;"
-    x-on:livewire-upload-finish="resetAll();"
+    x-on:livewire-upload-finish="uploading = false; progress = 100;"
     x-on:livewire-upload-error="
         uploading = false;
         if (!errorMessage) { errorMessage = 'Upload failed. Check your connection or file size.'; }
@@ -90,7 +91,7 @@
                     {{-- Reset Button --}}
                     <button type="button"
                             wire:click="$set('{{ $model }}', null)"
-                            @click="resetAll()"
+                            @click="clearFile()"
                             class="btn btn-sm ml-auto p-0 text-success"
                             style="z-index: 10;">
                         <i class="fas fa-times-circle fa-lg"></i>

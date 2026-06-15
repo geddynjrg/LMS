@@ -23,6 +23,7 @@ use Livewire\Attributes\Url;
 use Livewire\Attributes\On;
 use App\Models\LoanPhase;
 use App\Livewire\AddAppsToPhaseModal;
+use App\Support\PhaseWorkflowStatus;
 
 
 class ApplicationTasks extends Component
@@ -58,6 +59,7 @@ class ApplicationTasks extends Component
     public $constituency;
     public $selectedPhase = null;
 
+    #[Url(except: 'processing')]
     public $activeTab = 'processing';
 
     // Phase creation
@@ -208,24 +210,21 @@ class ApplicationTasks extends Component
     }
 
     #[Computed]
+    public function completedCount()
+    {
+        return $this->summary['completed_phases']
+            ?? (($this->summary['disbursed'] ?? 0) + ($this->summary['declined'] ?? 0));
+    }
+
+    #[Computed]
     public function phases()
     {
-        $phaseTag = config('cache.tags.phases.national') . 'phases';
+        $statusMap = [
+            'processing' => PhaseWorkflowStatus::processingStatuses(),
+            'completed'  => PhaseWorkflowStatus::completedStatuses(),
+        ];
 
-        $statuses = ['submitted_to_hq', 'rejected', 'approved', 'in_training', 'disbursed'];
-
-        // if (empty($this->getFilters())) {
-        //     $cacheKey = "phase_list_page_{$this->getPage()}_{$this->sortField}_{$this->sortDirection}";
-        //     return Cache::tags([$phaseTag])->remember($cacheKey, now()->addMinutes(15), function () {
-        //         return $this->phaseService->getDetailedPhasesQuery(
-        //             null,
-        //             $statuses,
-        //             $this->getFilters(),
-        //             $this->sortField,
-        //             $this->sortDirection
-        //         );
-        //     });
-        // }
+        $statuses = $statusMap[$this->activeTab] ?? PhaseWorkflowStatus::processingStatuses();
 
         return $this->phaseService->getDetailedPhasesQuery(
             null,
@@ -259,6 +258,7 @@ class ApplicationTasks extends Component
         unset($this->pendingCount);
         unset($this->approvedCount);
         unset($this->processingCount);
+        unset($this->completedCount);
         unset($this->declinedCount);
         unset($this->disbursedCount);
         unset($this->phases);
@@ -279,18 +279,37 @@ class ApplicationTasks extends Component
 
     public function getStatusOptionsProperty()
     {
-        $statusMap = [
-            'submitted_to_hq'           => ['label' => 'Pending HQ Approval'],
-            'approved'                  => ['label' => 'Approved'],
-            'rejected'                  => ['label' => 'Rejected'],
-            'in_training'               => ['label' => 'In Training'],
-            'disbursed'                 => ['label' => 'Disbursed'],
-        ];
+        $statusMap = $this->activeTab === 'completed'
+            ? [
+                'disbursed' => ['label' => 'Disbursed'],
+                'rejected'  => ['label' => 'Rejected'],
+            ]
+            : [
+                'submitted_to_hq' => ['label' => 'Pending HQ Approval'],
+                'approved'        => ['label' => 'HQ Approved'],
+                'in_training'     => ['label' => 'In Training'],
+            ];
 
         return collect($statusMap)->map(fn($data, $value) => [
             'value'    => $value,
             'name'  => $data['label'],
         ])->values()->all();
+    }
+
+    public function setActiveTab(string $tab): void
+    {
+        if (! in_array($tab, ['processing', 'completed'], true)) {
+            return;
+        }
+
+        $this->activeTab = $tab;
+        $this->statusFilter = '';
+        $this->resetPage();
+    }
+
+    public function getPhaseDisplayStatus(LoanPhase $phase): array
+    {
+        return PhaseWorkflowStatus::forPhase($phase);
     }
 
     public function getStatusLabel($value)
@@ -356,6 +375,7 @@ class ApplicationTasks extends Component
             'phases' => $this->phases->paginate((int)$this->perPage),
             'summary' => $this->summary,
             'processingPhases' => $this->processingCount,
+            'completedPhases' => $this->completedCount,
             'pendingApplications' => $this->pendingCount,
             'approved' => $this->approvedCount,
             'disbursed' => $this->disbursedCount,

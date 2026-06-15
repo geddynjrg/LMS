@@ -184,7 +184,7 @@ class LoanApplicationController extends Controller
             'application_id' => $request->input('application_id'),
             'ip' => $request->ip(),
             'payload_keys' => array_keys($request->all()),
-            'data_sample' => json_encode($request->all())
+            'payload_size_bytes' => strlen($request->getContent()),
         ]);
 
         // Minimal validation — only what’s needed to accept

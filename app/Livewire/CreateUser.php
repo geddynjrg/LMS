@@ -61,8 +61,10 @@ class CreateUser extends Component
         // Assign default 'user' role
         $user->assignRole($this->role);
 
-        // Attach constituencies
-        $user->constituencies()->attach($this->assignedConstituencies);
+        // Attach constituencies (national officers operate at HQ/secretariat level only)
+        if (! in_array($this->role, ['hq_officer', 'head_of_secretariat'], true)) {
+            $user->constituencies()->attach($this->assignedConstituencies);
+        }
 
         session()->flash('success', 'User created successfully.');
         return redirect()->route('users.viewusers', ['county' => $this->county->slug]);

@@ -482,14 +482,14 @@
 
 
                                     <div class="form-group my-3 premium-file-container">
-                                        <label class="small font-weight-bold text-uppercase text-muted mb-2">Approved Code List (PDF/Word)</label>
-                                        <x-file-upload model="codeListFile" height="48px" />
+                                        <label class="small font-weight-bold text-uppercase text-muted mb-2">Approved Code List (PDF, Word, or Excel)</label>
+                                        <x-file-upload model="codeListFile" height="48px" accept=".pdf,.doc,.docx,.xls,.xlsx" />
                                     </div>
 
                                     <div class="d-flex justify-content-center mt-2">
                                         <button wire:click="uploadCodeList"
                                                 wire:loading.attr="disabled"
-                                                wire:target="uploadCodeList"
+                                                wire:target="codeListFile, uploadCodeList"
                                                 class="btn btn-refresh-premium btn-sm shadow-sm">
                                             <span wire:loading.remove wire:target="uploadCodeList">
                                                 <i class="fas fa-cloud-upload-alt mr-2"></i> Upload & Unlock

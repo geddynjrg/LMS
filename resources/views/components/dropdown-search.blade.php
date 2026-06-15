@@ -157,7 +157,7 @@
                             @click="select(option)"
                             class="dropdown-item d-flex align-items-center justify-content-between py-2 px-3 mb-1 mx-1 rounded-lg"
                             style="width: calc(100% - 10px); transition: 0.2s; border: none;">
-                       <span x-text="option ? option['{{ $optionLabel }}'] : ''" class="text-truncate"></span>
+                       <span x-text="option ? option['{{ $optionLabel }}'] : ''" class="text-left" style="white-space: normal; line-height: 1.35;"></span>
 
             {{-- Use x-if for the checkmark to avoid reference errors --}}
             <template x-if="option && value == option['{{ $optionValue }}']">

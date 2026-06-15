@@ -5,6 +5,8 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Event;
+use Spatie\Permission\Events\RoleAttached;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,9 +23,30 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // if (config('app.env') !== 'local' && !str_starts_with(request()->ip(), '172.')) {
-        //     URL::forceScheme('https');
-        // }
+        Event::listen(RoleAttached::class, function (RoleAttached $event): void {
+            if (! in_array($event->role->name, ['hq_officer', 'head_of_secretariat'], true)) {
+                return;
+            }
+
+            if ($event->model instanceof \App\Models\User) {
+                $event->model->clearLocalAssignments();
+            }
+        });
+
+        if (config('app.env') !== 'local') {
+            URL::forceScheme('https');
+
+            $appUrl = config('app.url');
+            if (is_string($appUrl) && $appUrl !== '') {
+                URL::forceRootUrl(rtrim($appUrl, '/'));
+            }
+
+            // Vite dev marker breaks CSS/JS on staging/production (loads localhost:5173).
+            $hotFile = public_path('hot');
+            if (is_file($hotFile)) {
+                @unlink($hotFile);
+            }
+        }
 
         // Share the $currentFY variable with EVERY view (*)
         View::composer('*', function ($view) {

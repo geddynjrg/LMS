@@ -1,0 +1,116 @@
+.hq-workspace-shell {
+    background: #f4f6f9;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    overflow: hidden;
+}
+
+.hq-workspace-tabs {
+    gap: 0.35rem;
+}
+
+.hq-workspace-tabs .nav-item {
+    margin-bottom: 0;
+}
+
+.hq-workspace-tabs .nav-link,
+.hq-workspace-tabs button.nav-link {
+    border: 0 !important;
+    border-radius: 999px !important;
+    font-weight: 600;
+    color: #4b5563 !important;
+    padding: 0.5rem 1rem !important;
+    background: #eef2f7 !important;
+    box-shadow: none !important;
+    line-height: 1.25;
+    cursor: pointer;
+}
+
+.hq-workspace-tabs .nav-link:hover,
+.hq-workspace-tabs button.nav-link:hover {
+    background: #e2e8f0 !important;
+    color: #1f2937 !important;
+}
+
+.hq-workspace-tabs .nav-link.active,
+.hq-workspace-tabs button.nav-link.active {
+    background: #059669 !important;
+    color: #fff !important;
+}
+
+.hq-panel-card {
+    background: #fff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04) !important;
+    overflow: hidden;
+}
+
+.hq-sidebar-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 700;
+}
+
+.hq-kpi-card {
+    border: 0;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #ffffff 0%, #f9fafb 100%);
+}
+
+.hq-chart-wrap {
+    position: relative;
+    height: 280px;
+}
+
+.hq-chart-wrap-sm {
+    position: relative;
+    height: 220px;
+}
+
+.hq-inbox-item {
+    border: 1px solid #e5e7eb !important;
+    border-left: 4px solid #059669 !important;
+    background: #f8fafc !important;
+    border-radius: 10px !important;
+    padding: 0.85rem 1rem !important;
+    margin-bottom: 0.65rem;
+}
+
+.hq-workspace-shell .border-right {
+    border-right: 1px solid #e5e7eb !important;
+}
+
+.hq-workspace-shell .list-group-item {
+    background: transparent !important;
+    color: #374151 !important;
+}
+
+.hq-workspace-shell .list-group-item:hover {
+    color: #059669 !important;
+}
+
+.hq-dimension-btn.active {
+    background: #ecfdf5;
+    border-color: #059669;
+    color: #047857;
+}
+
+.hq-data-table thead th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6b7280;
+    border-top: 0;
+}
+
+.hq-badge-v2 {
+    background: #ecfdf5;
+    color: #047857;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.35rem 0.75rem;
+}

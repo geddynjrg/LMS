@@ -18,7 +18,14 @@ use App\Models\PhaseApplication;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Exports\ExportService;
 use App\Services\Loan\TempApplicationService;
+use App\Services\Loan\TrainingCertificateService;
+use App\Services\Loan\SecretariatApprovalService;
+use App\Services\Loan\TrainingAttendanceService;
+use App\Services\Exports\SignedCodeListPdfService;
+use App\Services\Exports\LetterOfAuthorityPdfService;
 use App\Services\IdempotencyService;
+use App\Support\PhaseWorkflowStatus;
+use App\Livewire\Concerns\ManagesPhaseDisbursement;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
@@ -26,7 +33,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ApplicationPhaseDetails extends Component
 {
-    use WithFileUploads, WithPagination;
+    use WithFileUploads, WithPagination, ManagesPhaseDisbursement;
 
     protected $paginationTheme = 'bootstrap';
 
@@ -82,6 +89,8 @@ class ApplicationPhaseDetails extends Component
     public $app_cheque_number;
     public $app_group_identifier;
     public $app_disbursement_comment;
+    public $batchChequePrefix = '';
+    public $batchDisbursementComment = '';
 
     public function boot(
         LoanPhaseService $phaseService,
@@ -438,6 +447,298 @@ class ApplicationPhaseDetails extends Component
         return $user->hasPermissionTo('submit application');
     }
 
+    protected function trainingCertificateService(): TrainingCertificateService
+    {
+        return app(TrainingCertificateService::class);
+    }
+
+    protected function secretariatApprovalService(): SecretariatApprovalService
+    {
+        return app(SecretariatApprovalService::class);
+    }
+
+    protected function trainingAttendanceService(): TrainingAttendanceService
+    {
+        return app(TrainingAttendanceService::class);
+    }
+
+    /**
+     * @return array{label: string, value: string, class: string}
+     */
+    public function phaseDisplayStatus(): array
+    {
+        return PhaseWorkflowStatus::forPhase($this->detailedPhase);
+    }
+
+    public function canDownloadSignedCodeList(): bool
+    {
+        return app(SignedCodeListPdfService::class)->canDownload($this->detailedPhase);
+    }
+
+    public function canDownloadLetterOfAuthority(): bool
+    {
+        return app(LetterOfAuthorityPdfService::class)->canDownload($this->detailedPhase);
+    }
+
+    public function canScheduleTraining(): bool
+    {
+        $phase = $this->detailedPhase;
+
+        if ($phase->status !== 'approved' || !$phase->canBeEditedBy(auth()->user())) {
+            return false;
+        }
+
+        return $this->secretariatApprovalService()->missingTrainingGateApprovals($phase) === [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function trainingScheduleBlockers(): array
+    {
+        if ($this->detailedPhase->status !== 'approved') {
+            return [];
+        }
+
+        return $this->secretariatApprovalService()->missingTrainingGateApprovals($this->detailedPhase);
+    }
+
+    public function pendingTrainingCompletionCount(): int
+    {
+        if (!$this->showsTrainingDisbursementPanel()) {
+            return 0;
+        }
+
+        return $this->detailedPhase->phaseApplications()
+            ->where('status', 'in_training')
+            ->where('is_trained', false)
+            ->count();
+    }
+
+    public function showsTrainingDisbursementPanel(): bool
+    {
+        $phase = $this->detailedPhase;
+
+        if ($phase->status === 'in_training') {
+            return true;
+        }
+
+        return $phase->status === 'disbursed' && $phase->hasPendingTrainingOrDisbursement();
+    }
+
+    public function canFinalizePhase(): bool
+    {
+        if (!$this->phase->canBeEditedBy(auth()->user())) {
+            return false;
+        }
+
+        return $this->detailedPhase->canFinalizeDisbursement();
+    }
+
+    public function canMarkAllTrainingComplete(): bool
+    {
+        return $this->showsTrainingDisbursementPanel()
+            && $this->phase->canBeEditedBy(auth()->user())
+            && $this->pendingTrainingCompletionCount() > 0;
+    }
+
+    public function openConfirmAllTrainingModal(): void
+    {
+        if (!$this->canMarkAllTrainingComplete()) {
+            $this->dispatch('swal:toast', title: 'Nothing to update', message: 'All groups are already marked as training complete.', type: 'info');
+            return;
+        }
+
+        $this->dispatch('open-modal', name: 'confirm-all-training-modal');
+    }
+
+    public function confirmAllTraining(): void
+    {
+        if (!$this->canMarkAllTrainingComplete()) {
+            $this->dispatch('swal:toast', title: 'Permission Denied', message: 'You cannot update training for this phase.', type: 'error');
+            $this->dispatch('close-modal', name: 'confirm-all-training-modal');
+            return;
+        }
+
+        try {
+            $results = $this->appService->confirmAllTrainingInPhase($this->phase->id);
+            $this->refreshData();
+            $this->dispatch('close-modal', name: 'confirm-all-training-modal');
+
+            if ($results['success'] > 0 && $results['failed'] === 0) {
+                $this->dispatch('swal:toast',
+                    title: 'Training complete',
+                    message: "{$results['success']} group(s) marked as training complete. Members notified by SMS.",
+                    type: 'success'
+                );
+            } elseif ($results['success'] > 0) {
+                $this->dispatch('swal:toast',
+                    title: 'Partial update',
+                    message: "{$results['success']} succeeded, {$results['failed']} failed.",
+                    type: 'warning'
+                );
+            } else {
+                $this->dispatch('swal:toast',
+                    title: 'Training update failed',
+                    message: $results['errors'][0] ?? 'No groups could be updated.',
+                    type: 'error'
+                );
+            }
+        } catch (\Exception $e) {
+            $this->dispatch('swal:toast', title: 'Error', message: $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function canMarkTrainingComplete(PhaseApplication $application): bool
+    {
+        if (!$this->showsTrainingDisbursementPanel() || !$this->phase->canBeEditedBy(auth()->user())) {
+            return false;
+        }
+
+        return $application->status === 'in_training' && !$application->is_trained;
+    }
+
+    public function canDownloadTrainingCertificate(PhaseApplication $application): bool
+    {
+        return $this->trainingCertificateService()->isOfficerCertificateAvailable($application);
+    }
+
+    public function trainingCertificateNoticeForApp(PhaseApplication $application): ?string
+    {
+        if (!$application->is_trained || $this->canDownloadTrainingCertificate($application)) {
+            return null;
+        }
+
+        $application->loadMissing('loanPhase');
+
+        return $this->trainingCertificateService()->certificateAvailabilityMessage(
+            $application->loanPhase ?? $this->detailedPhase
+        );
+    }
+
+    public function trainingCertificateNotice(): ?string
+    {
+        return $this->trainingCertificateService()->certificateAvailabilityMessage($this->detailedPhase);
+    }
+
+    public function canApproveDisbursement(PhaseApplication $application): bool
+    {
+        return $this->canMarkDisbursed($application, $this->detailedPhase);
+    }
+
+    public function pendingDisbursementCount(): int
+    {
+        return $this->eligibleForDisbursementCount($this->detailedPhase);
+    }
+
+    public function openBatchDisbursementModal(): void
+    {
+        if (!$this->canBatchDisbursePhase($this->detailedPhase)) {
+            $this->dispatch('swal:toast', title: 'Nothing to disburse', message: 'No trained groups are awaiting disbursement.', type: 'info');
+            return;
+        }
+
+        $this->resetErrorBag(['batchChequePrefix', 'batchDisbursementComment']);
+        $this->batchChequePrefix = 'CHQ-' . now()->format('Ymd');
+        $this->dispatch('open-modal', name: 'batch-disbursement-modal');
+    }
+
+    public function processBatchDisbursement(): void
+    {
+        if (!$this->phase->canManageDisbursementBy(auth()->user())) {
+            $this->dispatch('swal:toast', title: 'Permission Denied', message: 'You cannot record disbursement for this phase.', type: 'error');
+            $this->dispatch('close-modal', name: 'batch-disbursement-modal');
+            return;
+        }
+
+        $this->validate([
+            'batchChequePrefix' => ['required', 'string', 'min:2', 'max:40'],
+            'batchDisbursementComment' => ['nullable', 'string', 'max:500'],
+        ], [
+            'batchChequePrefix.required' => 'Enter a cheque/reference prefix for this disbursement batch.',
+        ]);
+
+        $idempotencyKey = "phase_batch_disburse_{$this->phase->id}";
+
+        if (!$this->idempotencyService->acquire($idempotencyKey, ['action' => 'batch_disburse'])) {
+            $this->dispatch('swal:toast', title: 'Action in progress', message: 'A batch disbursement is already running for this phase.', type: 'error');
+            return;
+        }
+
+        try {
+            $results = $this->appService->disburseEligibleApplicationsInPhase(
+                $this->phase->id,
+                $this->batchChequePrefix,
+                $this->batchDisbursementComment ?: null,
+            );
+
+            $this->refreshData();
+            $this->dispatch('close-modal', name: 'batch-disbursement-modal');
+            $this->reset('batchChequePrefix', 'batchDisbursementComment');
+
+            if ($results['success'] > 0 && $results['failed'] === 0) {
+                $this->dispatch('swal:toast',
+                    title: 'Batch disbursement complete',
+                    message: "{$results['success']} group(s) marked as disbursed. Members will be notified by SMS.",
+                    type: 'success'
+                );
+            } elseif ($results['success'] > 0) {
+                $this->dispatch('swal:toast',
+                    title: 'Partial batch disbursement',
+                    message: "{$results['success']} succeeded, {$results['failed']} failed.",
+                    type: 'warning'
+                );
+            } else {
+                $this->dispatch('swal:toast',
+                    title: 'Batch disbursement failed',
+                    message: $results['errors'][0] ?? 'No groups could be disbursed.',
+                    type: 'error'
+                );
+            }
+        } catch (\Exception $e) {
+            $this->dispatch('swal:toast', title: 'Error', message: $e->getMessage(), type: 'error');
+        } finally {
+            $this->idempotencyService->release($idempotencyKey);
+        }
+    }
+
+    public function isPendingAutoRejectionReview(PhaseApplication $application): bool
+    {
+        return $this->trainingAttendanceService()->isPendingAutoRejectionReview($application);
+    }
+
+    public function reinstateAutoRejectedApplication(int $phaseApplicationId): void
+    {
+        if (!$this->phase->canBeEditedBy(auth()->user())) {
+            $this->dispatch('swal:toast', title: 'Permission Denied', message: 'You cannot modify this phase.', type: 'error');
+            return;
+        }
+
+        try {
+            $this->trainingAttendanceService()->reinstateAutoRejected($phaseApplicationId);
+            $this->refreshData();
+            $this->dispatch('swal:toast', title: 'Reinstated', message: 'Application returned to in-training.', type: 'success');
+        } catch (\Exception $e) {
+            $this->dispatch('swal:toast', title: 'Error', message: $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function confirmAutoRejectedApplication(int $phaseApplicationId): void
+    {
+        if (!$this->phase->canBeEditedBy(auth()->user())) {
+            $this->dispatch('swal:toast', title: 'Permission Denied', message: 'You cannot modify this phase.', type: 'error');
+            return;
+        }
+
+        try {
+            $this->trainingAttendanceService()->confirmAutoRejected($phaseApplicationId);
+            $this->refreshData();
+            $this->dispatch('swal:toast', title: 'Confirmed', message: 'Auto-rejection confirmed.', type: 'success');
+        } catch (\Exception $e) {
+            $this->dispatch('swal:toast', title: 'Error', message: $e->getMessage(), type: 'error');
+        }
+    }
+
     public function canDeleteDocument($doc) : bool
     {
         $user = auth()->user();
@@ -600,8 +901,8 @@ class ApplicationPhaseDetails extends Component
 
         } catch (\Exception $th) {
             $this->dispatch('swal:toast',
-                title: 'System Error 😕',
-                message: "Could not mark training. Please try again or contact support.",
+                title: 'Training update failed',
+                message: $th->getMessage() ?: 'Could not mark training. Please try again or contact support.',
                 type: 'error'
             );
 
@@ -611,11 +912,67 @@ class ApplicationPhaseDetails extends Component
         }
     }
 
+    public function toggleNotDisbursed($appId)
+    {
+        $this->resetErrorBag(['disbursementFailureReason', 'disbursementFailureNotes']);
+
+        if (!$this->phase->canManageDisbursementBy(auth()->user())) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied 😕',
+                message: 'You cannot record disbursement for this phase',
+                type: 'error'
+            );
+            return;
+        }
+
+        $this->selectedAppId = $appId;
+        $this->dispatch('open-modal', name: 'not-disbursed-modal');
+    }
+
+    public function processNotDisbursed()
+    {
+        if (!$this->phase->canManageDisbursementBy(auth()->user())) {
+            $this->dispatch('swal:toast', title: 'Permission Denied', message: 'You cannot modify this phase.', type: 'error');
+            $this->dispatch('close-modal', name: 'not-disbursed-modal');
+            return;
+        }
+
+        $this->validate([
+            'disbursementFailureReason' => ['required', Rule::in(array_column($this->disbursementFailureReasonOptions(), 'id'))],
+            'disbursementFailureNotes' => ['required', 'string', 'min:20', 'max:500'],
+        ], [
+            'disbursementFailureReason.required' => 'Select a reason disbursement was not completed.',
+            'disbursementFailureNotes.required' => 'Provide details (at least 20 characters).',
+        ]);
+
+        $idempotencyKey = "application_action_{$this->selectedAppId}";
+
+        if (!$this->idempotencyService->acquire($idempotencyKey, ['action' => 'not_disbursed'])) {
+            $this->dispatch('swal:toast', title: 'Action in progress', message: 'This application is already being processed.', type: 'error');
+            return;
+        }
+
+        try {
+            $this->appService->recordDisbursementFailure($this->selectedAppId, $idempotencyKey, [
+                'failure_reason' => $this->disbursementFailureReason,
+                'failure_notes' => $this->disbursementFailureNotes,
+            ]);
+
+            $this->refreshData();
+            $this->dispatch('close-modal', name: 'not-disbursed-modal');
+            $this->dispatch('swal:toast', title: 'Recorded', message: 'Marked as not disbursed. All group members will be notified by SMS.', type: 'success');
+            $this->reset('disbursementFailureReason', 'disbursementFailureNotes', 'selectedAppId');
+        } catch (\Exception $e) {
+            $this->idempotencyService->release($idempotencyKey);
+            $this->dispatch('swal:toast', title: 'Error', message: $e->getMessage(), type: 'error');
+        }
+    }
+
     public function toggleDisbursement($appId)
     {
         $this->resetErrorBag(['app_amount_issued', 'app_cheque_number', 'app_group_identifier', 'app_disbursement_comment']);
 
-        if (!$this->phase->canBeEditedBy(auth()->user())) {
+        if (!$this->phase->canManageDisbursementBy(auth()->user())) {
             $this->dispatch('swal:toast',
                 title: 'Permission Denied 😕',
                 message: 'You Dont have permissions to overwite this phase',
@@ -654,10 +1011,10 @@ class ApplicationPhaseDetails extends Component
 
     public function processDisbursement()
     {
-        if (!$this->phase->canBeEditedBy(auth()->user())) {
+        if (!$this->phase->canManageDisbursementBy(auth()->user())) {
             $this->dispatch('swal:toast',
                 title: 'Permission Denied 😕',
-                message: 'You Dont have permissions to overwite this phase',
+                message: 'You cannot record disbursement for this phase',
                 type: 'error'
             );
             $this->dispatch('close-modal', name: 'approve-disbursement-modal');
@@ -736,7 +1093,7 @@ class ApplicationPhaseDetails extends Component
 
             $this->dispatch('swal:toast',
                 title: 'Disbursed Successfully 😊',
-                message: 'Loan Disbursed.',
+                message: 'Loan disbursed. All group members will be notified by SMS with repayment details.',
                 type: 'success'
             );
 
@@ -889,6 +1246,16 @@ class ApplicationPhaseDetails extends Component
 
     public function finalizePhase()
     {
+        if ($this->canMarkAllTrainingComplete()) {
+            $this->openConfirmAllTrainingModal();
+            return;
+        }
+
+        if ($this->canBatchDisbursePhase($this->detailedPhase)) {
+            $this->openBatchDisbursementModal();
+            return;
+        }
+
         if (!$this->phase->canBeEditedBy(auth()->user())) {
             $this->dispatch('swal:toast',
                 title: 'Permission Denied 😕',
@@ -932,8 +1299,8 @@ class ApplicationPhaseDetails extends Component
 
         } catch (\Exception $th) {
             $this->dispatch('swal:toast',
-                title: 'System Error 😕',
-                message: "Could not close. Please try again or contact support.",
+                title: 'Cannot close phase',
+                message: $th->getMessage() ?: 'Could not close. Please try again or contact support.',
                 type: 'error'
             );
 

@@ -292,7 +292,7 @@ class DynamicReports extends Component
 
             $this->loanPhases = $this->phaseService->getPhasesForConstituencyByStatus($userConstituency->constituency_code, 'disbursed');
 
-            $this->allWards = $this->locationService->getWardsByConstituency($userConstituency->constituency_code);
+            $this->allWards = $this->locationService->mapWardsForSelect($userConstituency->constituency_code);
         }
     }
 
@@ -873,7 +873,7 @@ class DynamicReports extends Component
         // Apply ward filter
         if ($this->filterWard) {
             $query->whereHas('group.ward', function($q) {
-                $q->where('ward_name', $this->filterWard);
+                $q->where('id', $this->filterWard);
             });
         }
 
@@ -906,7 +906,7 @@ class DynamicReports extends Component
         // Apply other filters...
         if ($this->filterWard) {
             $query->whereHas('groupMembers.groupLoan.group.ward', function($q) {
-                $q->where('ward_name', $this->filterWard);
+                $q->where('id', $this->filterWard);
             });
         }
         // Apply phase filter
@@ -946,7 +946,7 @@ class DynamicReports extends Component
         // Apply ward filters
         if ($this->filterWard) {
             $query->whereHas('ward', function($q) {
-                $q->where('ward_name', $this->filterWard);
+                $q->where('id', $this->filterWard);
             });
         }
         // Apply phase filter

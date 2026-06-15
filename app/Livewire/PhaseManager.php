@@ -20,6 +20,7 @@ use Livewire\Attributes\Url;
 use Livewire\Attributes\On;
 use App\Models\LoanPhase;
 use App\Livewire\AddAppsToPhaseModal;
+use App\Support\PhaseWorkflowStatus;
 
 
 class PhaseManager extends Component
@@ -123,7 +124,8 @@ class PhaseManager extends Component
     #[Computed]
     public function completedCount()
     {
-        return ($this->summary['total_phases'] ?? 0) - ($this->pendingCount + $this->processingCount);
+        return $this->summary['completed_phases']
+            ?? (($this->summary['disbursed'] ?? 0) + ($this->summary['declined'] ?? 0));
     }
 
     #[Computed]
@@ -147,9 +149,8 @@ class PhaseManager extends Component
     public function getStatusOptionsProperty()
     {
         $statusMap = [
-            'approved'                  => ['label' => 'Approved'],
-            'in_training'               => ['label' => 'In Training'],
-            'disbursed'                 => ['label' => 'Disbursed'],
+            'disbursed' => ['label' => 'Disbursed'],
+            'rejected'  => ['label' => 'Rejected'],
         ];
 
         return collect($statusMap)->map(fn($data, $value) => [
@@ -168,8 +169,8 @@ class PhaseManager extends Component
 
         $statusMap = [
             'pending'    => ['draft'],
-            'processing' => ['submitted_to_hq'],
-            'completed'   => ['rejected', 'approved', 'in_training', 'disbursed'],
+            'processing' => PhaseWorkflowStatus::processingStatuses(),
+            'completed'  => PhaseWorkflowStatus::completedStatuses(),
         ];
 
         $status = $statusMap[$this->activeTab] ?? ['draft'];
@@ -332,6 +333,14 @@ class PhaseManager extends Component
         return $this->phaseService->getVettingPercentage($total_apps, $pending);
     }
 
+    /**
+     * @return array{label: string, value: string, class: string}
+     */
+    public function getPhaseDisplayStatus(LoanPhase $phase): array
+    {
+        return PhaseWorkflowStatus::forPhase($phase);
+    }
+
     #[On('refreshPhaseData')]
     public function refreshData()
     {
@@ -343,6 +352,7 @@ class PhaseManager extends Component
         unset($this->pendingCount);
         unset($this->approvedCount);
         unset($this->processingCount);
+        unset($this->completedCount);
         unset($this->declinedCount);
         unset($this->disbursedCount);
         unset($this->phases);

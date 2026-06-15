@@ -9,7 +9,8 @@
                             {{ ucwords($this->detailedPhase->phase) ?? 'Review Phase' }}
                         </h3>
                         <div class="mt-2 d-flex align-items-center">
-                            <span class="bg-gray-50 border-gray-200 text-gray-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">Status: {{ucwords(str_replace('_', ' ', $this->detailedPhase->status))}}</span>
+                            @php $phaseStatus = $this->phaseDisplayStatus(); @endphp
+                            <span class="{{ $phaseStatus['class'] }} border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">Status: {{ $phaseStatus['label'] }}</span>
                             <span class="mx-2 text-light">|</span>
                             <span class="text-muted small">
                                 <i class="fas fa-calendar-alt mr-1"></i> Proposed Review:
@@ -395,28 +396,79 @@
                                                         </span>
                                                     </div>
                                                     <span class="{{ $this->getStatusClasses($app->status) }} border align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
-                                                        @if($app->status === 'in_training')
-                                                            @if($app->is_trained)
-                                                                Pending Disbursement
-                                                            @else
-                                                                In Training
-                                                            @endif
+                                                        @if($app->status === 'pending_disbursement' || ($app->status === 'in_training' && $app->is_trained))
+                                                            Pending Disbursement
+                                                        @elseif($app->status === 'in_training')
+                                                            In Training
                                                         @else
                                                             {{ $this->getStatusName($app->status) }}
                                                         @endif
                                                     </span>
                                                 </td>
                                                 <td class="px-4 py-3 text-center">
-                                                    <div x-data="{ open: false }" class="btn-group">
+                                                    <div class="d-flex flex-column align-items-stretch gap-1" style="min-width: 180px;">
+                                                        @if($this->isPendingAutoRejectionReview($app))
+                                                            <div class="alert alert-warning py-2 px-2 mb-1 text-left">
+                                                                <small class="d-block font-weight-bold">Missed training — auto-rejected</small>
+                                                                <small class="d-block text-muted">{{ $app->rejection_message }}</small>
+                                                                <div class="d-flex gap-1 mt-2">
+                                                                    <button type="button"
+                                                                            wire:click="reinstateAutoRejectedApplication({{ $app->id }})"
+                                                                            wire:confirm="Reinstate this group to in-training status?"
+                                                                            class="btn btn-success btn-sm flex-fill">
+                                                                        Reinstate
+                                                                    </button>
+                                                                    <button type="button"
+                                                                            wire:click="confirmAutoRejectedApplication({{ $app->id }})"
+                                                                            wire:confirm="Confirm this auto-rejection?"
+                                                                            class="btn btn-outline-danger btn-sm flex-fill">
+                                                                        Confirm Rejection
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        @endif
 
+                                                        @if($this->canMarkTrainingComplete($app))
+                                                            <button type="button"
+                                                                    wire:click="toggleAttendance({{ $app->id }})"
+                                                                    class="btn btn-success btn-sm shadow-sm">
+                                                                <i class="fas fa-graduation-cap mr-1"></i> Mark Training Complete
+                                                            </button>
+                                                        @endif
+
+                                                        @if($notice = $this->trainingCertificateNoticeForApp($app))
+                                                            <small class="text-muted text-xs text-left px-1">{{ $notice }}</small>
+                                                        @endif
+
+                                                        @if($this->canDownloadTrainingCertificate($app))
+                                                            <a href="{{ route('training-certificate.download', $app) }}"
+                                                               class="btn btn-outline-primary btn-sm shadow-sm">
+                                                                <i class="fas fa-file-download mr-1"></i> Download Certificate
+                                                            </a>
+                                                        @endif
+
+                                                        @if($this->canApproveDisbursement($app))
+                                                            <button type="button"
+                                                                    wire:click="toggleDisbursement({{ $app->id }})"
+                                                                    class="btn btn-primary btn-sm shadow-sm">
+                                                                <i class="fas fa-coins mr-1"></i> Mark Disbursed
+                                                            </button>
+                                                            <button type="button"
+                                                                    wire:click="toggleNotDisbursed({{ $app->id }})"
+                                                                    class="btn btn-outline-danger btn-sm shadow-sm">
+                                                                <i class="fas fa-times-circle mr-1"></i> Not Disbursed
+                                                            </button>
+                                                        @endif
+
+                                                        <div x-data="{ open: false }" class="btn-group mt-1">
                                                         <a href="{{ route('const.app.application-view', [$constituency->county->slug, $constituency->slug, 'applicationId' => $app->tempApplication->application_id]) }}"
                                                         class="btn btn-white btn-sm border shadow-sm">
                                                             <i class="fas fa-folder-open text-primary mr-1"></i> Manage
                                                         </a>
 
-                                                        @if($app->status === 'in_training')
+                                                        @if(in_array($app->status, ['in_training', 'pending_disbursement'], true))
                                                             <button type="button"
-                                                                    x-ref="trigger" {{-- Reference for the anchor --}}
+                                                                    x-ref="trigger"
                                                                     @click="open = !open"
                                                                     class="btn btn-white btn-sm border shadow-sm dropdown-toggle dropdown-icon">
                                                             </button>
@@ -430,16 +482,20 @@
                                                                     style="z-index: 9999; min-width: 200px; position: fixed;">
 
                                                                     <h6 class="dropdown-header text-uppercase text-xs">Group Actions</h6>
-                                                                    @if(!$app->is_trained && $app->status === 'in_training')
+
+                                                                    @if($this->canMarkTrainingComplete($app))
                                                                     <button class="dropdown-item" wire:click="toggleAttendance({{ $app->id }})" @click="open = false">
-                                                                        <i class="fas fa-check-circle {{ $app->is_trained ? 'text-success' : 'text-muted' }} mr-2"></i>
-                                                                        {{ $app->is_trained ? 'Mark Absent' : 'Mark Trained' }}
+                                                                        <i class="fas fa-graduation-cap text-success mr-2"></i>
+                                                                        Mark Training Complete
                                                                     </button>
                                                                     @endif
 
-                                                                    @if($app->is_trained && $app->status === 'in_training')
+                                                                    @if($this->canApproveDisbursement($app))
                                                                     <button class="dropdown-item" wire:click="toggleDisbursement({{ $app->id }})" @click="open = false">
-                                                                        <i class="fas fa-coins text-primary mr-2"></i> Approve Disbursement
+                                                                        <i class="fas fa-coins text-primary mr-2"></i> Mark Disbursed
+                                                                    </button>
+                                                                    <button class="dropdown-item text-danger" wire:click="toggleNotDisbursed({{ $app->id }})" @click="open = false">
+                                                                        <i class="fas fa-times-circle mr-2"></i> Not Disbursed
                                                                     </button>
                                                                     @endif
 
@@ -453,6 +509,7 @@
                                                                 </div>
                                                             </template>
                                                         @endif
+                                                        </div>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -600,32 +657,114 @@
                             @elseif($this->detailedPhase->status ==='approved')
                             <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                                 <div class="card-body">
-                                    <p class="text-xs text-gray-600">Phase Has been approved you can proceed to schedule traing.</p>
+                                    @if($this->canScheduleTraining())
+                                        <p class="text-xs text-gray-600">Secretariat has authorized training. Schedule mandatory training for the approved groups.</p>
+                                    @else
+                                        <p class="text-xs text-gray-600">HQ has approved this phase. Awaiting Head of Secretariat sign-off before training can be scheduled.</p>
+                                    @endif
 
-                                    <div class="d-flex justify-content-center mt-2">
-                                        <x-modal-trigger
-                                            target="scheduleTraining"
-                                            class="shadow-sm btn-refresh-premium"
-                                            icon="fas fa-clock"
-                                            size="lg"
-                                            label="Schedule Training"
-                                        />
-                                    </div>
+                                    @if($blockers = $this->trainingScheduleBlockers())
+                                        <p class="text-xs text-warning mb-2">
+                                            Head of Secretariat must complete
+                                            {{ implode(', ', array_map(fn ($type) => str_replace('_', ' ', $type), $blockers)) }}
+                                            before training can be scheduled.
+                                        </p>
+                                    @endif
+
+                                    @if($this->canScheduleTraining())
+                                        <div class="d-flex justify-content-center mt-2">
+                                            <x-modal-trigger
+                                                target="scheduleTraining"
+                                                class="shadow-sm btn-refresh-premium"
+                                                icon="fas fa-clock"
+                                                size="lg"
+                                                label="Schedule Training"
+                                            />
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
-                            @elseif($this->detailedPhase->status === 'in_training')
+                            @elseif($this->showsTrainingDisbursementPanel())
                             <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                                 <div class="card-body">
-                                    <p class="text-xs text-gray-600">Proceed to disburse loan to the respective applications before closing the phase</p>
+                                    @if($this->detailedPhase->status === 'disbursed' && $this->detailedPhase->hasPendingTrainingOrDisbursement())
+                                        <p class="text-xs text-warning mb-2">
+                                            This phase was closed early. Complete training and disbursement for each group below,
+                                            then close the phase again when all groups are processed.
+                                        </p>
+                                    @endif
 
-                                    <div class="d-flex justify-content-center mt-2">
-                                        <x-modal-trigger
-                                            target="finalizePhase"
-                                            class="shadow-sm btn-refresh-premium"
-                                            icon="fas fa-window-close"
-                                            size="lg"
-                                            label="Close"
-                                        />
+                                    @if($this->detailedPhase->training_start_date)
+                                        <p class="text-xs text-gray-600 mb-2">
+                                            <strong>Scheduled training:</strong>
+                                            {{ $this->detailedPhase->training_start_date->format('d M Y') }}
+                                            @if($this->detailedPhase->training_end_date)
+                                                – {{ $this->detailedPhase->training_end_date->format('d M Y') }}
+                                            @endif
+                                            @if($this->detailedPhase->training_venue)
+                                                <br><strong>Venue:</strong> {{ $this->detailedPhase->training_venue }}
+                                            @endif
+                                        </p>
+                                    @endif
+
+                                    @if($notice = $this->trainingCertificateNotice())
+                                        <p class="text-xs text-info mb-2">{{ $notice }}</p>
+                                    @endif
+
+                                    @if($this->pendingTrainingCompletionCount() > 0)
+                                        <p class="text-xs text-gray-600 mb-2">
+                                            <strong>{{ $this->pendingTrainingCompletionCount() }}</strong>
+                                            group(s) still need training marked complete.
+                                            Use the green <strong>Mark Training Complete</strong> button in the
+                                            <strong>Action</strong> column on each group row below.
+                                        </p>
+                                    @else
+                                        <p class="text-xs text-success mb-2">All groups in this phase have been marked as training complete.</p>
+                                    @endif
+
+                                    @if($this->pendingDisbursementCount() > 0)
+                                        <p class="text-xs text-gray-600 mb-2">
+                                            <strong>{{ $this->pendingDisbursementCount() }}</strong>
+                                            group(s) are ready for disbursement. Use
+                                            <strong>Mark Disbursed</strong> or <strong>Not Disbursed</strong> in the Action column.
+                                            All group members receive an SMS notification.
+                                        </p>
+                                    @endif
+
+                                    <p class="text-xs text-gray-600">Group members are notified by SMS when training is scheduled. Mark each group as training complete when they attend, or mark all groups at once. Certificates become downloadable four days after the scheduled training start date.</p>
+
+                                    <div class="d-flex flex-column gap-2 mt-3">
+                                        @if($this->canMarkAllTrainingComplete())
+                                            <button type="button"
+                                                    wire:click="openConfirmAllTrainingModal"
+                                                    class="btn btn-success btn-sm shadow-sm rounded-pill py-2 font-weight-bold">
+                                                <i class="fas fa-users mr-1"></i> Mark All Training Complete
+                                            </button>
+                                        @endif
+
+                                        @if($this->canBatchDisbursePhase($this->detailedPhase))
+                                            <button type="button"
+                                                    wire:click="openBatchDisbursementModal"
+                                                    class="btn btn-primary btn-sm shadow-sm rounded-pill py-2 font-weight-bold">
+                                                <i class="fas fa-coins mr-1"></i> Disburse All Trained Groups
+                                            </button>
+                                        @endif
+
+                                        @if($this->canFinalizePhase())
+                                            <x-modal-trigger
+                                                target="finalizePhase"
+                                                class="shadow-sm btn-refresh-premium"
+                                                icon="fas fa-window-close"
+                                                size="lg"
+                                                label="Close Phase"
+                                            />
+                                        @elseif($this->canMarkAllTrainingComplete() || $this->canBatchDisbursePhase($this->detailedPhase))
+                                            <button type="button"
+                                                    wire:click="finalizePhase"
+                                                    class="btn btn-outline-primary btn-sm shadow-sm rounded-pill py-2 font-weight-bold">
+                                                <i class="fas fa-forward mr-1"></i> Continue to Next Step
+                                            </button>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -847,6 +986,47 @@
                                     </tbody>
                                 </table>
                             </div>
+                            @if($this->canDownloadSignedCodeList() || $this->canDownloadLetterOfAuthority())
+                                <div class="bg-light px-3 py-2 border-top border-bottom">
+                                    <small class="text-uppercase font-weight-bold text-muted" style="letter-spacing: 1px;">Signed Secretariat Documents</small>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0" style="table-layout: fixed; width: 100%;">
+                                        <tbody>
+                                            @if($this->canDownloadSignedCodeList())
+                                                <tr>
+                                                    <td class="pl-3 py-2" style="width: 75%;">
+                                                        <div class="text-xs font-weight-bold text-dark">Signed Approved Code List (PDF)</div>
+                                                        <div class="x-small text-muted">Same layout as the Excel code list with Head of Secretariat signature</div>
+                                                    </td>
+                                                    <td class="text-right align-middle pr-3" style="width: 25%;">
+                                                        <a href="{{ route('const.app.app_phase_signed_code_list', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
+                                                           class="btn btn-outline-danger btn-sm"
+                                                           title="Download signed approved code list">
+                                                            <i class="fas fa-file-pdf"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            @endif
+                                            @if($this->canDownloadLetterOfAuthority())
+                                                <tr>
+                                                    <td class="pl-3 py-2" style="width: 75%;">
+                                                        <div class="text-xs font-weight-bold text-dark">Letter of Authority to Disburse Funds (PDF)</div>
+                                                        <div class="x-small text-muted">Available because approved amount exceeds constituency bank balance</div>
+                                                    </td>
+                                                    <td class="text-right align-middle pr-3" style="width: 25%;">
+                                                        <a href="{{ route('const.app.app_phase_letter_of_authority', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
+                                                           class="btn btn-outline-danger btn-sm"
+                                                           title="Download letter of authority to disburse funds">
+                                                            <i class="fas fa-file-pdf"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            @endif
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -938,7 +1118,7 @@
                 <i class="fas fa-info-circle fa-2x mr-3 text-primary"></i>
                 <div>
                     <strong>Next Step: Training</strong><br>
-                    <span class="text-xs">Set the proposed dates and venue for the approved groups. This information will be used to generate training invites.</span>
+                    <span class="text-xs">Set the proposed dates and venue for the approved groups. Training certificates become downloadable four days after the scheduled start date (not the end date).</span>
                 </div>
             </div>
         </div>
@@ -1050,11 +1230,12 @@
                 </div>
             </div>
 
-            <p class="mb-1 text-dark font-weight-bold h5">Confirm Training Attendance?</p>
+            <p class="mb-1 text-dark font-weight-bold h5">Confirm Training Completion?</p>
             <p class="text-muted px-3">
                 By confirming, you verify that the group members have successfully completed the
                 <span class="text-primary font-weight-bold">Uwezo Fund Mandatory Training</span>.
-                This will unlock the application for the final disbursement stage.
+                The application will move to pending disbursement. The training certificate will become
+                downloadable four days after the scheduled training start date.
             </p>
         </div>
 
@@ -1188,6 +1369,133 @@
     </x-action-modal>
 
     <x-action-modal
+        id="confirm-all-training-modal"
+        title="Mark All Groups Training Complete"
+        type="success"
+        icon="fas fa-users"
+        size="modal-md"
+        x-on:open-modal.window="if($event.detail.name === 'confirm-all-training-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'confirm-all-training-modal') $($el).modal('hide')"
+    >
+        <p class="text-muted mb-0">
+            Confirm that <strong>{{ $this->pendingTrainingCompletionCount() }}</strong>
+            {{ Str::plural('group', $this->pendingTrainingCompletionCount()) }}
+            successfully completed mandatory training. Each group will move to
+            <strong>Pending Disbursement</strong> and members will be notified by SMS.
+        </p>
+
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button
+                    label="Cancel"
+                    variant="outline"
+                    color="info"
+                    data-dismiss="modal"
+                    icon="fas fa-times"
+                    class="mx-1 shadow-sm btn-refresh-premium"
+                />
+
+                <x-pill-button
+                    label="Mark All Complete"
+                    target="confirmAllTraining"
+                    color="primary"
+                    icon="fas fa-check-double"
+                    class="mx-1 shadow-sm btn-refresh-premium"
+                />
+            </div>
+        </x-slot>
+    </x-action-modal>
+
+    <x-action-modal
+        id="batch-disbursement-modal"
+        title="Disburse All Trained Groups"
+        type="primary"
+        icon="fas fa-coins"
+        size="modal-lg"
+        x-on:open-modal.window="if($event.detail.name === 'batch-disbursement-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'batch-disbursement-modal') $($el).modal('hide')"
+    >
+        <div class="alert alert-default-info shadow-sm mb-4">
+            <strong>Batch disbursement</strong><br>
+            <span class="text-gray-600">
+                This will mark <strong>{{ $this->pendingDisbursementCount() }}</strong>
+                trained {{ Str::plural('group', $this->pendingDisbursementCount()) }} as disbursed at their approved amounts.
+                Each group receives a cheque/reference number using the prefix below plus the group code.
+                All members are notified by SMS.
+            </span>
+        </div>
+
+        <div class="form-group">
+            <label class="font-weight-bold text-gray-600">Cheque / Reference Prefix</label>
+            <input type="text" wire:model.live="batchChequePrefix" class="form-control" placeholder="CHQ-20260612">
+            @error('batchChequePrefix') <small class="text-danger d-block">{{ $message }}</small> @enderror
+        </div>
+
+        <div class="form-group mb-0">
+            <label class="font-weight-bold text-gray-600">Comment (optional)</label>
+            <textarea wire:model.live="batchDisbursementComment" class="form-control" rows="2" placeholder="Optional note for this disbursement batch"></textarea>
+            @error('batchDisbursementComment') <small class="text-danger d-block">{{ $message }}</small> @enderror
+        </div>
+
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button
+                    label="Cancel"
+                    variant="outline"
+                    color="info"
+                    data-dismiss="modal"
+                    icon="fas fa-times"
+                    class="mx-1 shadow-sm btn-refresh-premium"
+                />
+
+                <x-pill-button
+                    label="Disburse All Groups"
+                    target="processBatchDisbursement"
+                    color="primary"
+                    icon="fas fa-paper-plane"
+                    class="mx-1 shadow-sm btn-refresh-premium"
+                />
+            </div>
+        </x-slot>
+    </x-action-modal>
+
+    <x-action-modal
+        id="not-disbursed-modal"
+        title="Record: Not Disbursed"
+        type="warning"
+        icon="fas fa-times-circle"
+        size="modal-lg"
+        x-on:open-modal.window="if($event.detail.name === 'not-disbursed-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'not-disbursed-modal') $($el).modal('hide')"
+    >
+        <div class="alert alert-warning shadow-sm mb-4">
+            <strong>Disbursement was not completed</strong><br>
+            <span class="text-sm">The group trained successfully but did not receive funds (e.g. no cheque collection). This updates the loans portal after sync.</span>
+        </div>
+        <div class="form-group">
+            <label class="font-weight-bold text-gray-600">Reason</label>
+            <select wire:model.live="disbursementFailureReason" class="form-control">
+                <option value="">Select reason...</option>
+                @foreach($this->disbursementFailureReasonOptions() as $reason)
+                    <option value="{{ $reason['id'] }}">{{ $reason['name'] }}</option>
+                @endforeach
+            </select>
+            @error('disbursementFailureReason') <small class="text-danger d-block">{{ $message }}</small> @enderror
+        </div>
+        <div class="form-group mb-0">
+            <label class="font-weight-bold text-gray-600">Details (required)</label>
+            <textarea wire:model.live="disbursementFailureNotes" class="form-control" rows="3" placeholder="Explain why disbursement did not happen (min 20 characters)"></textarea>
+            @error('disbursementFailureNotes') <small class="text-danger d-block">{{ $message }}</small> @enderror
+        </div>
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button label="Cancel" variant="outline" color="info" data-dismiss="modal" icon="fas fa-times" class="mx-1 shadow-sm btn-refresh-premium" />
+                <x-pill-button label="Confirm Not Disbursed" target="processNotDisbursed" color="warning" icon="fas fa-check" class="mx-1 shadow-sm btn-refresh-premium" />
+            </div>
+        </x-slot>
+    </x-action-modal>
+
+    <x-action-modal
             id="modal-reject-application"
             title="Reject Application"
             type="reject"
@@ -1294,14 +1602,11 @@
                 </div>
             </div>
 
-            <p class="mb-1 text-primary font-weight-bold h5">Finalize Disbursement & Close Phase?</p>
+            <p class="mb-1 text-primary font-weight-bold h5">Finalize & Close Phase?</p>
             <p class="text-muted px-3">
-                By confirming, you are marking all approved applications in this phase as
-                <span class="text-success font-weight-bold">Disbursed and Closed</span>.
-                <span class="">
-                    Once closed, this Phase and its <strong>{{ $detailedPhase->total_applications }}</strong> {{Str::plural('application', $detailedPhase->total_applications)}}
-                    will be locked. You will not be able to edit disbursements, or change statuses.
-                </span>
+                By confirming, you lock this phase after all groups have been marked as
+                <strong>disbursed</strong>, <strong>not disbursed</strong>, or <strong>rejected</strong>.
+                Once closed, disbursement details cannot be changed.
             </p>
         </div>
 
@@ -1317,7 +1622,7 @@
                 />
 
                 <x-pill-button
-                    label="Confirm Disbursement"
+                    label="Close Phase"
                     target="confirmFinalizePhase"
                     color="primary"
                     icon="fas fa-check-double"

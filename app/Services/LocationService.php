@@ -7,6 +7,7 @@ use App\Models\Constituency;
 use App\Models\Wards;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class LocationService
 {
@@ -92,6 +93,71 @@ class LocationService
                 ->select('id', 'ward_name')
                 ->get();
         });
+    }
+
+    public function normalizeConstituencyName(string $name): string
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($name)) ?? '';
+        $normalized = preg_replace('/\s+constituency$/i', '', $normalized) ?? $normalized;
+
+        return Str::upper($normalized);
+    }
+
+    public function resolveConstituencyByName(string $constituencyName): ?Constituency
+    {
+        $normalized = $this->normalizeConstituencyName($constituencyName);
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $columns = ['constituency_code', 'constituency_name', 'county_code', 'slug'];
+
+        $exact = Constituency::query()
+            ->whereRaw('UPPER(constituency_name) = ?', [$normalized])
+            ->first($columns);
+
+        if ($exact) {
+            return $exact;
+        }
+
+        $shortName = preg_replace('/^\d+\s+/', '', $normalized) ?? $normalized;
+
+        return Constituency::query()
+            ->where(function ($query) use ($shortName) {
+                $query->whereRaw('UPPER(constituency_name) LIKE ?', ['%' . $shortName])
+                    ->orWhereRaw('UPPER(TRIM(SUBSTRING_INDEX(constituency_name, " ", -3))) = ?', [$shortName]);
+            })
+            ->first($columns);
+    }
+
+    /**
+     * @return array<int, array{id: int, name: string}>
+     */
+    public function mapWardsForSelect(?string $constituencyCode): array
+    {
+        if (empty($constituencyCode)) {
+            return [];
+        }
+
+        return $this->getWardsByConstituency($constituencyCode)
+            ->map(fn ($w) => [
+                'id' => $w->id,
+                'name' => Str::title(Str::lower($w->ward_name)),
+            ])
+            ->values()
+            ->all();
+    }
+
+    public function flushConstituencyLocationCache(?string $constituencyCode): void
+    {
+        if (empty($constituencyCode)) {
+            return;
+        }
+
+        Cache::forget("wards_constituency_{$constituencyCode}");
+        Cache::forget($this->cachePrefix . 'wards');
+        Cache::forget($this->cachePrefix . 'constituencies');
     }
 
     /**

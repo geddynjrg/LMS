@@ -46,5 +46,10 @@
         </div>
     </div>
 
-    @livewire('constituency-component', ['constituency'=>$constituency])
+    @if(config('dashboard.const_v2_enabled'))
+        @livewire('constituency.constituency-dashboard-v2', ['constituency' => $constituency])
+    @else
+        @livewire('constituency-component', ['constituency' => $constituency])
+    @endif
+
 @endsection

@@ -151,7 +151,7 @@ class AppCacheService
     }
 
     public function rememberDashboardStats(
-        string $keyPrefix = 'dashboard_stats',
+        string $keyPrefix,
         Closure $callback,
         ?string $constituencyCode = null,
         int $minutes = 15
@@ -164,7 +164,7 @@ class AppCacheService
     }
 
     public function rememberApplications(
-        string $keyPrefix = 'applications',
+        string $keyPrefix,
         Closure $callback,
         ?string $constituencyCode = null,
         int $minutes = 15
@@ -177,7 +177,7 @@ class AppCacheService
     }
 
     public function rememberApplicationsStats(
-        string $keyPrefix = 'applications',
+        string $keyPrefix,
         Closure $callback,
         ?string $constituencyCode = null,
         int $minutes = 15
@@ -190,8 +190,8 @@ class AppCacheService
     }
 
     public function rememberReceipts(
-        ?string $key = 'receipts',
-        ?string $tagType = null,
+        ?string $key,
+        ?string $tagType,
         Closure $callback,
         ?string $constituencyCode = null,
         int $minutes = 10

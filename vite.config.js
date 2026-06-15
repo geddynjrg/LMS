@@ -7,7 +7,11 @@ export default defineConfig({
             input: [
                 'resources/css/app.css',
                 'resources/js/app.js',
-                'resources/css/custom.css'
+                'resources/css/custom.css',
+                'resources/css/hq-dashboard-v2.css',
+                'resources/css/application-review-v2.css',
+                'resources/js/hq-dashboard-v2.js',
+                'resources/js/const-dashboard-v2.js',
             ],
             refresh: [
                 ...refreshPaths,

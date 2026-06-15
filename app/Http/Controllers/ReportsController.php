@@ -42,15 +42,14 @@ class ReportsController extends Controller
 
     public function export(Request $request, County $county, Constituency $constituency)
     {
-        dd('Export functionality coming soon.');
-        // return View('reports.export', [
-        //     'constituency' => $constituency,
-        //     'county' => $county,
-        // ]);
+        return View('reports.export', [
+            'constituency' => $constituency,
+            'county' => $county,
+        ]);
     }
 
     public function nationalIndex()
     {
-        // ... code
+        return redirect()->route('hq.reports.index');
     }
 }

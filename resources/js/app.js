@@ -50,3 +50,5 @@ import './select2-init.js';
 import './progress-bar.js';
 import './navbar-search.js';
 import './livewire-global.js';
+import './hq-dashboard-v2.js';
+import './const-dashboard-v2.js';

@@ -91,7 +91,7 @@
                         </td>
                         <td class="pl-4 py-3">
                              <div class="btn-group" role="group">
-                                <a href="{{ $this->getMemberIdViewUrl($member->photo_url) }}"
+                                <a href="{{ $this->getMemberIdViewUrl($member->photo_member_id) }}"
                                 target="_blank"
                                 class="align-items-center btn btn-outline-info d-inline-flex p-1 rounded-lg"
                                 title="View National ID">

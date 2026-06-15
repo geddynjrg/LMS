@@ -21,8 +21,14 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
 
-        $schedule->command('drupal:sync-pending')
+        $schedule->command('drupal:sync-pending --reconcile')
             ->everyTwoHours()
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        $schedule->command('training:auto-reject-missed')
+            ->dailyAt('06:00')
+            ->timezone('Africa/Nairobi')
             ->withoutOverlapping()
             ->runInBackground();
 

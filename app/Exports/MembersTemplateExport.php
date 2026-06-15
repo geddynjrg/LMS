@@ -50,26 +50,19 @@ class MembersTemplateExport implements WithHeadings, WithEvents
                 $highestColumn = $event->sheet->getHighestColumn();
                 $rowLimit = 2000;
 
-                // 1. Style the header row
                 $this->styleHeader($sheet);
 
-                // 2. Add dropdown for Phase column
                 if (!empty($this->phases)) {
                     $this->addDropdown($sheet, 'B', $this->phases, $rowLimit);
                 }
 
                 $this->addDropdown($sheet, 'C', $this->loan_types, $rowLimit);
-
                 $this->addDropdown($sheet, 'H', $this->roles, $rowLimit);
-
                 $this->addDropdown($sheet, 'J', $this->gender, $rowLimit);
-
-                // 3. Add dropdown for Disabled column (Yes/No)
                 $this->addDropdown($sheet, 'K', $this->yesNo, $rowLimit);
 
-
-                // 4. Format columns
                 $this->formatColumns($sheet, $rowLimit);
+                $this->addMemberIdValidation($sheet, $rowLimit);
 
                 $snVal = $sheet->getCell('A2')->getDataValidation();
                 $snVal->setType(DataValidation::TYPE_WHOLE)
@@ -79,59 +72,41 @@ class MembersTemplateExport implements WithHeadings, WithEvents
                     ->setErrorStyle(DataValidation::STYLE_STOP)
                     ->setErrorTitle('Invalid S/No')
                     ->setError('The S/No must be a whole number (e.g., 1, 2, 3).')
-                    ->setFormula1(1) // Minimum value allowed is 1
+                    ->setFormula1(1)
                     ->setSqref("A2:A{$rowLimit}");
 
                 $this->applyStyles($sheet, $highestColumn, $rowLimit);
-
-                // 5. PROTECT THE SHEET
-                $this->protectSheet($sheet, $highestColumn, $rowLimit);
-
-                // 7. Add instructions
-                // $this->addInstructions($sheet);
+                $this->prepareEditableDataArea($sheet, $highestColumn, $rowLimit);
             },
         ];
     }
 
-    /**
-     * Style the header row
-     */
     private function styleHeader(Worksheet $sheet): void
     {
         $headerRange = 'A1:K1';
 
-        // Header background color (dark blue)
         $sheet->getStyle($headerRange)->getFill()
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()->setARGB('FF1E3A5F');
 
-        // Header font color (white) and bold
         $sheet->getStyle($headerRange)->getFont()
             ->setBold(true)
             ->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
 
-        // Header alignment (center)
         $sheet->getStyle($headerRange)->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-        // Add borders to header
         $sheet->getStyle($headerRange)->getBorders()
             ->getAllBorders()
             ->setBorderStyle(Border::BORDER_THIN)
             ->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FF000000'));
     }
 
-    /**
-     * Apply styles to the worksheet
-     */
     private function applyStyles(Worksheet $sheet, string $highestColumn, int $maxRows): void
     {
-        $startRow = 2; // Data starts at row 2
         $fullRange = "A1:{$highestColumn}{$maxRows}";
         $headerRange = "A1:{$highestColumn}1";
-        $dataRange = "A2:{$highestColumn}{$maxRows}";
 
-        // Main Body Style - including text wrapping
         $sheet->getStyle($fullRange)->applyFromArray([
             'font' => ['name' => 'Tahoma', 'size' => 10],
             'borders' => [
@@ -141,17 +116,16 @@ class MembersTemplateExport implements WithHeadings, WithEvents
                 ],
             ],
             'alignment' => [
-                'wrapText' => true, // Enable text wrapping
+                'wrapText' => true,
                 'vertical' => Alignment::VERTICAL_CENTER,
             ],
         ]);
 
-        // Header Style
         $sheet->getStyle($headerRange)->applyFromArray([
             'font' => ['bold' => true, 'color' => ['argb' => 'FFFFFFFF']],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FF1E3A5F'], // Dark blue
+                'startColor' => ['argb' => 'FF1E3A5F'],
             ],
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
@@ -160,15 +134,12 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             ],
         ]);
 
-        // Style GFS Code column as text
-        $sheet->getStyle("E{$startRow}:E{$maxRows}")
+        $sheet->getStyle("E2:E{$maxRows}")
             ->getNumberFormat()
             ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_TEXT);
 
-        // Set specific column widths
         foreach (range('A', $highestColumn) as $col) {
             if (in_array($col, ['D', 'E', 'F'])) {
-                // Disable auto-size for these and set a fixed width
                 $sheet->getColumnDimension($col)->setAutoSize(false);
                 $sheet->getColumnDimension($col)->setWidth(24);
             } else {
@@ -176,31 +147,38 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             }
         }
 
-        // Set row height to accommodate wrapped text
         for ($row = 2; $row <= $maxRows; $row++) {
-            $sheet->getRowDimension($row)->setRowHeight(-1); // -1 = auto-height
+            $sheet->getRowDimension($row)->setRowHeight(-1);
         }
     }
 
-    /**
-     * Format columns properly
-     */
     private function formatColumns(Worksheet $sheet, int $rowLimit): void
     {
-        // Format S/No column as numbers
         $sheet->getStyle("A2:A{$rowLimit}")
             ->getNumberFormat()
             ->setFormatCode('0');
 
-        // Format all other data columns as text
         $sheet->getStyle("B2:K{$rowLimit}")
             ->getNumberFormat()
             ->setFormatCode('@');
     }
 
-    /**
-     * Add dropdown validation to a column
-     */
+    private function addMemberIdValidation(Worksheet $sheet, int $rowLimit): void
+    {
+        $validation = $sheet->getCell('G2')->getDataValidation();
+        $validation->setType(DataValidation::TYPE_CUSTOM)
+            ->setAllowBlank(false)
+            ->setShowInputMessage(true)
+            ->setShowErrorMessage(true)
+            ->setErrorStyle(DataValidation::STYLE_STOP)
+            ->setPromptTitle('Member ID')
+            ->setPrompt('National ID: 7-8 digits only (maximum 10 characters). No letters.')
+            ->setErrorTitle('Invalid Member ID')
+            ->setError('National ID must be 7-8 digits only, with a maximum of 10 characters.')
+            ->setFormula1('AND(LEN(G2)<=10,LEN(G2)>=7,ISNUMBER(--G2),OR(LEN(G2)=7,LEN(G2)=8))')
+            ->setSqref("G2:G{$rowLimit}");
+    }
+
     private function addDropdown(Worksheet $sheet, string $column, array $options, int $rowLimit): void
     {
         $list = '"' . implode(',', $options) . '"';
@@ -217,61 +195,15 @@ class MembersTemplateExport implements WithHeadings, WithEvents
     }
 
     /**
-     * Protect the sheet - lock structure, unlock data entry cells
+     * Keep data cells editable (no worksheet protection — avoids Excel undo/edit lock issues).
      */
-    private function protectSheet(Worksheet $sheet, string $highestColumn, int $rowLimit): void
+    private function prepareEditableDataArea(Worksheet $sheet, string $highestColumn, int $rowLimit): void
     {
-        // Unlock ALL cells first (simpler approach)
-        $sheet->getStyle("A2:{$highestColumn}{$rowLimit}")
+        $sheet->getStyle("A1:{$highestColumn}{$rowLimit}")
             ->getProtection()
             ->setLocked(Protection::PROTECTION_UNPROTECTED);
 
-        // Lock the header row (row 1)
-        $sheet->getStyle("A1:{$highestColumn}1")
-            ->getProtection()
-            ->setLocked(Protection::PROTECTION_PROTECTED);
-
-        $sheet->getStyle("A2:{$highestColumn}{$rowLimit}")
-                ->getProtection()
-                ->setLocked(\PhpOffice\PhpSpreadsheet\Style\Protection::PROTECTION_UNPROTECTED);
-
-
-        // Protect the sheet
-        $sheet->getProtection()->setSheet(true);
-        $sheet->getProtection()->setPassword('');
-
+        $sheet->getProtection()->setSheet(false);
         $sheet->freezePane('A2');
-        // Disable all formatting/structural changes
-        // $sheet->getProtection()->setFormatCells(false);
-        // $sheet->getProtection()->setFormatColumns(false);
-        // $sheet->getProtection()->setFormatRows(false);
-        // $sheet->getProtection()->setInsertRows(false);
-        // $sheet->getProtection()->setDeleteRows(false);
-        // $sheet->getProtection()->setInsertColumns(false);
-        // $sheet->getProtection()->setDeleteColumns(false);
-        // $sheet->getProtection()->setSort(false);
-        // $sheet->getProtection()->setAutoFilter(false);
-    }
-
-    /**
-     * Add instructions for users
-     */
-    private function addInstructions(Worksheet $sheet): void
-    {
-        $sheet->setCellValue('M1', '📋 INSTRUCTIONS:');
-        $sheet->setCellValue('M2', '• Fill in your data starting from row 2');
-        $sheet->setCellValue('M3', '• S/No should be sequential numbers (1, 2, 3...)');
-        $sheet->setCellValue('M4', '• Phase: Select from dropdown');
-        $sheet->setCellValue('M5', '• Disabled: Select Yes or No from dropdown');
-        $sheet->setCellValue('M6', '• All other fields: Free text');
-        $sheet->setCellValue('M7', '• Phone format: 07XXXXXXXX or 01XXXXXXXX');
-        $sheet->setCellValue('M8', '• GFS Code must exist in system');
-
-        $sheet->getStyle('M1:M8')->getFont()->setBold(true);
-        $sheet->getStyle('M1')->getFont()->setSize(12);
-        $sheet->getStyle('M1')->getFont()->setUnderline(true);
-
-        // Auto-size instructions column
-        $sheet->getColumnDimension('M')->setAutoSize(true);
     }
 }

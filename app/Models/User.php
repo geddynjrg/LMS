@@ -195,6 +195,23 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(LoanPhase::class, 'hq_officer_id');
     }
 
+    public function isNationalOfficer(): bool
+    {
+        return $this->hasAnyRole(['hq_officer', 'head_of_secretariat']);
+    }
+
+    public function clearLocalAssignments(): void
+    {
+        $this->constituencies()->detach();
+
+        if ($this->county_code !== null || $this->current_constituency_code !== null) {
+            $this->forceFill([
+                'county_code' => null,
+                'current_constituency_code' => null,
+            ])->save();
+        }
+    }
+
     public function phaseApplications()
     {
         return $this->hasMany(PhaseApplication::class, 'user_id');

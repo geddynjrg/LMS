@@ -61,13 +61,13 @@ class ProcessLoanApplication implements ShouldQueue
             );
 
             if ($validator->fails()) {
+                $errors = $validator->errors()->toArray();
                 Log::warning('Validation failed in queue job', [
                     'application_id' => $this->applicationId,
-                    'errors' => $validator->errors()->toArray()
+                    'errors' => $errors,
                 ]);
 
-                $lock->release();
-                return;
+                throw new \Illuminate\Validation\ValidationException($validator);
             }
 
             $service->process($validator->validated());

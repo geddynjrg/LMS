@@ -24,11 +24,16 @@ class PhaseApplication extends Model
         'amount_issued',
         'status',
         'is_trained',
+        'training_completed_at',
+        'training_certificate_path',
         'cheque_number',
+        'disbursement_date',
         'disbusement_date',
         'comments',
         'rejection_reason',
         'rejection_message',
+        'disbursement_failure_reason',
+        'disbursement_failure_notes',
         'is_priority',
         'recommendation',
         'user_id',
@@ -43,6 +48,8 @@ class PhaseApplication extends Model
         'amount_issued' => 'decimal:2',
         'is_priority' => 'boolean',
         'is_trained' => 'boolean',
+        'training_completed_at' => 'datetime',
+        'disbursement_date' => 'datetime',
     ];
 
     public function user()
@@ -61,6 +68,11 @@ class PhaseApplication extends Model
 
     // Relationships
     public function reviewPhase(): BelongsTo
+    {
+        return $this->belongsTo(LoanPhase::class, 'loan_phase_id');
+    }
+
+    public function loanPhase(): BelongsTo
     {
         return $this->belongsTo(LoanPhase::class, 'loan_phase_id');
     }

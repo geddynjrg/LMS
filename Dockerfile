@@ -1,6 +1,6 @@
 FROM php:8.3-apache
 
-# 1. Install system dependencies + required extensions for Laravel & Horizon
+# Install system dependencies + required extensions
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -28,55 +28,42 @@ RUN apt-get update && apt-get install -y \
         gd \
     && a2enmod rewrite
 
-# Install Node.js 18.x and NPM
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs
+# Install Node.js 18.x and NPM (only if you need to run build inside container)
+# If you keep Vite on host, you can comment this out to reduce image size.
+# RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+#     && apt-get install -y nodejs
 
-# 2. Set working directory
 WORKDIR /var/www/html
 
-# 3. Install Composer
+# Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# 4. OPTIMIZATION: Install PHP dependencies first
-# This layer is cached unless composer.json/lock changes
+# Copy composer files and install dependencies
 COPY composer.json composer.lock ./
-RUN COMPOSER_PROCESS_TIMEOUT=300 composer install \
-    --no-interaction \
-    --no-plugins \
-    --no-scripts \
-    --no-dev \
-    --prefer-dist
+RUN composer install --no-interaction --no-plugins --no-scripts --no-dev --prefer-dist
 
-# 5. OPTIMIZATION: Install NPM dependencies
-COPY package.json package-lock.json* ./
-RUN npm install
-
-# 6. Copy the rest of the application files
+# Copy the rest of the application (including .env if present)
 COPY . .
 
-# 7. Final Build Steps (Now that files are present)
-RUN composer dump-autoload --optimize --no-dev
-RUN npm run build
+# Generate app key (if .env doesn't have one, or we'll do it at runtime)
+RUN php artisan key:generate --force || true
 
-# 8. Increase PHP memory limit for both Composer and the App
-RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/memory-limit.ini
-
-# 9. Point Apache to the Laravel /public folder
-# We overwrite the default Apache config with your custom one
-COPY .docker/vhost.conf /etc/apache2/sites-available/000-default.conf
-
-# 10. Set permissions so Laravel can write to logs and cache
+# Set permissions
 RUN mkdir -p storage/framework/sessions \
     storage/framework/views \
     storage/framework/cache \
     storage/logs \
-    bootstrap/cache
-
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+    bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
 RUN git config --global --add safe.directory /var/www/html
+
+# Increase memory limit
+RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/memory-limit.ini
+
+# Copy custom vhost if you have one (uncomment if needed)
+# COPY .docker/vhost.conf /etc/apache2/sites-available/000-default.conf
 
 EXPOSE 80
 

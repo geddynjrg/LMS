@@ -13,20 +13,23 @@ services:
     volumes:
       - .:/var/www/html
     ports:
-      - "8082:80"  # Access app at http://localhost:8082
-      - "5173:5173" # vite
+      - "8082:80"
+      - "5173:5173"
     depends_on:
-      db:
-        condition: service_healthy
       redis:
         condition: service_started
     env_file:
-      - .env  # Loads your entire .env file
+      - .env
     environment:
-      # Core Laravel (fallback if missing in .env)
       - APP_ENV=${APP_ENV:-local}
       - APP_DEBUG=${APP_DEBUG:-true}
-      - APP_URL=${APP_URL:-http://localhost:8000}
+      - APP_URL=${APP_URL:-http://localhost:8082}
+      # IMPORTANT: Use the container name of the existing DB (must be on same network)
+      - DB_HOST=uwezo-lms-db
+      - DB_PORT=3306
+      - DB_DATABASE=uwezo_fund03
+      - DB_USERNAME=uwezo_admin
+      - DB_PASSWORD=ENj7uhXIxjG7BDHjCqM0bGDSN
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
@@ -40,54 +43,7 @@ services:
       - uwezo-network
       - ddev_bridge
 
-#   MariaDB 11.4
-  db:
-    image: mariadb:11.4
-    container_name: uwezo-lms-db
-    command: [
-      "mariadbd",
-      "--max-allowed-packet=1G",
-      "--wait-timeout=28800",
-      "--skip-name-resolve",
-      "--skip-host-cache",
-      "--bind-address=0.0.0.0"
-    ]
-    restart: unless-stopped
-    environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_DATABASE: ${DB_DATABASE:-uwezo_fund03}
-      MYSQL_USER: ${DB_USERNAME:-uwezo_admin}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - dbdata:/var/lib/mysql
-      - ./init-db:/docker-entrypoint-initdb.d
-    ports:
-      - "3308:3306"  # maps Host 3308 to Container 3306
-    healthcheck:
-      test: ["CMD", "mariadb-admin", "--protocol=tcp", "ping", "-pENj7uhXIxjG7BDHjCqM0bGDSN"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - uwezo-network
-
-  # phpMyAdmin
-  phpmyadmin:
-    image: phpmyadmin:5
-    container_name: uwezo-lms-phpmyadmin
-    restart: unless-stopped
-    depends_on:
-      - db
-    ports:
-      - "8081:80" # 127.0.0.1:8081:80
-    environment:
-      PMA_HOST: db
-      PMA_PORT: 3306
-      UPLOAD_LIMIT: 300M
-    networks:
-      - uwezo-network
-
-  # Redis
+  # Redis (no change)
   redis:
     image: redis:alpine
     container_name: uwezo-lms-redis
@@ -112,11 +68,13 @@ services:
     volumes:
       - .:/var/www/html
     depends_on:
-      - db
       - redis
       - app
     env_file:
       - .env
+    environment:
+      - DB_HOST=uwezo-lms-db
+      - DB_PORT=3306
     networks:
       - uwezo-network
       - ddev_bridge
@@ -129,18 +87,17 @@ services:
     volumes:
       - .:/var/www/html
     depends_on:
-      - db
       - redis
       - app
+    environment:
+      - DB_HOST=uwezo-lms-db
+      - DB_PORT=3306
     networks:
       - uwezo-network
 
-volumes:
-  dbdata:
-
 networks:
   uwezo-network:
-    driver: bridge
+    external: true   # Use existing network (we created it manually)
     name: uwezo-network
   ddev_bridge:
     external: true

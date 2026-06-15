@@ -130,14 +130,12 @@
         </a>
     </li>
     <li class="nav-item">
-        <form method="POST" action="{{ route('logout') }}" x-data>
+        <form method="POST" action="{{ route('logout') }}" class="d-inline">
             @csrf
-
-            <a class="nav-link" href="{{ route('logout') }}" @click.prevent="$root.submit();" role="button">
+            <button type="submit" class="nav-link border-0 bg-transparent" role="button">
                 <i class="fas fa-power-off"></i> log out
-            </a>
+            </button>
         </form>
-
     </li>
     </ul>
 

@@ -141,7 +141,7 @@ class TempApplication extends Model
 
     public function phaseApplication()
     {
-        return $this->hasOne(PhaseApplication::class, 'temp_application_id');
+        return $this->hasOne(PhaseApplication::class, 'temp_application_id')->latestOfMany('id');
     }
 
     public function ward() : BelongsTo

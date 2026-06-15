@@ -25,6 +25,9 @@ use App\Models\Group;
 use App\Models\TempApplication;
 use App\Models\TempGroupMember;
 use App\Models\PhaseApplication;
+use App\Services\Loan\TrainingCertificateService;
+use App\Livewire\Concerns\ManagesApplicationReviewWorkflow;
+use App\Livewire\Concerns\ManagesPhaseDisbursement;
 use Exception;
 use Mpdf\Tag\Th;
 use Throwable;
@@ -34,6 +37,18 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ApplicationView extends Component
 {
+    use ManagesPhaseDisbursement;
+    use ManagesApplicationReviewWorkflow;
+
+    public $selectedAppId;
+    public $selectedGroupId;
+    public $app_amount_issued;
+    public $app_approved_amount;
+    public $app_cheque_number;
+    public $app_group_identifier;
+    public $app_disbursement_comment;
+    public $hasExistingIdentifier = false;
+
     protected LoanPhaseService $phaseService;
     protected TempApplicationService $appService;
     protected DefaultAnalysisService $defaultService;
@@ -158,6 +173,144 @@ class ApplicationView extends Component
             );
         } catch (\Throwable $th) {
             abort(404, 'Application not found.');
+        }
+    }
+
+    public function canDownloadTrainingCertificate(): bool
+    {
+        $phaseApplication = $this->application->phaseApplication;
+
+        if (!$phaseApplication) {
+            return false;
+        }
+
+        return app(TrainingCertificateService::class)
+            ->isOfficerCertificateAvailable($phaseApplication);
+    }
+
+    public function trainingCertificateNotice(): ?string
+    {
+        $phaseApplication = $this->application->phaseApplication;
+
+        if (!$phaseApplication?->is_trained || $this->canDownloadTrainingCertificate()) {
+            return null;
+        }
+
+        $phaseApplication->loadMissing('loanPhase');
+
+        return app(TrainingCertificateService::class)
+            ->certificateAvailabilityMessage($phaseApplication->loanPhase);
+    }
+
+    public function canShowDisbursementActions(): bool
+    {
+        $phaseApplication = $this->application->phaseApplication;
+        $phase = $phaseApplication?->loanPhase;
+
+        return $phaseApplication && $phase && $this->canMarkDisbursed($phaseApplication, $phase);
+    }
+
+    public function openMarkDisbursedModal(): void
+    {
+        $phaseApplication = $this->application->phaseApplication;
+        if (!$phaseApplication || !$phaseApplication->loanPhase?->canManageDisbursementBy(auth()->user())) {
+            return;
+        }
+
+        $this->resetErrorBag(['app_amount_issued', 'app_cheque_number', 'app_group_identifier', 'app_disbursement_comment']);
+        $phaseApplication->loadMissing(['linkedGroup:id,name,code,identifier', 'loanPhase']);
+        $this->selectedAppId = $phaseApplication->id;
+        $group = $phaseApplication->linkedGroup;
+        $this->selectedGroupId = $group?->id;
+        $this->app_approved_amount = $phaseApplication->amount_approved;
+        $this->app_amount_issued = $phaseApplication->amount_approved;
+        if ($group?->identifier) {
+            $this->app_group_identifier = $group->identifier;
+            $this->hasExistingIdentifier = true;
+        } elseif ($group) {
+            $this->app_group_identifier = $this->appService->generateIdentifier($group->name, $group->code);
+            $this->hasExistingIdentifier = false;
+        }
+        $this->dispatch('open-modal', name: 'app-view-disburse-modal');
+    }
+
+    public function openNotDisbursedModal(): void
+    {
+        $phaseApplication = $this->application->phaseApplication;
+        if (!$phaseApplication) {
+            return;
+        }
+        $this->selectedAppId = $phaseApplication->id;
+        $this->reset('disbursementFailureReason', 'disbursementFailureNotes');
+        $this->dispatch('open-modal', name: 'app-view-not-disbursed-modal');
+    }
+
+    public function processDisbursementFromView()
+    {
+        $phaseApplication = $this->application->phaseApplication;
+        if (!$phaseApplication?->loanPhase?->canManageDisbursementBy(auth()->user())) {
+            return;
+        }
+
+        $this->validate([
+            'app_amount_issued' => ['required', 'numeric', 'min:50000', "max:{$this->app_approved_amount}"],
+            'app_cheque_number' => 'required|string|max:50',
+            'app_group_identifier' => 'required|string|min:6',
+            'app_disbursement_comment' => [
+                Rule::requiredIf($this->app_approved_amount != $this->app_amount_issued),
+                'nullable', 'string', 'min:20',
+            ],
+        ]);
+
+        $idempotencyKey = "application_action_{$this->selectedAppId}";
+        if (!$this->idempotencyService->acquire($idempotencyKey, ['action' => 'disburse'])) {
+            return;
+        }
+
+        try {
+            $this->appService->approveApplicationDisbursement($this->selectedAppId, $idempotencyKey, [
+                'app_amount_issued' => $this->app_amount_issued,
+                'app_cheque_number' => $this->app_cheque_number,
+                'app_group_identifier' => $this->app_group_identifier,
+                'app_disbursement_comment' => $this->app_disbursement_comment,
+            ]);
+            unset($this->application);
+            $this->dispatch('close-modal', name: 'app-view-disburse-modal');
+            $this->dispatch('swal:toast', title: 'Disbursed', message: 'Recorded as disbursed. Loans portal will update on next sync.', type: 'success');
+        } catch (\Exception $e) {
+            $this->idempotencyService->release($idempotencyKey);
+            $this->dispatch('swal:toast', title: 'Error', message: $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function processNotDisbursedFromView()
+    {
+        $phaseApplication = $this->application->phaseApplication;
+        if (!$phaseApplication?->loanPhase?->canManageDisbursementBy(auth()->user())) {
+            return;
+        }
+
+        $this->validate([
+            'disbursementFailureReason' => ['required', Rule::in(array_column($this->disbursementFailureReasonOptions(), 'id'))],
+            'disbursementFailureNotes' => ['required', 'string', 'min:20', 'max:500'],
+        ]);
+
+        $idempotencyKey = "application_action_{$this->selectedAppId}";
+        if (!$this->idempotencyService->acquire($idempotencyKey, ['action' => 'not_disbursed'])) {
+            return;
+        }
+
+        try {
+            $this->appService->recordDisbursementFailure($this->selectedAppId, $idempotencyKey, [
+                'failure_reason' => $this->disbursementFailureReason,
+                'failure_notes' => $this->disbursementFailureNotes,
+            ]);
+            unset($this->application);
+            $this->dispatch('close-modal', name: 'app-view-not-disbursed-modal');
+            $this->dispatch('swal:toast', title: 'Recorded', message: 'Marked as not disbursed.', type: 'success');
+        } catch (\Exception $e) {
+            $this->idempotencyService->release($idempotencyKey);
+            $this->dispatch('swal:toast', title: 'Error', message: $e->getMessage(), type: 'error');
         }
     }
 
@@ -315,10 +468,7 @@ class ApplicationView extends Component
 
     public function markAsNoMatch()
     {
-        $this->application->update([
-            'link_status' => 'attempted_no_match',
-            'loan_type' => 'Wezesha',
-        ]);
+        $this->appService->markAsNoMatch($this->application);
 
         $this->refreshData();
 
@@ -574,15 +724,27 @@ class ApplicationView extends Component
 
     public function approve()
     {
-        $this->reset(['approvalAmount']);
-
         $this->resetErrorBag();
 
         $this->generateGfs();
 
-        $this->approvalAmount =  $this->application->loan_amount ?? 0;
+        $amount = (int) round((float) ($this->application->loan_amount ?? 0));
+        $this->approvalAmount = $amount;
 
-        $this->dispatch('open-modal', name: 'modal-approve');
+        // Open after Livewire morph completes; wire:ignore.self on the modal shell
+        // prevents morph from updating Bootstrap's show state, so we sync via JS.
+        $this->js("
+            setTimeout(function () {
+                var modal = document.getElementById('modal-approve');
+                if (!modal) return;
+                var input = modal.querySelector('[data-approval-amount]');
+                if (input) {
+                    input.value = {$amount};
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+                $(modal).modal('show');
+            }, 100);
+        ");
     }
 
     public function confirmApproval()
@@ -671,6 +833,7 @@ class ApplicationView extends Component
                     'risk_level'       => $this->riskAssessmentData['overall_category'],
                     'assessment_data'  => $this->riskAssessmentData,
                     'status'           => 'under_constituency_review',
+                    'lms_to_loan_app_sync_status' => 'pending',
                 ]);
 
                 $this->application->phaseApplication->update([
@@ -694,6 +857,8 @@ class ApplicationView extends Component
                         'ip_address' => request()->ip()
                     ])
                     ->log("Recommended application for HQ review.");
+
+                SyncApplicationStatusToDrupal::dispatch($this->application->id)->afterCommit();
 
                 return true;
             });
@@ -904,7 +1069,7 @@ public function downloadMemberFile($memberId, $field)
     {
         return PhaseApplication::select(['id', 'loan_phase_id', 'temp_application_id', 'status', 'amount_applied'])
             ->with(['tempApplication' => function ($query) {
-                $query->select(['id', 'group_name', 'application_id']); // Include PK/FK for the link to work
+                $query->select(['id', 'group_name', 'application_id', 'loan_amount']);
             }])
             ->where('loan_phase_id', $this->application->phaseApplication->loan_phase_id)
             ->where('status', 'pending')
@@ -922,7 +1087,7 @@ public function downloadMemberFile($memberId, $field)
             $this->nextSummary = [
                 'group_name' => $nextApp->tempApplication->group_name ?? 'N/A',
                 'app_id' => $nextApp->tempApplication->application_id ?? 'N/A',
-                'amount' => number_format($nextApp->loan_amount ?? 0),
+                'amount' => number_format($nextApp->amount_applied ?? $nextApp->tempApplication->loan_amount ?? 0),
                 'url' => route('const.app.application-view', [
                     'county' => $this->county->slug,
                     'constituency' => $this->constituency->slug,
@@ -1147,8 +1312,17 @@ public function downloadMemberFile($memberId, $field)
             return null;
         }
 
+        if (is_array($path)) {
+            $path = $path['path'] ?? $path['url'] ?? null;
+        }
+
+        if (empty($path)) {
+            return null;
+        }
+
         $path = str_replace('storage/storage/', 'storage/', $path);
         $path = str_replace('storage/app/public/', '', $path);
+        $path = preg_replace('#^/?storage/#', '', $path);
         $path = ltrim($path, '/');
 
         $encodedPath = base64_encode($path);
@@ -1163,7 +1337,10 @@ public function downloadMemberFile($memberId, $field)
 
     public function render()
     {
-        // dd($this->processedFiles);
-        return view('livewire.loan.app.application-view');
+        $view = config('applications.review_v2_enabled')
+            ? 'livewire.loan.app.application-view-v2'
+            : 'livewire.loan.app.application-view-legacy';
+
+        return view($view);
     }
 }

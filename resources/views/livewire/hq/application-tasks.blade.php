@@ -23,11 +23,20 @@
             </div>
             <div class="col-sm col-6 mb-3">
                 <x-stat-card
-                    label="Processing at HQ"
+                    label="In Processing"
                     :value="$processingPhases"
                     icon="fa-paper-plane"
                     color="info"
-                    text="Phases being processed under HQ"
+                    text="Submitted to HQ through training"
+                />
+            </div>
+            <div class="col-sm col-6 mb-3">
+                <x-stat-card
+                    label="Completed"
+                    :value="$completedPhases"
+                    icon="fa-check-double"
+                    color="success"
+                    text="Disbursed or rejected phases"
                 />
             </div>
             <div class="col-sm col-6 mb-3">
@@ -35,9 +44,46 @@
                     label="Disbursed"
                     :value="$disbursed"
                     icon="fa-check-circle"
-                    color="success"
-                    text="Phases that have been approved and disbursed"
+                    color="secondary"
+                    text="Phases fully disbursed"
                 />
+            </div>
+        </div>
+
+        <div x-data="{
+            activeTab: @entangle('activeTab').live,
+            tabs: ['processing', 'completed'],
+            counts: {
+                'processing': {{ $processingPhases ?? 0 }},
+                'completed': {{ $completedPhases ?? 0 }},
+            },
+            icons: {
+                'processing': 'fas fa-spinner',
+                'completed': 'fas fa-check-double',
+            },
+            setActive(tab) {
+                this.activeTab = tab;
+            }
+        }" class="w-100 mb-3">
+            <div class="row">
+                <div class="col-12 d-flex justify-content-center">
+                    <ul class="nav p-3 nav-pills custom-filament-tabs shadow-sm" role="tablist">
+                        <template x-for="tab in tabs" :key="tab">
+                            <li class="nav-item">
+                                <a class="nav-link d-flex align-items-center"
+                                   :class="{ 'active': activeTab === tab }"
+                                   @click.prevent="setActive(tab)"
+                                   href="#">
+                                    <i :class="icons[tab] + ' mr-2'"></i>
+                                    <span x-text="tab.charAt(0).toUpperCase() + tab.slice(1)"></span>
+                                    <span x-show="counts[tab] > 0"
+                                          class="badge badge-secondary ml-2"
+                                          x-text="counts[tab]"></span>
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
             </div>
         </div>
 
@@ -46,7 +92,7 @@
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
 
                     <h3 class="card-title text-gray-900 text-capitalize">
-                        <i class="fas fa-list text-primary mr-2"></i> Loan Phases
+                        <i class="fas fa-list text-primary mr-2"></i> {{ $activeTab }} Phases
                     </h3>
                     <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-md-end flex-md-grow-1" style="gap: 15px;">
 
@@ -299,8 +345,9 @@
                                     <span class="whitespace-nowrap">KES&nbsp;{{ number_format($phase->total_approved, 2) ?? 0 }}</span>
                                 </td>
                                 <td class="px-4 py-3">
-                                    <span class="{{ $this->getStatusClasses($phase->status) }} border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
-                                        {{ $this->getStatusName($phase->status) }}
+                                    @php $displayStatus = $this->getPhaseDisplayStatus($phase); @endphp
+                                    <span class="{{ $displayStatus['class'] }} border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                                        {{ $displayStatus['label'] }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-3">

@@ -27,8 +27,10 @@ class LoanPhase extends Model
         'training_start_date',
         'training_end_date',
         'training_venue',
+        'training_notes',
         'constituency_officer_id',
         'hq_officer_id',
+        'assigned_hq_officer_id',
         'hq_remarks',
         'hq_approved_at',
         'disbursed_at',
@@ -81,7 +83,11 @@ class LoanPhase extends Model
 
     public function canBeEditedBy($user)
     {
-        if ($this->status === 'disbursed' || $this->is_locked) {
+        if ($this->is_locked) {
+            return false;
+        }
+
+        if ($this->status === 'disbursed' && !$this->hasPendingTrainingOrDisbursement()) {
             return false;
         }
 
@@ -90,7 +96,57 @@ class LoanPhase extends Model
         }
 
         if ($user->hasRole('constituency_officer') && $user->can('submit application')) {
-            return in_array($this->status, ['draft', 'in_review', 'approved', 'in_training']);
+            if (in_array($this->status, ['draft', 'in_review', 'approved', 'in_training'], true)) {
+                return true;
+            }
+
+            return $this->status === 'disbursed' && $this->hasPendingTrainingOrDisbursement();
+        }
+
+        return false;
+    }
+
+    /**
+     * Groups still awaiting training completion or disbursement recording.
+     */
+    public function hasPendingTrainingOrDisbursement(): bool
+    {
+        return $this->phaseApplications()
+            ->where(function ($query) {
+                $query->where(function ($pendingTraining) {
+                    $pendingTraining->where('status', 'in_training')
+                        ->where('is_trained', false);
+                })->orWhereIn('status', ['pending_disbursement']);
+            })
+            ->exists();
+    }
+
+    public function canFinalizeDisbursement(): bool
+    {
+        if ($this->hasPendingTrainingOrDisbursement()) {
+            return false;
+        }
+
+        return $this->phaseApplications()
+            ->whereNotIn('status', ['disbursed', 'rejected', 'disbursement_failed'])
+            ->doesntExist();
+    }
+
+    /**
+     * Constituency officers may record per-group disbursement outcomes after training.
+     */
+    public function canManageDisbursementBy($user): bool
+    {
+        if ($this->is_locked) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin')) {
+            return true;
+        }
+
+        if ($user->hasRole('constituency_officer') && $user->can('submit application')) {
+            return in_array($this->status, ['in_training', 'approved', 'disbursed'], true);
         }
 
         return false;
@@ -129,6 +185,16 @@ class LoanPhase extends Model
         return $this->belongsTo(User::class, 'hq_officer_id');
     }
 
+    public function assignedHqOfficer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_hq_officer_id');
+    }
+
+    public function secretariatApprovals(): HasMany
+    {
+        return $this->hasMany(SecretariatApproval::class);
+    }
+
     public function phaseApplications(): HasMany
     {
         return $this->hasMany(PhaseApplication::class);
@@ -162,8 +228,24 @@ class LoanPhase extends Model
 
     public function getHasMinutesAttribute(): bool
     {
-        return $this->attributes['has_minutes']
-            ?? $this->phaseApplicationDocuments()->where('document_type', 'minutes')->exists();
+        if (array_key_exists('has_minutes', $this->attributes)) {
+            return (bool) $this->attributes['has_minutes'];
+        }
+
+        return $this->phaseApplicationDocuments()
+            ->where('document_type', 'minutes')
+            ->exists();
+    }
+
+    public function getHasAttendanceListAttribute(): bool
+    {
+        if (array_key_exists('has_attendance_list', $this->attributes)) {
+            return (bool) $this->attributes['has_attendance_list'];
+        }
+
+        return $this->phaseApplicationDocuments()
+            ->where('document_type', 'attendance_list')
+            ->exists();
     }
 
     public function getSupportingDocumentsAttribute()

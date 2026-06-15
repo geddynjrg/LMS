@@ -46,6 +46,47 @@
                 </div>
             </div>
         </div>
+
+        @if(auth()->user()?->hasAnyRole(['super-admin', 'constituency_officer']))
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body p-3">
+                            <div class="d-flex flex-wrap justify-content-between align-items-start mb-3">
+                                <div>
+                                    <h6 class="font-weight-bold mb-1">
+                                        <i class="fas fa-university text-info mr-2"></i>Constituency bank account balance
+                                    </h6>
+                                    <p class="text-muted small mb-0">
+                                        Used to decide whether the Head of Secretariat must sign a letter of authority to disburse funds.
+                                        Letter is required only when a phase request exceeds this balance.
+                                    </p>
+                                </div>
+                                <span class="badge badge-light border mt-2 mt-md-0">
+                                    Open phase request: KES {{ number_format($this->openPhaseRequestedAmount) }}
+                                </span>
+                            </div>
+                            <div class="row align-items-end">
+                                <div class="col-md-4">
+                                    <label class="small font-weight-bold text-muted text-uppercase">Available balance (KES)</label>
+                                    <input type="number" min="0" step="0.01" wire:model="constituencyBankBalance" class="form-control" placeholder="Leave blank if not tracked">
+                                    @error('constituencyBankBalance') <div class="text-danger small">{{ $message }}</div> @enderror
+                                </div>
+                                <div class="col-md-auto">
+                                    <x-loading-button
+                                        target="saveConstituencyBankBalance"
+                                        class="btn btn-info btn-sm"
+                                        icon="fas fa-save"
+                                        label="Save balance"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="row">
             @foreach($this->kpis as $kpi)
             <div class="col-md-3 col-sm-6 col-12">

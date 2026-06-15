@@ -15,6 +15,7 @@ use App\Models\County;
 use App\Models\Constituency;
 use App\Models\Wards as Ward;
 use App\Jobs\SyncApplicationStatusToDrupal;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class LoanApplicationService
@@ -146,13 +147,35 @@ class LoanApplicationService
     {
         $userIdentifier = [
             'identifier_type' => $data['identifier_type'],
-            'owner_identifier' => $data['owner_identifier']
+            'owner_identifier' => $data['owner_identifier'],
         ];
 
-        return TempUser::firstOrCreate($userIdentifier, [
-            'external_id' => $data['owner_identifier'],
+        $existing = TempUser::where($userIdentifier)->first();
+        if ($existing) {
+            return $existing;
+        }
+
+        $externalId = $data['owner_identifier'];
+        $byExternal = TempUser::where('external_id', $externalId)->first();
+        if ($byExternal) {
+            return $byExternal;
+        }
+
+        if (!empty($data['phone_number'])) {
+            $byPhone = TempUser::where('phone_number', $data['phone_number'])->first();
+            if ($byPhone) {
+                return $byPhone;
+            }
+        }
+
+        return TempUser::create([
+            'external_id' => $externalId,
+            'identifier_type' => $data['identifier_type'],
+            'owner_identifier' => $data['owner_identifier'],
             'email' => $data['identifier_type'] === 'EMAIL' ? $data['owner_identifier'] : null,
-            'phone_number' => $data['identifier_type'] === 'PHONE' ? $data['owner_identifier'] : ($data['phone_number'] ?? null),
+            'phone_number' => $data['identifier_type'] === 'PHONE'
+                ? $data['owner_identifier']
+                : ($data['phone_number'] ?? null),
             'name' => $data['identifier_type'] === 'NAME' ? $data['owner_identifier'] : null,
         ]);
     }
@@ -189,7 +212,9 @@ class LoanApplicationService
 
         $applicationData = [
             'temp_user_id' => $userId,
-            'status' => $data['status'],
+            'status' => in_array($data['status'] ?? '', ['draft', 'submitted', 'approved', 'rejected', 'disbursed', 'closed'], true)
+                ? $data['status']
+                : 'submitted',
             'identifier_type' => $data['identifier_type'],
             'owner_identifier' => $data['owner_identifier'],
             'phone_number' => $data['phone_number'] ?? null,
@@ -243,6 +268,33 @@ class LoanApplicationService
             ['application_id' => $data['application_id']],
             $applicationData
         );
+    }
+
+    /**
+     * Re-save application files from stored raw_data when storage is missing on disk.
+     */
+    public function repairApplicationFiles(TempApplication $application): array
+    {
+        $rawData = $application->raw_data;
+
+        if (!is_array($rawData) || empty($rawData['application_id'])) {
+            throw new \InvalidArgumentException('Application has no raw_data to repair files from.');
+        }
+
+        $filesData = $this->saveApplicationFiles($rawData, $application);
+
+        $application->update([
+            'group_registration_certificate' => $filesData['group_registration_certificate'] ?? $application->group_registration_certificate,
+            'list_of_members_certificate' => $filesData['list_of_members_certificate'] ?? $application->list_of_members_certificate,
+            'group_meeting_minutes' => $filesData['group_meeting_minutes'] ?? $application->group_meeting_minutes,
+            'group_credit_history' => $filesData['group_credit_history'] ?? $application->group_credit_history,
+        ]);
+
+        if (!empty($rawData['group_members'])) {
+            $this->syncTempGroupMembers($application, $rawData['group_members']);
+        }
+
+        return $filesData;
     }
 
     /**
@@ -512,10 +564,8 @@ class LoanApplicationService
                     'requires_confirmation' => $memberData['requires_confirmation'] ?? false,
                     'confirmation_token' => $memberData['confirmation_token'] ?? null,
                     'confirmation_status' => $memberData['confirmation_status'] ?? 'pending',
-                    'confirmation_sent_at' => $memberData['confirmation_sent_at'] ?
-                        \Carbon\Carbon::createFromTimestamp($memberData['confirmation_sent_at']) : null,
-                    'confirmation_confirmed_at' => $memberData['confirmation_confirmed_at'] ?
-                        \Carbon\Carbon::createFromTimestamp($memberData['confirmation_confirmed_at']) : null,
+                    'confirmation_sent_at' => $this->parseMemberTimestamp($memberData, 'confirmation_sent_at'),
+                    'confirmation_confirmed_at' => $this->parseMemberTimestamp($memberData, 'confirmation_confirmed_at'),
                 ]
             );
 
@@ -573,6 +623,33 @@ class LoanApplicationService
                 'name' => $expenseData['name'] ?? 'Custom Expense',
                 'amount' => $expenseData['amount'] ?? 0,
             ]);
+        }
+    }
+
+    /**
+     * Optional member confirmation timestamps from the loans portal may be omitted.
+     */
+    private function parseMemberTimestamp(array $memberData, string $key): ?Carbon
+    {
+        if (!array_key_exists($key, $memberData) || $memberData[$key] === null || $memberData[$key] === '') {
+            return null;
+        }
+
+        $value = $memberData[$key];
+
+        if (is_numeric($value)) {
+            return Carbon::createFromTimestamp((int) $value);
+        }
+
+        try {
+            return Carbon::parse($value);
+        } catch (\Throwable) {
+            Log::warning('Invalid member confirmation timestamp', [
+                'field' => $key,
+                'value' => $value,
+            ]);
+
+            return null;
         }
     }
 

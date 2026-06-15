@@ -45,6 +45,27 @@
                             </div>
 
                             <div class="btn-group mb-2">
+                                @if($this->application->phaseApplication && $this->canDownloadTrainingCertificate())
+                                    <a href="{{ route('training-certificate.download', $this->application->phaseApplication) }}"
+                                       class="btn btn-refresh-premium btn-outline-primary"
+                                       title="Download training certificate PDF">
+                                        <i class="fas fa-file-download mr-1"></i> Training Certificate
+                                    </a>
+                                @elseif($notice = $this->trainingCertificateNotice())
+                                    <span class="btn btn-light btn-sm text-muted" title="{{ $notice }}">
+                                        <i class="fas fa-certificate mr-1"></i> Certificate pending
+                                    </span>
+                                @endif
+
+                                @if($this->canShowDisbursementActions())
+                                    <button type="button" wire:click="openMarkDisbursedModal" class="btn btn-refresh-premium btn-primary">
+                                        <i class="fas fa-coins mr-1"></i> Mark Disbursed
+                                    </button>
+                                    <button type="button" wire:click="openNotDisbursedModal" class="btn btn-refresh-premium btn-outline-danger">
+                                        <i class="fas fa-times-circle mr-1"></i> Not Disbursed
+                                    </button>
+                                @endif
+
                                 <x-loading-button
                                     target="exportInstitutionalInfo"
                                     class="btn-refresh-premium"
@@ -339,7 +360,10 @@
 
                                                     <h6 class="font-weight-bold text-gray-900 mb-1">System Verified: New Group</h6>
                                                     <span class="text-xs text-gray-600 mb-3">
-                                                        No existing records match this identity. It will be treated as a <strong>new entry</strong> upon approval.
+                                                        No existing master group matches this application. It will be treated as a <strong>new Wezesha entry</strong> upon approval.
+                                                        @if(config('applications.auto_system_verification'))
+                                                            <span class="d-block mt-1 text-info"><i class="fas fa-robot mr-1"></i> Verified automatically on phase assignment.</span>
+                                                        @endif
                                                     </span>
 
                                                     <div class="d-flex flex-column mt-2">
@@ -356,10 +380,11 @@
                                             @else
                                                 <div class="text-center py-2">
                                                     <i class="fas fa-search-location text-primary mb-2"></i>
-                                                    <p class="text-xs text-gray-900 mb-3">Verification Required Before Decision</p>
+                                                    <p class="text-xs text-gray-900 mb-2">Manual verification required — possible duplicate group matches found.</p>
+                                                    <p class="text-xs text-muted mb-3">Review suggested matches and link the correct master record, or confirm as a new group.</p>
                                                     <x-modal-trigger
                                                         target="findMatches"
-                                                        label="Attempt Linking"
+                                                        label="Review Matches"
                                                         icon="fas fa-fingerprint"
                                                         variant="primary"
                                                         size="sm" />
@@ -1283,6 +1308,112 @@
         </div>
     </div>
 </section>
+
+    <x-action-modal
+        id="app-view-disburse-modal"
+        title="Final Disbursement Approval"
+        type="primary"
+        icon="fas fa-money-check-alt"
+        size="modal-lg"
+        x-on:open-modal.window="if($event.detail.name === 'app-view-disburse-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'app-view-disburse-modal') $($el).modal('hide')"
+    >
+        <div class="alert alert-default-info shadow-sm mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-file-invoice-dollar fa-2x mr-3 text-info"></i>
+                <div>
+                    <strong class="text-bold">Final Action: Fund Disbursement</strong><br>
+                    <span class="text-gray-600">
+                        Record the amount issued and cheque reference. The application moves to <strong>Disbursed</strong> and the loans portal updates on sync.
+                    </span>
+                    <span class="d-block text-gray-600">
+                        Amount Approved: <strong>KES {{ number_format($app_approved_amount ?? 0, 2)}}</strong>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="form-group col-md-6">
+                <label class="text-uppercase font-bold text-gray-600 mb-2">Actual Amount Issued</label>
+                <div class="input-group premium-input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fas fa-money-bill text-info"></i></span>
+                    </div>
+                    <input type="number" required wire:model.live="app_amount_issued" class="form-control" placeholder="0.00">
+                </div>
+                @error('app_amount_issued') <small class="d-block text-success font-bold">{{ $message }}</small> @enderror
+            </div>
+            <div class="form-group col-md-6">
+                <label class="text-uppercase font-bold text-gray-600 mb-2">Cheque / Reference Number</label>
+                <div class="input-group premium-input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fas fa-money-check text-info"></i></span>
+                    </div>
+                    <input type="text" required wire:model.live="app_cheque_number" class="form-control" placeholder="">
+                </div>
+                @error('app_cheque_number') <small class="d-block text-success font-weight-bold">{{ $message }}</small> @enderror
+            </div>
+            <div class="form-group col-md-6">
+                <label class="text-uppercase font-bold text-gray-600 mb-2">Group Unique Identifier</label>
+                <div class="input-group premium-input-group">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text"><i class="fas fa-id-badge text-info"></i></span>
+                    </div>
+                    <input type="text" required {{ $hasExistingIdentifier ? 'disabled' : '' }} wire:model.live="app_group_identifier" class="form-control" placeholder="MYN001">
+                </div>
+                @error('app_group_identifier') <small class="d-block text-success font-weight-bold">{{ $message }}</small> @enderror
+            </div>
+            @if($app_approved_amount != $app_amount_issued)
+                <div class="form-group col-md-6">
+                    <label class="text-uppercase font-bold text-gray-600 mb-2">Justification for amount discrepancy</label>
+                    <textarea wire:model.live="app_disbursement_comment" class="form-control" rows="2" placeholder="Reason for difference in amount issued"></textarea>
+                    @error('app_disbursement_comment') <small class="d-block text-success font-weight-bold">{{ $message }}</small> @enderror
+                </div>
+            @endif
+        </div>
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button label="Cancel" variant="outline" color="info" data-dismiss="modal" icon="fas fa-times" class="mx-1 shadow-sm btn-refresh-premium" />
+                <x-pill-button label="Confirm & Disburse" target="processDisbursementFromView" color="primary" icon="fas fa-paper-plane" class="mx-1 shadow-sm btn-refresh-premium" />
+            </div>
+        </x-slot>
+    </x-action-modal>
+
+    <x-action-modal
+        id="app-view-not-disbursed-modal"
+        title="Record: Not Disbursed"
+        type="warning"
+        icon="fas fa-times-circle"
+        size="modal-lg"
+        x-on:open-modal.window="if($event.detail.name === 'app-view-not-disbursed-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'app-view-not-disbursed-modal') $($el).modal('hide')"
+    >
+        <div class="alert alert-warning shadow-sm mb-4">
+            <strong>Disbursement was not completed</strong><br>
+            <span class="text-sm">The group trained but did not receive funds. Status syncs to the loans portal after processing.</span>
+        </div>
+        <div class="form-group">
+            <label class="font-weight-bold text-gray-600">Reason</label>
+            <select wire:model.live="disbursementFailureReason" class="form-control">
+                <option value="">Select reason...</option>
+                @foreach($this->disbursementFailureReasonOptions() as $reason)
+                    <option value="{{ $reason['id'] }}">{{ $reason['name'] }}</option>
+                @endforeach
+            </select>
+            @error('disbursementFailureReason') <small class="text-danger d-block">{{ $message }}</small> @enderror
+        </div>
+        <div class="form-group mb-0">
+            <label class="font-weight-bold text-gray-600">Details (required)</label>
+            <textarea wire:model.live="disbursementFailureNotes" class="form-control" rows="3" placeholder="Explain why disbursement did not happen (min 20 characters)"></textarea>
+            @error('disbursementFailureNotes') <small class="text-danger d-block">{{ $message }}</small> @enderror
+        </div>
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button label="Cancel" variant="outline" color="info" data-dismiss="modal" icon="fas fa-times" class="mx-1 shadow-sm btn-refresh-premium" />
+                <x-pill-button label="Confirm Not Disbursed" target="processNotDisbursedFromView" color="warning" icon="fas fa-check" class="mx-1 shadow-sm btn-refresh-premium" />
+            </div>
+        </x-slot>
+    </x-action-modal>
 
 @push('styles')
 

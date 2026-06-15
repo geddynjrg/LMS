@@ -58,7 +58,25 @@ class FileUploadHelper
             $fullPath = $directory . '/' . $filename;
 
             // Store the file
-            Storage::disk($disk)->put($fullPath, $fileContent);
+            if (!Storage::disk($disk)->put($fullPath, $fileContent)) {
+                Log::error('Failed to write file to storage', [
+                    'filename' => $originalFilename,
+                    'path' => $fullPath,
+                    'disk' => $disk,
+                ]);
+                return null;
+            }
+
+            if (!Storage::disk($disk)->exists($fullPath)) {
+                Log::error('File missing immediately after write', [
+                    'filename' => $originalFilename,
+                    'path' => $fullPath,
+                    'disk' => $disk,
+                ]);
+                return null;
+            }
+
+            self::ensureReadablePermissions($disk, $fullPath);
 
             // Get the file path and URL
             $path = $fullPath;
@@ -209,6 +227,42 @@ class FileUploadHelper
                 'directory' => $directory
             ]);
             return false;
+        }
+    }
+
+    /**
+     * Ensure PHP-FPM (www-data) can traverse directories and read saved files.
+     */
+    private static function ensureReadablePermissions(string $disk, string $fullPath): void
+    {
+        try {
+            $absolutePath = Storage::disk($disk)->path($fullPath);
+            $directories = [];
+
+            $parent = dirname($absolutePath);
+            while ($parent && !in_array($parent, $directories, true)) {
+                $directories[] = $parent;
+                $nextParent = dirname($parent);
+                if ($nextParent === $parent) {
+                    break;
+                }
+                $parent = $nextParent;
+            }
+
+            foreach (array_reverse($directories) as $directory) {
+                if (is_dir($directory)) {
+                    @chmod($directory, 0755);
+                }
+            }
+
+            if (is_file($absolutePath)) {
+                @chmod($absolutePath, 0644);
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Could not normalize file permissions after upload', [
+                'path' => $fullPath,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

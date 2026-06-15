@@ -1,0 +1,127 @@
+.app-review-v2-shell {
+    background: #f8fafc;
+    border-radius: 12px;
+}
+
+.app-review-stepper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.app-review-stepper .step-item {
+    flex: 1 1 140px;
+    min-width: 120px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 0.65rem 0.85rem;
+    background: #fff;
+    font-size: 0.8rem;
+}
+
+.app-review-stepper .step-item.done {
+    border-color: #86efac;
+    background: #f0fdf4;
+}
+
+.app-review-stepper .step-item.active {
+    border-color: #38bdf8;
+    background: #f0f9ff;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+}
+
+.app-review-stepper .step-item.locked {
+    opacity: 0.55;
+    background: #f9fafb;
+}
+
+.app-review-next-banner {
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    border: 1px solid transparent;
+}
+
+.app-review-next-banner.tone-success { background: #ecfdf5; border-color: #86efac; color: #065f46; }
+.app-review-next-banner.tone-warning { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+.app-review-next-banner.tone-info { background: #eff6ff; border-color: #93c5fd; color: #1e40af; }
+.app-review-next-banner.tone-muted { background: #f3f4f6; border-color: #e5e7eb; color: #4b5563; }
+
+.app-review-action-rail .rail-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    /* Allow phase dropdown panel to extend outside the card */
+    overflow: visible;
+}
+
+.app-review-action-rail .rail-card-header {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #6b7280;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    background: #fafafa;
+    border-radius: 12px 12px 0 0;
+}
+
+.app-review-action-rail .rail-card-body {
+    padding: 1rem;
+    overflow: visible;
+}
+
+/* Phase assignment dropdown: keep options readable */
+.app-review-action-rail .dropdown-item span {
+    white-space: normal;
+    text-align: left;
+    line-height: 1.35;
+}
+
+.app-review-tabs .nav-link {
+    border-radius: 999px !important;
+    font-weight: 600;
+    color: #4b5563 !important;
+    padding: 0.45rem 1rem !important;
+    border: 0 !important;
+    background: #eef2f7 !important;
+    margin: 0 0.2rem;
+}
+
+.app-review-tabs .nav-link.active {
+    background: #003366 !important;
+    color: #fff !important;
+}
+
+.app-review-verify-banner {
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+.app-review-verify-banner.tone-success { background: #ecfdf5; border-left: 4px solid #059669; }
+.app-review-verify-banner.tone-info { background: #eff6ff; border-left: 4px solid #0ea5e9; }
+.app-review-verify-banner.tone-warning { background: #fffbeb; border-left: 4px solid #f59e0b; }
+
+@media (max-width: 767.98px) {
+    .app-review-mobile-actions {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1030;
+        background: #fff;
+        border-top: 1px solid #e5e7eb;
+        padding: 0.65rem 1rem;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .app-review-v2-shell {
+        padding-bottom: 4.5rem;
+    }
+}

@@ -315,9 +315,9 @@ class GroupsService
             ->findOrFail($groupLoanId);
     }
 
-    public function getGroupsQuery (
-        ?string $constituencyCode = null,
-        array $filters = [],
+    public function getGroupsQuery(
+        ?string $constituencyCode,
+        array $filters,
         ?string $sortField,
         ?string $sortDirection
     ): QueryBuilder {

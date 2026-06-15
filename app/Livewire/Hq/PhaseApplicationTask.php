@@ -215,11 +215,11 @@ class PhaseApplicationTask extends Component
             return;
         }
         $this->validate([
-            'codeListFile' => 'required|file|mimes:pdf,doc,docx|max:2048',
+            'codeListFile' => 'required|file|mimes:pdf,doc,docx,xls,xlsx|max:2048',
         ],
         [
             'codeListFile.max' => 'The document is too heavy. Please keep it under 2MB.',
-            'codeListFile.mimes' => 'Only PDF and Word documents are accepted.',
+            'codeListFile.mimes' => 'Only PDF, Word, and Excel documents are accepted.',
             'codeListFile.required' => 'Please attach the required document before proceeding.',
         ]);
 

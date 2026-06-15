@@ -15,6 +15,7 @@ use App\Http\Controllers\Hq\HqGroupController;
 use App\Http\Controllers\Hq\HqLoanController;
 use App\Http\Controllers\Hq\HqMemberController;
 use App\Http\Controllers\Hq\HqReportController;
+use App\Http\Controllers\Secretariat\SecretariatController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +28,7 @@ use App\Http\Controllers\Hq\HqReportController;
 |
 */
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 Route::get('/debug-ip', function (Request $request) {
     return response()->json([
@@ -51,6 +53,15 @@ Route::get('/clear', function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+
+    // Fallback for direct GET /logout (Fortify only registers POST)
+    Route::get('/logout', function (Request $request) {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/');
+    });
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
@@ -102,6 +113,19 @@ Route::middleware(['auth'])->group(function () {
         // Global Reports (National level)
         Route::get('/hq-reports', [ReportsController::class, 'nationalIndex'])->name('reports');
     });
+
+    Route::middleware(['role:super-admin|head_of_secretariat'])
+        ->prefix('secretariat')
+        ->name('secretariat.')
+        ->group(function () {
+            Route::get('/phases', [SecretariatController::class, 'index'])->name('phases.index');
+            Route::get('/phases/{phase}/review', [SecretariatController::class, 'review'])->name('phases.review');
+            Route::get('/phases/{phase}/code-list', [SecretariatController::class, 'downloadCodeList'])->name('phases.code-list');
+        });
+
+    Route::middleware(['auth', 'role:super-admin|constituency_officer|head_of_secretariat'])
+        ->get('/training-certificates/{phaseApplication}', [SecretariatController::class, 'downloadTrainingCertificate'])
+        ->name('training-certificate.download');
 
     Route::middleware('role:super-admin|constituency_officer')->prefix('{county}/users')
         ->where([
@@ -165,6 +189,8 @@ Route::middleware(['auth'])->group(function () {
 
                 // Phase Details View
                 Route::get('/phases/{phase}', [LoansController::class, 'app_phase_details'])->name('app_phase_details');
+                Route::get('/phases/{phase}/signed-code-list', [LoansController::class, 'downloadSignedCodeList'])->name('app_phase_signed_code_list');
+                Route::get('/phases/{phase}/letter-of-authority', [LoansController::class, 'downloadLetterOfAuthority'])->name('app_phase_letter_of_authority');
 
                 // Existing routes for application viewing
                 Route::get('/loans', [LoansController::class, 'app_loans'])->name('app_loans');

@@ -26,17 +26,31 @@ class LoanPhaseService
     protected $applicationService;
     protected $analysisService;
     protected $idempotencyService;
+    protected $systemVerificationService;
+
+    /**
+     * Limit HQ-facing queries to phases assigned to the officer or not yet assigned.
+     */
+    public static function applyHqOfficerVisibilityFilter($query, int $officerId, string $column = 'assigned_hq_officer_id'): void
+    {
+        $query->where(function ($q) use ($officerId, $column) {
+            $q->where($column, $officerId)
+                ->orWhereNull($column);
+        });
+    }
 
     // Laravel automatically resolves this for you
     public function __construct(
         TempApplicationService $applicationService,
         LoanAnalysisService $analysisService,
-        IdempotencyService $idempotencyService
+        IdempotencyService $idempotencyService,
+        SystemVerificationService $systemVerificationService
         )
     {
         $this->applicationService = $applicationService;
         $this->analysisService =  $analysisService;
         $this->idempotencyService = $idempotencyService;
+        $this->systemVerificationService = $systemVerificationService;
     }
     /**
      * Create a new loan review phase
@@ -151,11 +165,10 @@ class LoanPhaseService
             }
 
             if (!empty($dataToInsert)) {
-
-
                 PhaseApplication::insert($dataToInsert);
 
                 $insertedIds = collect($newApps)->pluck('application_id')->toArray();
+                $insertedTempIds = collect($dataToInsert)->pluck('temp_application_id')->all();
 
                 $this->invalidateMultipleApplicationsCache($insertedIds);
 
@@ -163,6 +176,20 @@ class LoanPhaseService
                     ->performedOn($phase)
                     ->withProperties(['added' => count($dataToInsert), 'errors' => $errors])
                     ->log("Assigned applications with " . count($errors) . " skips.");
+
+                $verificationOutcomes = $this->systemVerificationService
+                    ->autoVerifyAssignedApplications($insertedTempIds);
+
+                foreach ($insertedIds as $applicationId) {
+                    $this->applicationService->invalidateApplicationCache($applicationId);
+                }
+
+                if (! empty($verificationOutcomes)) {
+                    activity('phase-assignment')
+                        ->performedOn($phase)
+                        ->withProperties(['verification' => $verificationOutcomes])
+                        ->log('Auto system verification completed for newly assigned applications.');
+                }
             }
         });
 
@@ -665,10 +692,12 @@ class LoanPhaseService
                 ->select([
                     DB::raw('COUNT(*) as total_phases'),
                     DB::raw("SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as pending_submission"),
-                    DB::raw("SUM(CASE WHEN status = 'submitted_to_hq' THEN 1 ELSE 0 END) as processing_hq"),
+                    DB::raw("SUM(CASE WHEN status IN ('submitted_to_hq', 'approved', 'in_training') THEN 1 ELSE 0 END) as processing_hq"),
                     DB::raw("SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved_ready"),
+                    DB::raw("SUM(CASE WHEN status = 'in_training' THEN 1 ELSE 0 END) as in_training"),
                     DB::raw("SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as declined"),
                     DB::raw("SUM(CASE WHEN status = 'disbursed' THEN 1 ELSE 0 END) as disbursed"),
+                    DB::raw("SUM(CASE WHEN status IN ('disbursed', 'rejected') THEN 1 ELSE 0 END) as completed_phases"),
                 ]);
 
             if (!empty($constituencyCode)) {
@@ -682,8 +711,10 @@ class LoanPhaseService
                 'pending_submission' => $result->pending_submission,
                 'processing_hq' => $result->processing_hq,
                 'approved_ready' => $result->approved_ready,
+                'in_training' => $result->in_training,
                 'declined' => $result->declined,
                 'disbursed' => $result->disbursed,
+                'completed_phases' => $result->completed_phases,
             ];
 
         // return Cache::tags([$summaryTag])->remember($cacheKey, now()->addMinutes(10), function () use ($constituencyCode) {
@@ -1277,9 +1308,15 @@ class LoanPhaseService
 
     public function finalizePhase($phase)
     {
-        $total_issued = $phase->total_issued;
-
         $phase->refresh();
+
+        if (!$phase->canFinalizeDisbursement()) {
+            throw new \RuntimeException(
+                'Cannot close this phase until every group is marked as disbursed, not disbursed, or rejected.'
+            );
+        }
+
+        $total_issued = $phase->total_issued;
 
         DB::transaction(function () use ($phase, $total_issued){
             $phase->update([

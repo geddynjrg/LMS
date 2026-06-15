@@ -408,10 +408,19 @@ class DataUpload extends Component
         ]);
 
         try {
+            if (is_array($this->groupMembersData)) {
+                throw new \RuntimeException('Invalid upload state. Please remove the file, re-select it, and try again.');
+            }
+
+            $uploadPath = $this->groupMembersData->getRealPath();
+            if (! $uploadPath || ! is_readable($uploadPath)) {
+                throw new \RuntimeException('Upload file could not be read. Please re-select the file and try again.');
+            }
+
             $phases = $this->getPhases->pluck('phase')->map(fn($item) => strtolower($item))->toArray();
 
             $import = new \App\Imports\MembersTemplateImport($this->constituency, $phases);
-            Excel::import($import, $this->groupMembersData);
+            Excel::import($import, $uploadPath);
 
             $result = $import->getImportResult();
 
@@ -426,8 +435,7 @@ class DataUpload extends Component
                     ]
                 ];
 
-                // Optional: Clear the file input
-                $this->groupMembersData = [];
+                $this->groupMembersData = null;
 
                 $this->dispatch('swal:toast',
                     title: 'Members Data Upload 😊',

@@ -172,7 +172,7 @@
                                                 <div class="py-2">
                                                     <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
                                                     <h6 class="mb-1 text-success font-weight-bold text-truncate">
-                                                        {{ $loanPhasesData->getClientOriginalName() }}
+                                                        {{ is_object($loanPhasesData) ? $loanPhasesData->getClientOriginalName() : 'Selected file' }}
                                                     </h6>
                                                     <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('loanPhasesData', null); step = 1">
                                                         <i class="fas fa-trash-alt mr-1"></i> Remove
@@ -621,7 +621,7 @@
                                                     <div class="py-2">
                                                         <i class="fas fa-file-excel fa-3x text-success mb-3"></i>
                                                         <h6 class="mb-1 text-success font-weight-bold text-truncate">
-                                                            {{ $groupsData->getClientOriginalName() }}
+                                                            {{ is_object($groupsData) ? $groupsData->getClientOriginalName() : 'Selected file' }}
                                                         </h6>
                                                         <p class="small text-muted mb-2">{{ number_format($groupsData->getSize() / 1024 / 1024, 2) }} MB</p>
                                                         <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('groupsData', null)">
@@ -927,7 +927,7 @@
                                                         <span class="text-success mr-2">●</span>
                                                         <div>
                                                             <strong>ID Number: </strong>
-                                                            <span class="font-italic">Must be 7-8 digits. No letters.</span>
+                                                            <span class="font-italic">Must be 7-8 digits. No letters. Maximum 10 characters in the cell.</span>
                                                         </div>
                                                     </li>
                                                     <li class="mb-2 d-flex align-items-start">
@@ -1004,7 +1004,7 @@
                                                 <input type="file" x-ref="memberInput" class="d-none"
                                                     wire:model="groupMembersData" accept=".xlsx,.xls,.csv">
 
-                                                @if(!$groupMembersData)
+                                                @if(!$groupMembersData || is_array($groupMembersData))
                                                     <div class="py-2">
                                                         <div class="icon-shape bg-soft-info text-info mb-3">
                                                             <i class="fas fa-cloud-upload-alt fa-2x"></i>
@@ -1016,7 +1016,7 @@
                                                     <div class="py-2">
                                                         <i class="fas fa-file-excel fa-3x text-info mb-3"></i>
                                                         <h6 class="mb-1 text-info font-weight-bold">
-                                                            {{ $groupMembersData->getClientOriginalName() }}
+                                                            {{ is_object($groupMembersData) ? $groupMembersData->getClientOriginalName() : 'Selected file' }}
                                                         </h6>
                                                         <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('groupMembersData', null)">
                                                             <i class="fas fa-trash-alt mr-1"></i> Remove
@@ -1026,13 +1026,14 @@
                                             </div>
                                         </div>
 
-                                        @if($groupMembersData)
+                                        @if($groupMembersData && !is_array($groupMembersData))
                                             <button type="submit" class="btn btn-info btn-block btn-lg mt-3 shadow-sm rounded-pill py-2"
-                                                    wire:loading.attr="disabled">
-                                                <span wire:loading.remove>
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="groupMembersData, groupMembersForm">
+                                                <span wire:loading.remove wire:target="groupMembersData, groupMembersForm">
                                                     <i class="fas fa-upload mr-1"></i> Start Member Import
                                                 </span>
-                                                <span wire:loading>
+                                                <span wire:loading wire:target="groupMembersData, groupMembersForm">
                                                     <i class="fas fa-spinner fa-spin mr-1"></i> Processing...
                                                 </span>
                                             </button>

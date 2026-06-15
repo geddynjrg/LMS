@@ -15,6 +15,8 @@
                     @auth
                         @hasrole('hq_officer')
                             <a class="brand-text text-lime">National Headquarters</a>
+                        @elseif(auth()->user()->hasRole('head_of_secretariat'))
+                            <a class="brand-text text-purple">Head of Secretariat</a>
                         @else
                             @if(isset($county))
                                 <a class="brand-text">{{ $county->county_name}} County</a>
@@ -42,6 +44,16 @@
         <!-- Sidebar Menu -->
         <nav class="mt-2">
             <ul class="nav nav-pills nav-sidebar flex-column nav-flatt nav-child-indent nav-compact" data-widget="treeview" role="menu" data-accordion="false">
+
+            @hasrole('head_of_secretariat|super-admin')
+                <li class="nav-header text-uppercase text-xs text-muted">Secretariat</li>
+                <li class="nav-item">
+                    <a href="{{ route('secretariat.phases.index') }}" class="nav-link {{ Route::is('secretariat.*') ? 'active' : '' }}">
+                        <i class="nav-icon fas fa-stamp text-purple"></i>
+                        <p>Secretariat Dashboard</p>
+                    </a>
+                </li>
+            @endhasrole
 
             @hasrole('hq_officer|super-admin')
                 <li class="nav-header text-uppercase text-xs text-muted">National Administration</li>

@@ -113,12 +113,7 @@ class HqApplications extends Controller
 
     private function getFilePath($decodedPath)
     {
-        if (Storage::disk('local')->exists($decodedPath)) {
-            return Storage::disk('local')->path($decodedPath);
-        } elseif (Storage::disk('public')->exists($decodedPath)) {
-            return Storage::disk('public')->path($decodedPath);
-        }
-        return null;
+        return \App\Http\Helpers\StoragePathHelper::resolveAbsolutePath($decodedPath);
     }
 
     private function viewOrDownloadFile($filePath, $filename, $action = 'download')

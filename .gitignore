@@ -36,6 +36,7 @@ storage/logs/backup_clean_command.log
 storage/logs/backup_command.log
 storage/logs/loan_command.log
 storage/logs/laravel.log
+/storage/backups/
 
 # --- Compiled Assets ---
 public/js/*.js

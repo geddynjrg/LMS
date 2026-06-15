@@ -1,4 +1,4 @@
-@props(['id', 'title', 'type' => 'info', 'icon' => null, 'size' => 'modal-lg'])
+@props(['id', 'title', 'type' => 'info', 'icon' => null, 'size' => 'modal-lg', 'wireIgnore' => true])
 
 @php
     $colorMap = [
@@ -18,7 +18,7 @@
     $theme = $colorMap[$type] ?? $colorMap['info'];
 @endphp
 
-<div wire:ignore.self
+<div @if($wireIgnore) wire:ignore.self @endif
     id="{{ $id }}"
     tabindex="-1"
     role="dialog"

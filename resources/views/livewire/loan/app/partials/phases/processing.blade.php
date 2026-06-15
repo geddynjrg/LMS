@@ -37,6 +37,13 @@
                     Submited Date
                 </x-table-header>
 
+                <x-table-header
+                    field="status"
+                    :sortable="false"
+                >
+                    Status
+                </x-table-header>
+
                 <x-table-header :sortable="false">
                     Action
                 </x-table-header>
@@ -69,11 +76,17 @@
                         </div>
                     </td>
                     <td class="px-4 py-3">
+                        @php $displayStatus = $this->getPhaseDisplayStatus($phase); @endphp
+                        <span class="{{ $displayStatus['class'] }} border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                            {{ $displayStatus['label'] }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
                         <a href="{{ route('const.app.app_phase_details', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
-                            class="btn btn-refresh-premium btn-sm border shadow-sm"
-                            title="View Batch Details"
+                            class="btn btn-white btn-sm border shadow-sm"
+                            title="Manage Batch"
                             >
-                                <i class="fas fa-eye mr-1"></i> View
+                                <i class="fas fa-folder-open text-primary mr-1"></i> Manage
                         </a>
                     </td>
                 </tr>

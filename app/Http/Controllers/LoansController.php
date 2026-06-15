@@ -11,6 +11,9 @@ use App\Models\LoanPhase;
 use App\Models\Constituency;
 use App\Models\County;
 use App\Models\Group;
+use App\Services\Loan\LoanApplicationService;
+use Exception;
+
 class LoansController extends Controller
 {
     public function groupLoans(Request $request, County $county, Constituency $constituency)
@@ -139,7 +142,7 @@ class LoansController extends Controller
             $decodedPath = trim(base64_decode($encodedPath));
             $decodedPath = ltrim($decodedPath, '/');
 
-            $finalPath = $this->getFilePath($decodedPath);
+            $finalPath = $this->resolveApplicationFilePath($applicationId, $decodedPath);
 
             if (!$finalPath) {
                 Log::error('File not found in storage', [
@@ -168,12 +171,96 @@ class LoansController extends Controller
 
     private function getFilePath($decodedPath)
     {
-        if (Storage::disk('local')->exists($decodedPath)) {
-            return Storage::disk('local')->path($decodedPath);
-        } elseif (Storage::disk('public')->exists($decodedPath)) {
-            return Storage::disk('public')->path($decodedPath);
+        $cleanPath = ltrim(preg_replace('#^(storage/|public/)#', '', $decodedPath), '/');
+
+        if (Storage::disk('local')->exists($cleanPath)) {
+            return Storage::disk('local')->path($cleanPath);
+        } elseif (Storage::disk('public')->exists($cleanPath)) {
+            return Storage::disk('public')->path($cleanPath);
         }
         return null;
+    }
+
+    private function resolveApplicationFilePath(string $applicationId, string $decodedPath): ?string
+    {
+        $finalPath = $this->getReadableFilePath($decodedPath);
+        if ($finalPath) {
+            return $finalPath;
+        }
+
+        $application = TempApplication::where('application_id', $applicationId)->first();
+        if (!$application) {
+            return null;
+        }
+
+        if (!empty($application->raw_data)) {
+            try {
+                app(LoanApplicationService::class)->repairApplicationFiles($application->fresh());
+                $finalPath = $this->getReadableFilePath($decodedPath);
+                if ($finalPath) {
+                    return $finalPath;
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Could not repair missing application files', [
+                    'application_id' => $applicationId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $directoryKey = basename(dirname($decodedPath));
+        foreach ($application->fresh()->all_files ?? [] as $file) {
+            $path = $file['data']['path'] ?? null;
+            if (!$path || !str_contains($path, $directoryKey)) {
+                continue;
+            }
+
+            $resolved = $this->getReadableFilePath($path);
+            if ($resolved) {
+                return $resolved;
+            }
+        }
+
+        if (str_contains($decodedPath, '/member_photos/')) {
+            return $this->resolveMemberPhotoPath($application, basename($decodedPath));
+        }
+
+        return null;
+    }
+
+    private function resolveMemberPhotoPath(TempApplication $application, string $requestedFilename): ?string
+    {
+        foreach ($application->groupMembers as $member) {
+            $photo = $member->photo_member_id;
+            if (!is_array($photo) || empty($photo['path'])) {
+                continue;
+            }
+
+            $knownNames = array_filter([
+                basename($photo['path']),
+                $photo['filename'] ?? null,
+                isset($photo['url']) ? basename($photo['url']) : null,
+                $photo['original_filename'] ?? null,
+            ]);
+
+            if (!in_array($requestedFilename, $knownNames, true)) {
+                continue;
+            }
+
+            $resolved = $this->getReadableFilePath($photo['path']);
+            if ($resolved) {
+                return $resolved;
+            }
+        }
+
+        return null;
+    }
+
+    private function getReadableFilePath(string $path): ?string
+    {
+        $resolved = $this->getFilePath($path);
+
+        return $resolved && is_readable($resolved) ? $resolved : null;
     }
 
     private function viewOrDownloadFile($filePath, $filename, $action = 'download')
@@ -203,7 +290,7 @@ class LoansController extends Controller
             $filename = basename($decodedPath);
             $cleanPath = preg_replace('#^(storage/|public/)#', '', $decodedPath);
 
-            $foundPath = $this->getFilePath($cleanPath);
+            $foundPath = $this->resolveApplicationFilePath($applicationId, $cleanPath);
 
             if (!$foundPath) {
                 abort(404, "File not found: The document exists in the database but the file is missing from storage.");

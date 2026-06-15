@@ -12,11 +12,15 @@ class DashboardController extends Controller
         /** @var \App\Models\User $user */
         $user = auth()->user();
 
-        $constituencies = $user->constituencies;
-
         if ($user && $user->hasRole('hq_officer')) {
             return view('hq.dashboard');
         }
+
+        if ($user && $user->hasRole('head_of_secretariat')) {
+            return redirect()->route('secretariat.phases.index');
+        }
+
+        $constituencies = $user->constituencies;
 
         return view('dashboard.dashboard', [
             'constituencies' => $constituencies,

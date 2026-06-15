@@ -6,6 +6,8 @@ use Livewire\Component;
 use App\Models\Constituency;
 use App\Models\GroupLoan;
 use App\Models\GroupMember;
+use App\Models\LoanPhase;
+use App\Services\Loan\SecretariatApprovalService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -30,6 +32,7 @@ class ConstituencyComponent extends Component
     public $countyFilter = '';
     public $constituencyFilter = '';
     public $wardFilter = '';
+    public $constituencyBankBalance = '';
 
     public function boot(
         LoanAnalysisService $analysisService,
@@ -46,6 +49,50 @@ class ConstituencyComponent extends Component
         $this->constituencyFilter = $constituency->constituency_code;
 
         $this->constituency = $constituency->load('wards');
+        $this->constituencyBankBalance = $constituency->constituency_bank_balance ?? '';
+    }
+
+    public function saveConstituencyBankBalance(): void
+    {
+        abort_unless(
+            auth()->user()?->hasAnyRole(['super-admin', 'constituency_officer']),
+            403
+        );
+
+        $this->validate([
+            'constituencyBankBalance' => 'nullable|numeric|min:0',
+        ]);
+
+        $this->constituency->update([
+            'constituency_bank_balance' => $this->constituencyBankBalance === ''
+                ? null
+                : $this->constituencyBankBalance,
+        ]);
+
+        $this->constituency->refresh();
+        $this->constituencyBankBalance = $this->constituency->constituency_bank_balance ?? '';
+
+        $this->dispatch('swal:toast',
+            title: 'Saved',
+            message: 'Constituency bank account balance updated.',
+            type: 'success'
+        );
+    }
+
+    #[Computed]
+    public function openPhaseRequestedAmount(): float
+    {
+        $phase = LoanPhase::query()
+            ->where('constituency_code', $this->constituency->constituency_code)
+            ->whereIn('status', ['draft', 'in_review'])
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (! $phase) {
+            return 0;
+        }
+
+        return app(SecretariatApprovalService::class)->phaseRequestedAmount($phase);
     }
 
     #[Computed]
@@ -296,8 +343,9 @@ class ConstituencyComponent extends Component
         $this->dispatch('stats-refreshed', message: 'Data updated!');
     }
 
-    public function render() {
-        return view('livewire.constituency-component', [
+    public function render()
+    {
+        return view('livewire.constituency-component-legacy', [
             'performance' => $this->performance,
             'riskProfile' => $this->riskProfile,
         ]);

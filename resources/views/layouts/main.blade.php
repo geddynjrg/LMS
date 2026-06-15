@@ -35,7 +35,13 @@
         <link rel="stylesheet" href="{{asset('plugins/datatables-responsive/css/responsive.bootstrap4.min.css')}}">
         <link rel="stylesheet" href="{{asset('plugins/datatables-buttons/css/buttons.bootstrap4.min.css')}}">
 
-        @vite(['resources/css/app.css','resources/js/app.js'])
+        @php
+            $viteAssets = ['resources/css/app.css', 'resources/css/hq-dashboard-v2.css', 'resources/js/app.js'];
+            if (config('applications.review_v2_enabled')) {
+                $viteAssets[] = 'resources/css/application-review-v2.css';
+            }
+        @endphp
+        @vite($viteAssets)
 
         {{-- livewire styles --}}
         @livewireStyles
