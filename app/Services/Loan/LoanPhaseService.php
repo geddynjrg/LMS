@@ -1287,7 +1287,7 @@ class LoanPhaseService
                         ->log("New group record created in constituency {$phase->constituency_code} during HQ approval.");
                 }
 
-                SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
+                SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
             }
 
             $phase->update([
@@ -1395,7 +1395,7 @@ class LoanPhaseService
                     ])
                     ->log("Application #{$app->tempApplication->application_id} for {$app->tempApplication->group_name} was set for training.");
 
-                SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
+                SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
             }
 
             $phase->update([

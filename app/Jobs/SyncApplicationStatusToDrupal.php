@@ -82,6 +82,11 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
         $this->tempApplicationId = $tempApplicationId;
     }
 
+    public static function syncNow(int $tempApplicationId): void
+    {
+        self::dispatchSync($tempApplicationId);
+    }
+
     public function handle(DrupalApiService $drupal): void
     {
         Log::debug('Job started', ['temp_id' => $this->tempApplicationId]);

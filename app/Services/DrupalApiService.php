@@ -13,9 +13,11 @@ class DrupalApiService
 
     public function __construct()
     {
-        $this->baseUrl = config('services.drupal.base_url', 'https://loans-staging-admin.uwezo.go.ke');
-        // $this->baseUrl = 'http://ddev-uwezo-web';
-        $this->apiKey  = config('services.drupal.api_key', env('DRUPAL_API_KEY'));
+        $this->baseUrl = rtrim(
+            (string) (config('drupal.base_url') ?: env('DRUPAL_API_URL', 'https://loans-staging-admin.uwezo.go.ke')),
+            '/'
+        );
+        $this->apiKey  = config('drupal.api_key', env('DRUPAL_API_KEY'));
 
         if (empty($this->baseUrl)) {
             throw new \RuntimeException('Drupal API base URL is not configured');
@@ -23,6 +25,31 @@ class DrupalApiService
         if (empty($this->apiKey)) {
             throw new \RuntimeException('Drupal API key is not configured');
         }
+    }
+
+    /**
+     * Fetch a single application from the loans portal (Drupal) API.
+     */
+    public function getApplication(string $appId): ?array
+    {
+        $response = Http::withHeaders([
+            'X-API-Key'    => $this->apiKey,
+            'Accept'       => 'application/json',
+        ])->timeout(30)->get("{$this->baseUrl}/api/v1/application/{$appId}");
+
+        if (!$response->successful()) {
+            Log::warning('Failed to fetch application from Drupal', [
+                'application_id' => $appId,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+
+            return null;
+        }
+
+        $payload = $response->json();
+
+        return is_array($payload['data'] ?? null) ? $payload['data'] : null;
     }
 
     /**

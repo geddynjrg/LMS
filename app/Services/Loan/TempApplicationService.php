@@ -1127,7 +1127,9 @@ class TempApplicationService
 
     public function rejectApplication($selectedAppId, $idempotencyKey, $data)
     {
-        DB::transaction(function() use ($selectedAppId, $idempotencyKey, $data){
+        $drupalSyncId = null;
+
+        DB::transaction(function() use ($selectedAppId, $idempotencyKey, $data, &$drupalSyncId){
             $app = PhaseApplication::with([
                 'linkedGroup:id,name,code,identifier',
                 'groupLoan:id,group_id',
@@ -1180,18 +1182,23 @@ class TempApplicationService
                 ])
                 ->log("Application rejected due to: " . $data['rejection_label']);
 
-            SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
+            $drupalSyncId = $app->temp_application_id;
 
             $this->idempotencyService->release($idempotencyKey);
         });
+
+        if ($drupalSyncId) {
+            SyncApplicationStatusToDrupal::syncNow($drupalSyncId);
+        }
 
     }
 
     public function approveApplicationDisbursement($selectedAppId, $idempotencyKey, $data)
     {
-        $notifiableApplicationId = null;
+        $drupalSyncId = null;
+        $notifiablePhaseAppId = null;
 
-        DB::transaction(function() use ($selectedAppId, $idempotencyKey, $data, &$notifiableApplicationId){
+        DB::transaction(function() use ($selectedAppId, $idempotencyKey, $data, &$drupalSyncId, &$notifiablePhaseAppId){
             $app = PhaseApplication::with([
                 'linkedGroup:id,name,code,identifier',
                 'groupLoan:id,group_id',
@@ -1255,16 +1262,19 @@ class TempApplicationService
                 ->event('application_disbursed')
                 ->log("Application status changed from 'Pending Disbursement' to 'disbursed'");
 
-            SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
-
-            $notifiableApplicationId = $app->id;
+            $drupalSyncId = $app->temp_application_id;
+            $notifiablePhaseAppId = $app->id;
 
             $this->idempotencyService->release($idempotencyKey);
         });
 
-        if ($notifiableApplicationId) {
+        if ($drupalSyncId) {
+            SyncApplicationStatusToDrupal::syncNow($drupalSyncId);
+        }
+
+        if ($notifiablePhaseAppId) {
             SendDisbursementNotifications::dispatchSync(
-                $notifiableApplicationId,
+                $notifiablePhaseAppId,
                 SendDisbursementNotifications::TYPE_DISBURSED
             );
         }
@@ -1414,9 +1424,10 @@ class TempApplicationService
 
     public function recordDisbursementFailure(int $selectedAppId, string $idempotencyKey, array $data): void
     {
-        $notifiableApplicationId = null;
+        $drupalSyncId = null;
+        $notifiablePhaseAppId = null;
 
-        DB::transaction(function () use ($selectedAppId, $idempotencyKey, $data, &$notifiableApplicationId) {
+        DB::transaction(function () use ($selectedAppId, $idempotencyKey, $data, &$drupalSyncId, &$notifiablePhaseAppId) {
             $app = PhaseApplication::with('tempApplication:id,application_id')
                 ->findOrFail($selectedAppId);
 
@@ -1433,7 +1444,7 @@ class TempApplicationService
                     'updated_at' => now(),
                 ]);
 
-                SyncApplicationStatusToDrupal::dispatch($app->tempApplication->id)->afterCommit();
+                $drupalSyncId = $app->temp_application_id;
             }
 
             activity()
@@ -1446,14 +1457,18 @@ class TempApplicationService
                 ->event('disbursement_not_completed')
                 ->log('Constituency officer marked disbursement as not completed');
 
-            $notifiableApplicationId = $app->id;
+            $notifiablePhaseAppId = $app->id;
 
             $this->idempotencyService->release($idempotencyKey);
         });
 
-        if ($notifiableApplicationId) {
+        if ($drupalSyncId) {
+            SyncApplicationStatusToDrupal::syncNow($drupalSyncId);
+        }
+
+        if ($notifiablePhaseAppId) {
             SendDisbursementNotifications::dispatchSync(
-                $notifiableApplicationId,
+                $notifiablePhaseAppId,
                 SendDisbursementNotifications::TYPE_NOT_DISBURSED
             );
         }
