@@ -18,7 +18,8 @@
                     {{ucwords($phase->phase)}}
                 </h3>
                 <div class="mt-2 d-flex align-items-center">
-                    <span class="bg-gray-50 border-gray-200 text-gray-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">{{ucwords(str_replace('_', ' ', $phase->status))}}</span>
+                    @php $phaseStatus = \App\Support\PhaseWorkflowStatus::forPhase($phase); @endphp
+                    <span class="{{ $phaseStatus['class'] }} border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">{{ $phaseStatus['label'] }}</span>
                     <span class="mx-2 text-gray-400">|</span>
                     <span class="text-gray-600 text-xs">
                         <i class="fas fa-calendar-alt mr-1"></i> Submitted To HQ At:

@@ -527,10 +527,17 @@
                         <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                             @if(in_array($this->detailedPhase->status, ['approved', 'in_training', 'disbursed']))
                                 <div class="card-body">
-                                    <span class="{{ $this->getStatusClasses($this->detailedPhase->status) }} border align-items-center d-block text-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
-                                        {{ $this->getStatusName($this->detailedPhase->status) }}
+                                    @php $phaseStatus = $this->phaseDisplayStatus(); @endphp
+                                    <span class="{{ $phaseStatus['class'] }} border align-items-center d-block text-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                                        {{ $phaseStatus['label'] }}
                                     </span>
-                                    <p class="text-xs text-gray-500 mb-0">No further actions can be applied to this phase.</p>
+                                    <p class="text-xs text-gray-500 mb-0">
+                                        @if($phaseStatus['value'] === 'awaiting_secretariat')
+                                            This batch is with the Head of Secretariat for training authorization. No further HQ actions are required until secretariat completes review or returns the phase.
+                                        @else
+                                            No further actions can be applied to this phase.
+                                        @endif
+                                    </p>
                                 </div>
                             @else
                                 <div class="card-body">

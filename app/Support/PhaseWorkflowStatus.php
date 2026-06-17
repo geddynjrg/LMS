@@ -78,7 +78,7 @@ class PhaseWorkflowStatus
                     'class' => 'bg-indigo-50 border-indigo-200 text-indigo-700',
                 ]
                 : [
-                    'label' => 'Awaiting Secretariat',
+                    'label' => 'Awaiting Head of Secretariat Approval',
                     'value' => 'awaiting_secretariat',
                     'class' => 'bg-amber-50 border-amber-200 text-amber-700',
                 ],

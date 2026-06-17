@@ -23,6 +23,7 @@ use App\Models\LoanPhase;
 use App\Models\GroupLoan;
 use App\Models\Group;
 use Carbon\Carbon;
+use App\Support\PhaseWorkflowStatus;
 
 class PhaseApplicationTask extends Component
 {
@@ -166,6 +167,14 @@ class PhaseApplicationTask extends Component
     public function getStatusName($value)
     {
         return collect($this->statusOptions)->firstWhere('value', $value)['name'] ?? $value;
+    }
+
+    /**
+     * @return array{label: string, value: string, class: string}
+     */
+    public function phaseDisplayStatus(): array
+    {
+        return PhaseWorkflowStatus::forPhase($this->detailedPhase);
     }
 
     public function getRiskOptionsProperty()
