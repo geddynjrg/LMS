@@ -1189,7 +1189,9 @@ class TempApplicationService
 
     public function approveApplicationDisbursement($selectedAppId, $idempotencyKey, $data)
     {
-        DB::transaction(function() use ($selectedAppId, $idempotencyKey, $data){
+        $notifiableApplicationId = null;
+
+        DB::transaction(function() use ($selectedAppId, $idempotencyKey, $data, &$notifiableApplicationId){
             $app = PhaseApplication::with([
                 'linkedGroup:id,name,code,identifier',
                 'groupLoan:id,group_id',
@@ -1255,10 +1257,17 @@ class TempApplicationService
 
             SyncApplicationStatusToDrupal::dispatch($app->tempApplication->temp_application_id)->afterCommit();
 
-            SendDisbursementNotifications::dispatch($app->id, SendDisbursementNotifications::TYPE_DISBURSED)->afterCommit();
+            $notifiableApplicationId = $app->id;
 
             $this->idempotencyService->release($idempotencyKey);
         });
+
+        if ($notifiableApplicationId) {
+            SendDisbursementNotifications::dispatchSync(
+                $notifiableApplicationId,
+                SendDisbursementNotifications::TYPE_DISBURSED
+            );
+        }
     }
 
     /**
@@ -1370,7 +1379,7 @@ class TempApplicationService
                 ]);
             }
 
-            \App\Jobs\SendTrainingCompletionNotifications::dispatch($application->id)->afterCommit();
+            \App\Jobs\SendTrainingCompletionNotifications::dispatchSync($application->id);
         });
     }
 
@@ -1405,7 +1414,9 @@ class TempApplicationService
 
     public function recordDisbursementFailure(int $selectedAppId, string $idempotencyKey, array $data): void
     {
-        DB::transaction(function () use ($selectedAppId, $idempotencyKey, $data) {
+        $notifiableApplicationId = null;
+
+        DB::transaction(function () use ($selectedAppId, $idempotencyKey, $data, &$notifiableApplicationId) {
             $app = PhaseApplication::with('tempApplication:id,application_id')
                 ->findOrFail($selectedAppId);
 
@@ -1435,10 +1446,17 @@ class TempApplicationService
                 ->event('disbursement_not_completed')
                 ->log('Constituency officer marked disbursement as not completed');
 
-            SendDisbursementNotifications::dispatch($app->id, SendDisbursementNotifications::TYPE_NOT_DISBURSED)->afterCommit();
+            $notifiableApplicationId = $app->id;
 
             $this->idempotencyService->release($idempotencyKey);
         });
+
+        if ($notifiableApplicationId) {
+            SendDisbursementNotifications::dispatchSync(
+                $notifiableApplicationId,
+                SendDisbursementNotifications::TYPE_NOT_DISBURSED
+            );
+        }
     }
 
     public function generateIdentifier(string $name, string $code): string

@@ -8,6 +8,7 @@ use App\Models\PhaseApplication;
 use App\Models\TempApplication;
 use App\Models\Group;
 use App\Models\GroupLoan;
+use App\Jobs\SendTrainingScheduleNotifications;
 use App\Jobs\SyncApplicationStatusToDrupal;
 use App\Services\IdempotencyService;
 use App\Services\WorkflowNotificationService;
@@ -1418,6 +1419,8 @@ class LoanPhaseService
 
             $this->idempotencyService->release($idempotencyKey);
         });
+
+        SendTrainingScheduleNotifications::dispatchSync($phase->id);
     }
 
     public function finalizePhase($phase)

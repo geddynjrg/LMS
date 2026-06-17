@@ -28,7 +28,6 @@ class PhaseApplication extends Model
         'training_certificate_path',
         'cheque_number',
         'disbursement_date',
-        'disbusement_date',
         'comments',
         'rejection_reason',
         'rejection_message',

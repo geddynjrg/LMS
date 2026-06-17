@@ -56,8 +56,8 @@ class SmsService
             }
 
             $payload = $response->json();
-            if ((string) ($payload['status'] ?? '') === '1000') {
-                Log::info('SMS sent successfully', ['phone' => $mobile]);
+            if ($this->isSuccessfulResponse($payload)) {
+                Log::info('SMS sent successfully', ['phone' => $mobile, 'response' => $payload]);
 
                 return true;
             }
@@ -76,6 +76,39 @@ class SmsService
 
             return false;
         }
+    }
+
+    /**
+     * EBIS Cloud may return {"status":"1000"} or [{"status_code":"1000","status_desc":"Success",...}].
+     */
+    protected function isSuccessfulResponse(mixed $payload): bool
+    {
+        if (!is_array($payload)) {
+            return false;
+        }
+
+        if (isset($payload['status']) && (string) $payload['status'] === '1000') {
+            return true;
+        }
+
+        if (isset($payload['status_code']) && (string) $payload['status_code'] === '1000') {
+            return true;
+        }
+
+        if (isset($payload[0]) && is_array($payload[0])) {
+            $first = $payload[0];
+            if ((string) ($first['status_code'] ?? '') === '1000') {
+                return true;
+            }
+            if ((string) ($first['status'] ?? '') === '1000') {
+                return true;
+            }
+            if (strtolower((string) ($first['status_desc'] ?? '')) === 'success') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function normalizePhoneNumber(string $phoneNumber): ?string

@@ -30,7 +30,7 @@ return new class extends Migration
 
             // Logistics
             $table->text('cheque_number')->nullable();
-            $table->date('disbusement_date')->nullable();
+            $table->dateTime('disbursement_date')->nullable();
             $table->text('comments')->nullable();
             $table->text('rejection_reason')->nullable();
             $table->boolean('is_priority')->default(false);

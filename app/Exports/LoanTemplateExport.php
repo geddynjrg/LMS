@@ -17,14 +17,18 @@ class LoanTemplateExport implements WithHeadings, WithEvents
 {
     protected $wards;
     protected $phases;
+    protected string $countyCode;
+    protected string $constituencyCode;
     protected $loan_types = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
     protected $categories = ['Youth', 'Women', 'PWD'];
     protected $sectors    = ['Trade', 'Service', 'Manufacturing', 'Agriculture', 'Other'];
 
-    public function __construct($wards, $phases)
+    public function __construct($wards, $phases, string $countyCode, string $constituencyCode)
     {
         $this->wards  = is_array($wards)  ? $wards  : $wards->toArray();
         $this->phases = is_array($phases) ? $phases : $phases->toArray();
+        $this->countyCode = str_pad($countyCode, 3, '0', STR_PAD_LEFT);
+        $this->constituencyCode = str_pad($constituencyCode, 3, '0', STR_PAD_LEFT);
     }
 
     public function headings(): array
@@ -91,6 +95,8 @@ class LoanTemplateExport implements WithHeadings, WithEvents
                 $this->addDropdown($sheet, 'I', $this->categories, $limit);
                 $this->addDropdown($sheet, 'J', $this->sectors, $limit);
 
+                $this->applyGfsFormulas($sheet, $limit);
+
                 // Freeze Rows 1 and 2 (Headings and Totals)
                 $sheet->freezePane('A3');
             },
@@ -134,14 +140,40 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             ->setFormula1(3)
             ->setSqref("C2:C{$limit}");
 
-        // GFS Code (Exact 10)
-        $gfsVal = $sheet->getCell('G3')->getDataValidation();
-        $gfsVal->setType(DataValidation::TYPE_TEXTLENGTH)
-            ->setOperator(DataValidation::OPERATOR_EQUAL)
-            ->setFormula1(10)
-            ->setAllowBlank(false)
-            ->setError('GFS Code must be exactly 10 characters.')
-            ->setSqref("G2:G{$limit}");
+        // GFS Code is auto-calculated from S/No, Category, and Sector — no manual entry validation.
+    }
+
+    private function applyGfsFormulas(Worksheet $sheet, int $limit): void
+    {
+        $county = $this->countyCode;
+        $constituency = $this->constituencyCode;
+
+        for ($row = 3; $row <= $limit; $row++) {
+            $formula = sprintf(
+                '=IF(OR(I%d="",J%d="",A%d=""),"",CONCATENATE("4-","%s","-","%s","-411020",CHOOSE(MATCH(I%d,{"Youth","Women","PWD"},0),1,2,3),"-",CHOOSE(MATCH(J%d,{"Trade","Service","Manufacturing","Agriculture","Other"},0),1,2,3,4,5),"0",CHOOSE(MATCH(I%d,{"Youth","Women","PWD"},0),1,2,3),"-",TEXT(A%d,"000")))',
+                $row,
+                $row,
+                $row,
+                $county,
+                $constituency,
+                $row,
+                $row,
+                $row,
+                $row
+            );
+
+            $sheet->setCellValue("G{$row}", $formula);
+        }
+
+        $sheet->getStyle("G3:G{$limit}")
+            ->getProtection()
+            ->setLocked(Protection::PROTECTION_PROTECTED);
+
+        $sheet->getStyle("G3:G{$limit}")
+            ->getFill()
+            ->setFillType(Fill::FILL_SOLID)
+            ->getStartColor()
+            ->setARGB('FFF9FAFB');
     }
 
     private function applyStyles(Worksheet $sheet, string $highestColumn, int $maxRows): void

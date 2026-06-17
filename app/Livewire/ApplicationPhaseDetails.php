@@ -881,7 +881,7 @@ class ApplicationPhaseDetails extends Component
 
             $this->dispatch('swal:toast',
                 title: 'Training Set Successfully 😊',
-                message: 'Phase has moved to Training.',
+                message: 'Phase has moved to Training. Group members will be notified by SMS with application numbers, dates, and venue.',
                 type: 'success'
             );
 

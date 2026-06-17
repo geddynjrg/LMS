@@ -276,6 +276,8 @@ class MembersTemplateImport implements
     {
         if (count($this->errors) >= 20) return;
 
+        $row = $this->normalizeGroupSelectionRow($row);
+
         foreach ($mapping as $colIndex => $setup) {
             if (count($this->errors) >= 20) return;
 
@@ -302,8 +304,15 @@ class MembersTemplateImport implements
                 }
             }
 
-            // 4. member name
+            // 4. Group name
             if ($colIndex === 3 && $value !== '') {
+                if (strlen($value) < 3) {
+                    $this->errors[] = "Row {$rowNumber}: '{$value}' is too short for a Group Name.";
+                }
+            }
+
+            // 5. Member name
+            if ($colIndex === 5 && $value !== '') {
                 if (strlen($value) < 5) {
                     $this->errors[] = "Row {$rowNumber}: '{$value}' is too short for a Member Name.";
                 }
@@ -349,6 +358,31 @@ class MembersTemplateImport implements
         }
 
         $this->processMemberEntry($row, $rowNumber);
+    }
+
+    /**
+     * Support template picker labels: "Phase X | Loan Type | Group Name".
+     */
+    private function normalizeGroupSelectionRow($row)
+    {
+        $values = $row->toArray();
+        $selection = trim((string) ($values[3] ?? ''));
+
+        if ($selection === '' || !str_contains($selection, '|')) {
+            return $row;
+        }
+
+        $parts = array_map('trim', explode('|', $selection, 3));
+        if (count($parts) !== 3) {
+            return $row;
+        }
+
+        [$phase, $loanType, $groupName] = $parts;
+        $values[1] = $phase;
+        $values[2] = $loanType;
+        $values[3] = $groupName;
+
+        return collect($values);
     }
 
     private function validatePhoneNumber($number, $rowNumber)

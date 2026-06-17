@@ -359,6 +359,39 @@ class WorkflowNotificationService
         }
     }
 
+    public function notifyGroupMembersTrainingScheduled(PhaseApplication $application, LoanPhase $phase): void
+    {
+        $application->loadMissing(['tempApplication.groupMembers']);
+
+        $tempApp = $application->tempApplication;
+        if (!$tempApp) {
+            return;
+        }
+
+        $appId = $tempApp->application_id;
+        $groupName = $tempApp->group_name;
+        $phaseName = $phase->phase ?? 'batch';
+        $startDate = $phase->training_start_date
+            ? \Carbon\Carbon::parse($phase->training_start_date)->format('d M Y')
+            : 'TBA';
+        $endDate = $phase->training_end_date
+            ? \Carbon\Carbon::parse($phase->training_end_date)->format('d M Y')
+            : 'TBA';
+        $venue = $phase->training_venue ?: 'TBA';
+
+        foreach ($tempApp->groupMembers as $member) {
+            if (empty($member->phone_number)) {
+                continue;
+            }
+
+            $this->smsService->send(
+                $member->phone_number,
+                "Uwezo Fund: Dear {$member->name}, {$groupName} (Application No. {$appId}) is scheduled for {$phaseName} training "
+                . "from {$startDate} to {$endDate} at {$venue}. Please attend with your application number."
+            );
+        }
+    }
+
     public function notifyGroupMembersTrainingCompleted(PhaseApplication $application): void
     {
         $application->loadMissing([
