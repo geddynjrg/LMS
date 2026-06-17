@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\LoanApplicationController;
+use App\Http\Controllers\Api\LoanHistoryController;
 use App\Http\Controllers\Api\LocationController;
 
 /*
@@ -18,6 +19,11 @@ use App\Http\Controllers\Api\LocationController;
 
 Route::prefix('/v1')->middleware('api.key', 'secure.api')->group(function () {
     Route::get('/locations/wards', [LocationController::class, 'wards']);
+    Route::get('/loans/member/{nationalId}', [LoanHistoryController::class, 'checkMember']);
+    Route::get('/loans/group/{registrationNumber}', [LoanHistoryController::class, 'checkGroup']);
+    Route::get('/loans/group-loan/{groupLoanId}', [LoanHistoryController::class, 'showGroupLoan']);
+    Route::post('/loans/debt-reminder-sms', [LoanHistoryController::class, 'sendDebtReminderSms']);
+    Route::post('/loans/repayments', [LoanHistoryController::class, 'recordRepayment']);
     Route::post('/application', [LoanApplicationController::class, 'store']);
     Route::get('/application/{id}', [LoanApplicationController::class, 'show']);
     // Route::put('/application/{id}', [LoanApplicationController::class, 'update']);
