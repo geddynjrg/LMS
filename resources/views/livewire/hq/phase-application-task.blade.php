@@ -468,6 +468,28 @@
                         </div>
                     </div>
 
+                    @if($this->canReturnToConstituency())
+                        <div class="card shadow-sm mb-4 border-0 border-top border-warning animate__animated animate__fadeIn">
+                            <div class="card-body">
+                                <h6 class="text-sm font-weight-bold text-navy mb-1">Return for Amendment</h6>
+                                <p class="text-xs text-gray-500 mb-3">Send this batch back to the constituency dashboard so the constituency officer can make corrections and resubmit.</p>
+                                <div class="d-flex justify-content-center">
+                                    <button wire:click="returnPhaseToConstituency"
+                                            wire:loading.attr="disabled"
+                                            wire:target="returnPhaseToConstituency"
+                                            class="btn btn-outline-warning btn-sm shadow-sm">
+                                        <span wire:loading.remove wire:target="returnPhaseToConstituency">
+                                            <i class="fas fa-undo mr-2"></i> Return to Constituency
+                                        </span>
+                                        <span wire:loading wire:target="returnPhaseToConstituency">
+                                            <i class="fas fa-spinner fa-spin mr-2"></i> Opening...
+                                        </span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+
                     @if($this->canApproveApplication())
                         @if(!$this->detailedPhase->has_approved_code_list)
                             <div class="card shadow-sm mb-4 border-0 animate__animated animate__fadeIn">
@@ -820,6 +842,55 @@
                     icon="fas fa-send"
                     size="sm"
                     class="btn-refresh-premium shadow-sm mx-1"
+                />
+            </div>
+        </x-slot>
+    </x-action-modal>
+
+    <x-action-modal
+            id="phase-return-modal"
+            title="Return Phase to Constituency"
+            type="warning"
+            icon="fas fa-undo"
+            size="modal-lg"
+            x-on:open-modal.window="if($event.detail.name === 'phase-return-modal') $($el).modal('show')"
+            x-on:close-modal.window="if($event.detail.name === 'phase-return-modal') $($el).modal('hide')"
+        >
+        <div class="alert alert-warning border-left-warning shadow-sm mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle fa-2x mr-3 text-warning"></i>
+                <div>
+                    <strong>Return for amendment:</strong><br>
+                    <span>This will unlock the phase on the constituency dashboard. The constituency officer will be notified by email and SMS.</span>
+                </div>
+            </div>
+        </div>
+
+        <p class="mb-2 text-muted">Phase: <strong>{{ $this->phase->phase }}</strong></p>
+
+        <div class="form-group">
+            <label class="text-xs font-weight-bold text-uppercase">Reason for Return <span class="text-danger">*</span></label>
+            <textarea class="form-control" wire:model.live="returnRemarks" rows="4" placeholder="Explain what must be amended before resubmission..."></textarea>
+            @error('returnRemarks') <small class="text-danger d-block mt-1 font-weight-bold">{{ $message }}</small> @enderror
+        </div>
+
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button
+                    label="Cancel"
+                    variant="outline"
+                    color="secondary"
+                    data-dismiss="modal"
+                    size="sm"
+                    class="mx-1"
+                />
+                <x-pill-button
+                    label="Confirm Return"
+                    target="executeReturnToConstituency"
+                    color="warning"
+                    icon="fas fa-undo"
+                    size="sm"
+                    class="shadow-sm mx-1"
                 />
             </div>
         </x-slot>

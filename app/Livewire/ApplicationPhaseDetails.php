@@ -79,6 +79,7 @@ class ApplicationPhaseDetails extends Component
 
     public $extraUploads = [];
     public $minutesFile;
+    public $bankReconciliationFile;
     public $selectedAppId;
     public $selectedGroupId;
     public $selectedRejectionKey;
@@ -301,6 +302,45 @@ class ApplicationPhaseDetails extends Component
 
     }
 
+    public function uploadBankReconciliation()
+    {
+        $this->validate([
+            'bankReconciliationFile' => 'required|file|mimes:pdf,jpg,jpeg,png,gif,webp|max:5120',
+        ], [
+            'bankReconciliationFile.max' => 'The document is too heavy. Please keep it under 5MB.',
+            'bankReconciliationFile.mimes' => 'Only PDF and image files (JPG, PNG, GIF, WEBP) are accepted.',
+            'bankReconciliationFile.required' => 'Please attach the bank reconciliation document before proceeding.',
+        ]);
+
+        try {
+            $filePayload = [
+                'fileName' => 'bank-reconciliation-',
+                'modal' => 'bankReconciliationFile',
+                'documentType' => 'bank_reconciliation',
+                'title' => 'Bank Reconciliation',
+            ];
+            $this->phaseService->uploadPhaseTypedDocument($this->phase, $this->bankReconciliationFile, $filePayload);
+
+            $this->reset('bankReconciliationFile');
+            $this->refreshData();
+
+            $this->dispatch('swal:toast',
+                title: 'Bank Reconciliation Upload',
+                message: 'Bank reconciliation uploaded successfully!',
+                type: 'success'
+            );
+        } catch (ValidationException $ve) {
+            $this->addError('bankReconciliationFile', $ve->errors()['bankReconciliationFile'][0] ?? $ve->getMessage());
+        } catch (\Exception $e) {
+            logger()->error('Bank reconciliation upload error: ' . $e->getMessage());
+            $this->dispatch('swal:toast',
+                title: 'Upload failed',
+                message: 'Failed to upload your document. Please try again later.',
+                type: 'error'
+            );
+        }
+    }
+
     public function deleteDocument($docId)
     {
         $document = \App\Models\PhaseApplicationDocument::findOrFail($docId);
@@ -338,11 +378,22 @@ class ApplicationPhaseDetails extends Component
 
     public function submitToHq()
     {
-        if ( !($this->phase->has_minutes && $this->detailedPhase->pending_count == 0))
+        if (!($this->phase->has_minutes && $this->phase->has_bank_reconciliation && $this->detailedPhase->pending_count == 0))
         {
+            $missing = [];
+            if (!$this->phase->has_minutes) {
+                $missing[] = 'signed committee minutes';
+            }
+            if (!$this->phase->has_bank_reconciliation) {
+                $missing[] = 'bank reconciliation document';
+            }
+            if ($this->detailedPhase->pending_count > 0) {
+                $missing[] = 'completion of all application reviews';
+            }
+
             $this->dispatch('swal:toast',
-                title: 'Submitting to HQ 😕',
-                message: 'Failed to submit phase. Please complete pending actions and try again later',
+                title: 'Submitting to HQ',
+                message: 'Cannot submit yet. Required: ' . implode(', ', $missing) . '.',
                 type: 'error'
             );
 

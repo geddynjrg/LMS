@@ -237,6 +237,17 @@ class LoanPhase extends Model
             ->exists();
     }
 
+    public function getHasBankReconciliationAttribute(): bool
+    {
+        if (array_key_exists('has_bank_reconciliation', $this->attributes)) {
+            return (bool) $this->attributes['has_bank_reconciliation'];
+        }
+
+        return $this->phaseApplicationDocuments()
+            ->where('document_type', 'bank_reconciliation')
+            ->exists();
+    }
+
     public function getHasAttendanceListAttribute(): bool
     {
         if (array_key_exists('has_attendance_list', $this->attributes)) {
@@ -303,7 +314,8 @@ class LoanPhase extends Model
     public function canSubmitToHq(): bool
     {
         return $this->status === 'draft'
-            && $this->getMinutesAttribute()->isNotEmpty();
+            && $this->has_minutes
+            && $this->has_bank_reconciliation;
     }
 
 }

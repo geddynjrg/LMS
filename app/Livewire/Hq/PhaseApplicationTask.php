@@ -66,6 +66,7 @@ class PhaseApplicationTask extends Component
 
     public $codeListFile = null;
     public $extraUploads = [];
+    public $returnRemarks = '';
 
     public $approvedStatuses = ['pending_submission_to_hq', 'pending_hq_approval', 'in_training', 'approved'];
 
@@ -474,6 +475,94 @@ class PhaseApplicationTask extends Component
                 break;
         }
 
+    }
+
+    public function canReturnToConstituency(): bool
+    {
+        return $this->canApproveApplication()
+            && $this->phase->status === 'submitted_to_hq'
+            && ($this->detailedPhase->pending_hq_approval_count ?? 0) > 0;
+    }
+
+    public function returnPhaseToConstituency(): void
+    {
+        if (!$this->canReturnToConstituency()) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied',
+                message: 'You cannot return this phase to the constituency.',
+                type: 'error'
+            );
+            return;
+        }
+
+        $this->resetErrorBag(['returnRemarks']);
+        $this->dispatch('open-modal', name: 'phase-return-modal');
+    }
+
+    public function executeReturnToConstituency(): void
+    {
+        if (!$this->canReturnToConstituency()) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied',
+                message: 'You cannot return this phase to the constituency.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'phase-return-modal');
+            return;
+        }
+
+        $this->validate([
+            'returnRemarks' => 'required|string|min:20|max:1000',
+        ], [
+            'returnRemarks.required' => 'Please explain why this phase is being returned for amendment.',
+            'returnRemarks.min' => 'The return reason must be at least 20 characters.',
+        ]);
+
+        $idempotencyKey = "phase_return_to_constituency_{$this->phase->id}";
+
+        if (!$this->idempotencyService->acquire($idempotencyKey, [
+            'phase_id' => $this->phase->id,
+            'remarks' => $this->returnRemarks,
+        ])) {
+            $this->dispatch('swal:toast',
+                title: 'Action in progress',
+                message: 'This phase is already being processed.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'phase-return-modal');
+            return;
+        }
+
+        try {
+            $this->phaseService->returnPhaseToConstituency(
+                $this->detailedPhase,
+                $this->returnRemarks,
+                $idempotencyKey,
+            );
+
+            $this->refreshData();
+            $this->reset('returnRemarks');
+            $this->dispatch('close-modal', name: 'phase-return-modal');
+            $this->dispatch('swal:toast',
+                title: 'Phase returned',
+                message: 'The phase has been sent back to the constituency dashboard for amendment.',
+                type: 'success'
+            );
+        } catch (ValidationException $e) {
+            $this->dispatch('swal:toast',
+                title: 'Validation error',
+                message: collect($e->errors())->flatten()->first() ?? $e->getMessage(),
+                type: 'error'
+            );
+            $this->idempotencyService->release($idempotencyKey);
+        } catch (\Exception $e) {
+            $this->dispatch('swal:toast',
+                title: 'System error',
+                message: 'Could not return the phase. Please try again or contact support.',
+                type: 'error'
+            );
+            $this->idempotencyService->release($idempotencyKey);
+        }
     }
 
     public function approvePhase()

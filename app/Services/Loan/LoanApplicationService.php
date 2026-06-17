@@ -15,6 +15,7 @@ use App\Models\County;
 use App\Models\Constituency;
 use App\Models\Wards as Ward;
 use App\Jobs\SyncApplicationStatusToDrupal;
+use App\Services\WorkflowNotificationService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -55,6 +56,11 @@ class LoanApplicationService
                 ]);
 
                 SyncApplicationStatusToDrupal::dispatch($application->id);
+
+                DB::afterCommit(function () use ($application) {
+                    app(WorkflowNotificationService::class)
+                        ->notifyConstituencyOfficersNewApplication($application);
+                });
 
                 return $application;
             });

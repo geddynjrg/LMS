@@ -10,6 +10,7 @@ use App\Models\Group;
 use App\Models\GroupLoan;
 use App\Jobs\SyncApplicationStatusToDrupal;
 use App\Services\IdempotencyService;
+use App\Services\WorkflowNotificationService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -537,6 +538,7 @@ class LoanPhaseService
         ]);
 
         $phase->has_minutes = $phase->phaseApplicationDocuments->contains('document_type', 'minutes');
+        $phase->has_bank_reconciliation = $phase->phaseApplicationDocuments->contains('document_type', 'bank_reconciliation');
         $phase->has_approved_code_list = $phase->phaseApplicationDocuments->contains('document_type', 'approved_code_list');
 
         $applicationsQuery = $phase->phaseApplications()
@@ -912,11 +914,20 @@ class LoanPhaseService
             ->withExists(['phaseApplicationDocuments as has_minutes' => function ($query) {
                 $query->where('document_type', 'minutes');
             }])
+            ->withExists(['phaseApplicationDocuments as has_bank_reconciliation' => function ($query) {
+                $query->where('document_type', 'bank_reconciliation');
+            }])
             ->findOrFail($id);
     }
 
     public function submitToHq($phase, $remarks, $idempotencyKey)
     {
+        if (!$phase->has_minutes || !$phase->has_bank_reconciliation) {
+            throw ValidationException::withMessages([
+                'phase' => 'Signed committee minutes and bank reconciliation document are required before submitting to HQ.',
+            ]);
+        }
+
         $pendingApplications = $phase->phaseApplications()
             ->where('status', 'pending_submission_to_hq')
             ->with(['tempApplication' => function($query) {
@@ -1011,6 +1022,88 @@ class LoanPhaseService
                 ])
                 ->log("Phase finalized and submitted to HQ with Ref: {$ref}");
 
+            $this->idempotencyService->release($idempotencyKey);
+        });
+    }
+
+    public function returnPhaseToConstituency(LoanPhase $phase, string $remarks, string $idempotencyKey): void
+    {
+        if ($phase->status !== 'submitted_to_hq') {
+            throw ValidationException::withMessages([
+                'phase' => 'Only phases currently at HQ can be returned to the constituency for amendment.',
+            ]);
+        }
+
+        if (trim($remarks) === '') {
+            throw ValidationException::withMessages([
+                'returnRemarks' => 'Please provide a reason for returning this phase to the constituency.',
+            ]);
+        }
+
+        DB::transaction(function () use ($phase, $remarks, $idempotencyKey) {
+            $pendingApplications = $phase->phaseApplications()
+                ->where('status', 'pending_hq_approval')
+                ->get();
+
+            if ($pendingApplications->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'phase' => 'No applications are pending HQ review in this phase.',
+                ]);
+            }
+
+            $tempAppIds = $pendingApplications->pluck('temp_application_id')->all();
+
+            TempApplication::whereIn('id', $tempAppIds)->update([
+                'status' => 'under_constituency_review',
+                'lms_to_loan_app_sync_status' => 'pending',
+                'updated_at' => now(),
+            ]);
+
+            $phase->phaseApplications()
+                ->where('status', 'pending_hq_approval')
+                ->update([
+                    'status' => 'pending_submission_to_hq',
+                    'level' => 'constituency',
+                    'action' => 'returned_from_hq',
+                    'updated_at' => now(),
+                ]);
+
+            $phase->update([
+                'status' => 'draft',
+                'submitted_to_hq_at' => null,
+                'hq_remarks' => $remarks,
+            ]);
+
+            foreach ($pendingApplications as $app) {
+                activity()
+                    ->performedOn($app)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'previous_status' => 'pending_hq_approval',
+                        'new_status' => 'pending_submission_to_hq',
+                        'return_reason' => $remarks,
+                        'constituency_code' => $phase->constituency_code,
+                    ])
+                    ->log('Application returned to constituency for amendment by HQ.');
+
+                SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
+            }
+
+            activity()
+                ->performedOn($phase)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'phase' => $phase->phase,
+                    'return_reason' => $remarks,
+                    'batch_count' => $pendingApplications->count(),
+                    'status' => 'draft',
+                ])
+                ->log("Phase returned to constituency for amendment by HQ.");
+
+            app(WorkflowNotificationService::class)
+                ->notifyConstituencyOfficersPhaseReturned($phase->fresh(), $remarks);
+
+            $this->invalidatePhaseCache($phase->id);
             $this->idempotencyService->release($idempotencyKey);
         });
     }
@@ -1220,7 +1313,13 @@ class LoanPhaseService
                 ])
                 ->log("HQ Approval Processed: {$phase->phase} approved with " . $capturedStats['batch_count'] . " applications.");
 
-                $this->idempotencyService->release($idempotencyKey);
+            app(WorkflowNotificationService::class)->notifyConstituencyOfficersHqApplicationAction(
+                $pendingApplications->first()->fresh(['tempApplication', 'loanPhase.constituency.county']),
+                'approved',
+                "{$capturedStats['batch_count']} application(s) in {$phase->phase} were approved by HQ.",
+            );
+
+            $this->idempotencyService->release($idempotencyKey);
         });
 
     }

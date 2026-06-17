@@ -18,6 +18,7 @@ use App\Models\TempApplication;
 use App\Models\PhaseApplication;
 use App\Exports\ApplicationInstitutionalDataExport;
 use App\Jobs\SyncApplicationStatusToDrupal;
+use App\Services\WorkflowNotificationService;
 
 class ApplicationView extends Component
 {
@@ -272,7 +273,9 @@ class ApplicationView extends Component
         ];
 
         try {
-            $result = DB::transaction(function () {
+            $phaseApplication = null;
+
+            $result = DB::transaction(function () use (&$phaseApplication) {
 
                 $phaseApplication = PhaseApplication::where('temp_application_id', $this->application->id)->first();
 
@@ -329,6 +332,14 @@ class ApplicationView extends Component
         }
 
         if ($result){
+            if ($phaseApplication) {
+                app(WorkflowNotificationService::class)->notifyConstituencyOfficersHqApplicationAction(
+                    $phaseApplication->fresh(['tempApplication', 'loanPhase.constituency.county']),
+                    'rejected',
+                    "Reason: {$reasonLabel}. {$this->rejectionComment}",
+                );
+            }
+
             $this->reset(['selectedRejectionKey', 'rejectionComment']);
 
             $this->resetErrorBag();
