@@ -12,6 +12,11 @@
         <a href="{{ route('secretariat.phases.code-list', $phase) }}" class="btn btn-outline-primary">
             <i class="fas fa-file-excel mr-1"></i> Download code list
         </a>
+        @if($this->canReturnToHq())
+            <button type="button" wire:click="returnToHq" class="btn btn-outline-warning">
+                <i class="fas fa-undo mr-1"></i> Return to HQ
+            </button>
+        @endif
     </div>
 
     <div class="row">
@@ -139,4 +144,53 @@
             @endif
         </div>
     </div>
+
+    <x-action-modal
+        id="secretariat-return-hq-modal"
+        title="Return Phase to HQ"
+        type="warning"
+        icon="fas fa-undo"
+        size="modal-lg"
+        x-on:open-modal.window="if($event.detail.name === 'secretariat-return-hq-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'secretariat-return-hq-modal') $($el).modal('hide')"
+    >
+        <div class="alert alert-warning border-left-warning shadow-sm mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-exclamation-triangle fa-2x mr-3 text-warning"></i>
+                <div>
+                    <strong>Return for HQ review:</strong><br>
+                    <span>The assigned HQ officer will be notified by email and SMS to review this batch again.</span>
+                </div>
+            </div>
+        </div>
+
+        <p class="mb-2 text-muted">Phase: <strong>{{ $phase->phase }}</strong></p>
+
+        <div class="form-group">
+            <label class="text-xs font-weight-bold text-uppercase">Reason for return <span class="text-danger">*</span></label>
+            <textarea class="form-control" wire:model.blur="returnRemarks" rows="4" placeholder="Explain what HQ must review or correct..."></textarea>
+            @error('returnRemarks') <small class="text-danger d-block mt-1 font-weight-bold">{{ $message }}</small> @enderror
+        </div>
+
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button
+                    label="Cancel"
+                    variant="outline"
+                    color="secondary"
+                    data-dismiss="modal"
+                    size="sm"
+                    class="mx-1"
+                />
+                <x-pill-button
+                    label="Confirm Return to HQ"
+                    target="executeReturnToHq"
+                    color="warning"
+                    icon="fas fa-undo"
+                    size="sm"
+                    class="shadow-sm mx-1"
+                />
+            </div>
+        </x-slot>
+    </x-action-modal>
 </div>

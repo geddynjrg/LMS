@@ -6,10 +6,13 @@ use App\Models\LoanPhase;
 use App\Models\PhaseApplication;
 use App\Models\SecretariatApproval;
 use App\Models\User;
+use App\Models\GroupLoan;
 use App\Jobs\SyncApplicationStatusToDrupal;
 use App\Jobs\SendWorkflowNotification;
+use App\Services\WorkflowNotificationService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
@@ -314,6 +317,100 @@ class SecretariatApprovalService
 
             return $approval;
         });
+    }
+
+    public function canReturnPhaseToHq(LoanPhase $phase): bool
+    {
+        return $phase->status === 'approved'
+            && !$this->hasApproval($phase, SecretariatApproval::TYPE_TRAINING_AUTHORIZATION);
+    }
+
+    public function returnPhaseToHq(LoanPhase $phase, string $reason): void
+    {
+        if (!$this->canReturnPhaseToHq($phase)) {
+            throw ValidationException::withMessages([
+                'returnRemarks' => 'This phase cannot be returned to HQ. Training may already be authorized.',
+            ]);
+        }
+
+        if (trim($reason) === '') {
+            throw ValidationException::withMessages([
+                'returnRemarks' => 'Please provide a reason for returning this phase to HQ.',
+            ]);
+        }
+
+        DB::transaction(function () use ($phase, $reason) {
+            $phase->loadMissing('secretariatApprovals');
+
+            foreach ($phase->secretariatApprovals as $approval) {
+                if ($approval->signature_path && Storage::disk('local')->exists($approval->signature_path)) {
+                    Storage::disk('local')->delete($approval->signature_path);
+                }
+            }
+
+            SecretariatApproval::where('loan_phase_id', $phase->id)->delete();
+
+            $phaseApplications = PhaseApplication::query()
+                ->where('loan_phase_id', $phase->id)
+                ->where('status', 'approved')
+                ->with('tempApplication:id')
+                ->get();
+
+            if ($phaseApplications->isEmpty()) {
+                throw ValidationException::withMessages([
+                    'phase' => 'No approved applications found to return to HQ.',
+                ]);
+            }
+
+            foreach ($phaseApplications as $app) {
+                if ($app->group_loan_id) {
+                    DB::table('group_members')->where('group_loans_id', $app->group_loan_id)->delete();
+                    GroupLoan::where('id', $app->group_loan_id)->delete();
+                }
+
+                $app->update([
+                    'status' => 'pending_hq_approval',
+                    'level' => 'hq',
+                    'action' => 'returned_from_secretariat',
+                    'group_loan_id' => null,
+                ]);
+
+                if ($app->tempApplication) {
+                    $app->tempApplication->update([
+                        'status' => 'under_hq_review',
+                        'lms_to_loan_app_sync_status' => 'pending',
+                    ]);
+
+                    SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
+                }
+            }
+
+            $phase->update([
+                'status' => 'submitted_to_hq',
+                'hq_approved_at' => null,
+                'hq_remarks' => $reason,
+            ]);
+
+            activity()
+                ->performedOn($phase)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'phase' => $phase->phase,
+                    'return_reason' => $reason,
+                    'status' => 'submitted_to_hq',
+                ])
+                ->log('Phase returned to HQ by Head of Secretariat for review.');
+        });
+
+        try {
+            app(WorkflowNotificationService::class)
+                ->notifyHqOfficerPhaseReturnedFromSecretariat($phase->fresh(), $reason);
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify HQ officer of secretariat return', [
+                'phase_id' => $phase->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     protected function syncApplicationsAfterApproval(LoanPhase $phase, string $type): void

@@ -16,6 +16,7 @@ class PhaseReview extends Component
     public LoanPhase $phase;
     public string $approvalType = SecretariatApproval::TYPE_POST_HQ_REVIEW;
     public string $notes = '';
+    public string $returnRemarks = '';
     public $signatureFile;
 
     protected SecretariatApprovalService $secretariatService;
@@ -112,6 +113,55 @@ class PhaseReview extends Component
                 message: 'Could not save approval: ' . $e->getMessage(),
                 type: 'error'
             );
+        }
+    }
+
+    public function canReturnToHq(): bool
+    {
+        return $this->secretariatService->canReturnPhaseToHq($this->phase);
+    }
+
+    public function returnToHq(): void
+    {
+        if (!$this->canReturnToHq()) {
+            $this->dispatch('swal:toast', title: 'Not allowed', message: 'This phase cannot be returned to HQ.', type: 'error');
+            return;
+        }
+
+        $this->resetErrorBag(['returnRemarks']);
+        $this->dispatch('open-modal', name: 'secretariat-return-hq-modal');
+    }
+
+    public function executeReturnToHq(): void
+    {
+        if (!$this->canReturnToHq()) {
+            $this->dispatch('swal:toast', title: 'Not allowed', message: 'This phase cannot be returned to HQ.', type: 'error');
+            $this->dispatch('close-modal', name: 'secretariat-return-hq-modal');
+            return;
+        }
+
+        $this->validate([
+            'returnRemarks' => 'required|string|min:20|max:1000',
+        ], [
+            'returnRemarks.required' => 'Please explain why this phase is being returned to HQ.',
+            'returnRemarks.min' => 'The return reason must be at least 20 characters.',
+        ]);
+
+        try {
+            $this->secretariatService->returnPhaseToHq($this->phase, $this->returnRemarks);
+
+            session()->flash('secretariat_returned', [
+                'phase_label' => $this->phase->phase,
+                'constituency' => $this->phase->constituency?->constituency_name ?? $this->phase->constituency_code,
+            ]);
+
+            $this->redirect(route('secretariat.phases.index', ['filter' => 'pending']), navigate: false);
+        } catch (ValidationException $e) {
+            $message = collect($e->errors())->flatten()->first() ?? $e->getMessage();
+            $this->dispatch('swal:toast', title: 'Cannot return', message: $message, type: 'error');
+        } catch (\Throwable $e) {
+            logger()->error('Secretariat return to HQ failed: ' . $e->getMessage());
+            $this->dispatch('swal:toast', title: 'Error', message: 'Could not return phase to HQ. Please try again.', type: 'error');
         }
     }
 

@@ -1,4 +1,15 @@
 <div>
+    @if(session('secretariat_returned'))
+        @php $returned = session('secretariat_returned'); @endphp
+        <div class="alert alert-warning alert-dismissible shadow-sm">
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+            <strong>Phase returned to HQ.</strong>
+            {{ $returned['phase_label'] ?? 'Phase' }} ({{ $returned['constituency'] ?? '' }}) has been sent back to the HQ officer for review.
+        </div>
+    @endif
+
     @if(session('secretariat_completed'))
         @php $completed = session('secretariat_completed'); @endphp
         <div class="alert alert-success alert-dismissible shadow-sm">

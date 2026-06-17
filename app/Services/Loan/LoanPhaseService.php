@@ -1324,6 +1324,8 @@ class LoanPhaseService
         });
 
         try {
+            app(WorkflowNotificationService::class)->notifyHeadOfSecretariatPhaseReady($phase->fresh());
+
             app(WorkflowNotificationService::class)->notifyConstituencyOfficersHqApplicationAction(
                 $pendingApplications->first()->fresh(['tempApplication', 'loanPhase.constituency.county']),
                 'approved',

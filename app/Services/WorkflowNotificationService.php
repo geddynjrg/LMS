@@ -3,9 +3,6 @@
 namespace App\Services;
 
 use App\Mail\ConstituencyOfficerNotificationMail;
-use App\Mail\SecretariatReviewRequiredMail;
-use App\Mail\TrainingCompletedSecretariatMail;
-use App\Mail\TrainingScheduleRequiredMail;
 use App\Models\LoanPhase;
 use App\Models\PhaseApplication;
 use App\Models\TempApplication;
@@ -201,6 +198,41 @@ class WorkflowNotificationService
         return route('const.app.app_phase_details', [$countySlug, $constituencySlug, $phase->slug]);
     }
 
+    public function notifyHqOfficerPhaseReturnedFromSecretariat(LoanPhase $phase, string $reason, bool $queue = true): void
+    {
+        $phase->loadMissing(['constituency.county', 'assignedHqOfficer', 'hqOfficer']);
+
+        $officer = $phase->assignedHqOfficer ?? $phase->hqOfficer;
+        if (!$officer || !$officer->isActive()) {
+            Log::warning('No active HQ officer to notify for secretariat return', ['phase_id' => $phase->id]);
+
+            return;
+        }
+
+        $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
+        $reviewUrl = route('hq.submissions.phase.review', $phase->slug);
+
+        if ($officer->email) {
+            $mail = new ConstituencyOfficerNotificationMail(
+                "{$phase->phase} returned for HQ review",
+                [
+                    "Head of Secretariat has returned {$phase->phase} in {$constituencyName} for your review.",
+                    'Reason: ' . $reason,
+                ],
+                $reviewUrl,
+                'Review phase',
+            );
+            $queue ? Mail::to($officer->email)->queue($mail) : Mail::to($officer->email)->send($mail);
+        }
+
+        if ($officer->phone_number) {
+            $this->smsService->send(
+                $officer->phone_number,
+                "Uwezo Fund: {$phase->phase} ({$constituencyName}) was returned by Secretariat for HQ review. Reason: {$reason}"
+            );
+        }
+    }
+
     public function notifyHeadOfSecretariatPhaseReady(LoanPhase $phase, bool $queue = true): void
     {
         $phase->loadMissing(['constituency']);
@@ -216,7 +248,15 @@ class WorkflowNotificationService
         $reviewUrl = route('secretariat.phases.review', $phase);
 
         if ($head->email) {
-            $mail = new SecretariatReviewRequiredMail($phase, $reviewUrl);
+            $mail = new ConstituencyOfficerNotificationMail(
+                "{$phase->phase} ready for secretariat review",
+                [
+                    "HQ has approved {$phase->phase} in {$constituencyName}.",
+                    'Please review the batch and authorize training when ready.',
+                ],
+                $reviewUrl,
+                'Review phase',
+            );
             $queue ? Mail::to($head->email)->queue($mail) : Mail::to($head->email)->send($mail);
         }
 
@@ -256,7 +296,15 @@ class WorkflowNotificationService
 
         foreach ($officers as $officer) {
             if ($officer->email) {
-                $mail = new TrainingScheduleRequiredMail($phase, $phaseUrl);
+                $mail = new ConstituencyOfficerNotificationMail(
+                    'Training authorized — schedule dates',
+                    [
+                        "Secretariat has authorized training for {$phase->phase} in {$constituencyName}.",
+                        'Please schedule mandatory training for the approved groups in LMS.',
+                    ],
+                    $phaseUrl,
+                    'Open phase',
+                );
                 $queue ? Mail::to($officer->email)->queue($mail) : Mail::to($officer->email)->send($mail);
             }
 
@@ -289,7 +337,17 @@ class WorkflowNotificationService
         $reviewUrl = route('secretariat.phases.index');
 
         if ($head->email) {
-            $mail = new TrainingCompletedSecretariatMail($application, $reviewUrl);
+            $appId = $application->tempApplication?->application_id ?? $application->id;
+            $groupName = $application->tempApplication?->group_name ?? 'Group';
+            $mail = new ConstituencyOfficerNotificationMail(
+                "Training completed: {$appId}",
+                [
+                    "Group {$groupName} (Application {$appId}) in {$phase?->phase} ({$constituencyName}) has completed training.",
+                    "Marked complete on {$markedAt} at {$venue}.",
+                ],
+                $reviewUrl,
+                'View secretariat dashboard',
+            );
             $queue ? Mail::to($head->email)->queue($mail) : Mail::to($head->email)->send($mail);
         }
 
