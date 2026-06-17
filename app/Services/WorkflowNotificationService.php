@@ -166,7 +166,10 @@ class WorkflowNotificationService
     {
         return User::role('constituency_officer')
             ->active()
-            ->whereHas('constituencies', fn ($q) => $q->where('constituency_code', $constituencyCode))
+            ->whereHas(
+                'constituencies',
+                fn ($q) => $q->where('constituencies.constituency_code', $constituencyCode)
+            )
             ->get();
     }
 
@@ -231,7 +234,10 @@ class WorkflowNotificationService
 
         $officers = User::role('constituency_officer')
             ->active()
-            ->whereHas('constituencies', fn ($q) => $q->where('constituency_code', $phase->constituency_code))
+            ->whereHas(
+                'constituencies',
+                fn ($q) => $q->where('constituencies.constituency_code', $phase->constituency_code)
+            )
             ->get();
 
         if ($officers->isEmpty()) {

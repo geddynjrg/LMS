@@ -870,7 +870,7 @@
 
         <div class="form-group">
             <label class="text-xs font-weight-bold text-uppercase">Reason for Return <span class="text-danger">*</span></label>
-            <textarea class="form-control" wire:model.live="returnRemarks" rows="4" placeholder="Explain what must be amended before resubmission..."></textarea>
+            <textarea class="form-control" wire:model.blur="returnRemarks" rows="4" placeholder="Explain what must be amended before resubmission..."></textarea>
             @error('returnRemarks') <small class="text-danger d-block mt-1 font-weight-bold">{{ $message }}</small> @enderror
         </div>
 

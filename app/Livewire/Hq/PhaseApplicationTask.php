@@ -121,6 +121,10 @@ class PhaseApplicationTask extends Component
 
     public function updated($propertyName)
     {
+        if ($propertyName === 'returnRemarks') {
+            return;
+        }
+
         $this->resetValidation($propertyName);
     }
 
@@ -479,8 +483,10 @@ class PhaseApplicationTask extends Component
 
     public function canReturnToConstituency(): bool
     {
+        $status = $this->detailedPhase->status ?? $this->phase->status;
+
         return $this->canApproveApplication()
-            && $this->phase->status === 'submitted_to_hq'
+            && $status === 'submitted_to_hq'
             && ($this->detailedPhase->pending_hq_approval_count ?? 0) > 0;
     }
 

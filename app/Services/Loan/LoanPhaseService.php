@@ -1100,12 +1100,19 @@ class LoanPhaseService
                 ])
                 ->log("Phase returned to constituency for amendment by HQ.");
 
-            app(WorkflowNotificationService::class)
-                ->notifyConstituencyOfficersPhaseReturned($phase->fresh(), $remarks);
-
             $this->invalidatePhaseCache($phase->id);
             $this->idempotencyService->release($idempotencyKey);
         });
+
+        try {
+            app(WorkflowNotificationService::class)
+                ->notifyConstituencyOfficersPhaseReturned($phase->fresh(), $remarks);
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify constituency officers of phase return', [
+                'phase_id' => $phase->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function approvePhaseApplications($phase, $remarks, $idempotencyKey)
@@ -1313,15 +1320,21 @@ class LoanPhaseService
                 ])
                 ->log("HQ Approval Processed: {$phase->phase} approved with " . $capturedStats['batch_count'] . " applications.");
 
+            $this->idempotencyService->release($idempotencyKey);
+        });
+
+        try {
             app(WorkflowNotificationService::class)->notifyConstituencyOfficersHqApplicationAction(
                 $pendingApplications->first()->fresh(['tempApplication', 'loanPhase.constituency.county']),
                 'approved',
                 "{$capturedStats['batch_count']} application(s) in {$phase->phase} were approved by HQ.",
             );
-
-            $this->idempotencyService->release($idempotencyKey);
-        });
-
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify constituency officers of HQ approval', [
+                'phase_id' => $phase->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function saveTrainingSchedule($phase, $idempotencyKey, array $payload)
