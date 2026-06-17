@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\ApplicationTrainingCertificateController;
 use App\Http\Controllers\Api\LoanApplicationController;
 use App\Http\Controllers\Api\LoanHistoryController;
 use App\Http\Controllers\Api\LocationController;
@@ -26,6 +27,8 @@ Route::prefix('/v1')->middleware('api.key', 'secure.api')->group(function () {
     Route::post('/loans/repayments', [LoanHistoryController::class, 'recordRepayment']);
     Route::post('/application', [LoanApplicationController::class, 'store']);
     Route::get('/application/{id}', [LoanApplicationController::class, 'show']);
+    Route::get('/application/{applicationId}/training-certificate/status', [ApplicationTrainingCertificateController::class, 'status']);
+    Route::get('/application/{applicationId}/training-certificate', [ApplicationTrainingCertificateController::class, 'download']);
     // Route::put('/application/{id}', [LoanApplicationController::class, 'update']);
     // Route::post('/applications/{applicationId}/upload-file', [LoanApplicationController::class, 'uploadFile']);
     // Route::get('/applications/{applicationId}/files', [LoanApplicationController::class, 'getApplicationFiles']);
