@@ -208,9 +208,9 @@ return [
             'maxProcesses' => 1,
             'maxTime' => 0,
             'maxJobs' => 0,
-            'memory' => 128,
-            'tries' => 1,
-            'timeout' => 60,
+            'memory' => 1024,
+            'tries' => 5,
+            'timeout' => 600,
             'nice' => 0,
         ],
         'supervisor-financial' => [ // supervisor for financial updates
@@ -239,8 +239,8 @@ return [
                 'maxProcesses' => 10,
                 'processes' => 10,
                 'tries' => 5,
-                'timeout' => 120,
-                'memory' => 128,
+                'timeout' => 600,
+                'memory' => 1024,
             ],
 
             'supervisor-financial' => [
@@ -264,9 +264,9 @@ return [
                 'minProcesses' => 1,
                 'maxProcesses' => 5,
                 'processes' => 5,      // Adjust as needed (3-10 is fine for staging)
-                'tries' => 3,
-                'timeout' => 120,
-                'memory' => 128,
+                'tries' => 5,
+                'timeout' => 600,
+                'memory' => 1024,
             ],
             'supervisor-financial' => [
                 'connection' => 'redis',
@@ -287,9 +287,9 @@ return [
                 'queue' => ['default', 'loan-applications'],
                 'balance' => 'simple',
                 'processes' => 3,
-                'tries' => 3,
-                'timeout' => 60,
-                'memory' => 128,
+                'tries' => 5,
+                'timeout' => 600,
+                'memory' => 1024,
             ],
             'supervisor-financial' => [
                 'connection' => 'redis',

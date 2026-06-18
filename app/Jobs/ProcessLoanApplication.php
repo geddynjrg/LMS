@@ -2,17 +2,16 @@
 
 namespace App\Jobs;
 
+use App\Models\TempApplication;
+use App\Services\Loan\IncomingLoanApplicationStore;
+use App\Services\Loan\LoanApplicationService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
-use App\Models\TempApplication;
-use App\Services\Loan\LoanApplicationService;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ProcessLoanApplication implements ShouldQueue
@@ -20,83 +19,107 @@ class ProcessLoanApplication implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 5;
+
     public $backoff = [15, 30, 60, 120, 300];
-    public $timeout = 600; // 10 minutes max
+
+    public $timeout = 600;
+
     public $maxExceptions = 3;
 
-    protected $payload;
-    protected $applicationId;
-
-    /**
-     * Create a new job instance.
-     */
-    public function __construct(array $payload)
+    public function __construct(public string $applicationId)
     {
-        $this->payload = $payload;
-        $this->applicationId = $payload['application_id'] ?? 'unknown';
-        $this->onQueue('loan-applications'); // dedicated queue
+        $this->onQueue('loan-applications');
     }
 
-    /**
-     * Execute the job.
-     */
-    public function handle(LoanApplicationService $service): void
-    {
+    public function handle(
+        LoanApplicationService $service,
+        IncomingLoanApplicationStore $store,
+    ): void {
         $lockKey = "loan_app_lock:{$this->applicationId}";
         $lock = Cache::lock($lockKey, 600);
 
         try {
             $lock->block(10);
 
-            Log::info("Lock acquired for application: {$this->applicationId}");
+            $payload = $store->get($this->applicationId);
+            if (!$payload) {
+                $existing = TempApplication::query()
+                    ->where('application_id', $this->applicationId)
+                    ->where('sync_status', 'completed')
+                    ->exists();
+
+                if ($existing) {
+                    Log::info('Loan application already imported; stored payload removed', [
+                        'application_id' => $this->applicationId,
+                    ]);
+
+                    return;
+                }
+
+                Log::error('No stored payload for loan application import', [
+                    'application_id' => $this->applicationId,
+                ]);
+
+                return;
+            }
 
             Log::info('Started processing loan application', [
                 'application_id' => $this->applicationId,
-                'attempt' => $this->attempts()
+                'attempt' => $this->attempts(),
             ]);
 
             $validator = \Illuminate\Support\Facades\Validator::make(
-                $this->payload,
-                $service->validationRules()
+                $payload,
+                $service->validationRules(),
             );
 
             if ($validator->fails()) {
-                $errors = $validator->errors()->toArray();
                 Log::warning('Validation failed in queue job', [
                     'application_id' => $this->applicationId,
-                    'errors' => $errors,
+                    'errors' => $validator->errors()->toArray(),
                 ]);
 
                 throw new \Illuminate\Validation\ValidationException($validator);
             }
 
             $service->process($validator->validated());
+            $store->delete($this->applicationId);
 
             Log::info('Successfully processed loan application', [
                 'application_id' => $this->applicationId,
-                'temp_application_id' => TempApplication::where('application_id', $this->applicationId)->value('id')
+                'temp_application_id' => TempApplication::where('application_id', $this->applicationId)->value('id'),
+            ]);
+        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
+            Log::warning('Could not acquire lock — releasing job for retry', [
+                'application_id' => $this->applicationId,
             ]);
 
-        } catch (\Illuminate\Contracts\Cache\LockTimeoutException $e) {
-            Log::warning('Could not acquire lock — already processing or stuck', [
-                'application_id' => $this->applicationId
-            ]);
-        } catch (\Throwable $e) {
+            throw $e;
+        } catch (Throwable $e) {
             Log::error('Failed to process loan application', [
                 'application_id' => $this->applicationId,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
+
             throw $e;
         } finally {
             optional($lock)->release();
         }
     }
 
-    public function failed(Throwable $exception)
+    public function failed(Throwable $exception): void
     {
         Log::critical('Loan application processing FAILED after all retries', [
             'application_id' => $this->applicationId,
             'error' => $exception->getMessage(),
         ]);
+
+        TempApplication::query()
+            ->where('application_id', $this->applicationId)
+            ->update([
+                'sync_status' => 'failed',
+                'sync_error' => substr($exception->getMessage(), 0, 1000),
+                'last_sync_at' => now(),
+            ]);
     }
 }

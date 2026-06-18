@@ -18,6 +18,7 @@ use App\Models\Wards as Ward;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use App\Jobs\ProcessLoanApplication;
+use App\Services\Loan\IncomingLoanApplicationStore;
 
 
 class LoanApplicationController extends Controller
@@ -178,16 +179,18 @@ class LoanApplicationController extends Controller
     //     }
     // }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, IncomingLoanApplicationStore $payloadStore): JsonResponse
     {
+        $applicationId = (string) $request->input('application_id');
+
         Log::info('API: Loan application received', [
-            'application_id' => $request->input('application_id'),
+            'application_id' => $applicationId,
             'ip' => $request->ip(),
             'payload_keys' => array_keys($request->all()),
             'payload_size_bytes' => strlen($request->getContent()),
         ]);
 
-        // Minimal validation — only what’s needed to accept
+        // Minimal validation — only what's needed to accept
         $validator = Validator::make($request->all(), [
             'application_id' => 'required|string|max:255',
             'status' => 'required|in:draft,submitted,under_review,approved,rejected,disbursed,closed',
@@ -202,24 +205,95 @@ class LoanApplicationController extends Controller
             ], 422);
         }
 
-        ProcessLoanApplication::dispatch($request->all());
+        $payloadStore->put($applicationId, $request->all());
+
+        ProcessLoanApplication::dispatch($applicationId);
 
         return response()->json([
             'success' => true,
             'message' => 'Application received successfully. Processing in background.',
-            'data' => [ // This key is required by your Zod schema
-                'application_id' => $request->input('application_id'),
+            'data' => [
+                'application_id' => $applicationId,
                 'status'         => 'queued',
-                'created'        => now()->toDateTimeString(), // Matches "created" in Zod
-            ]
+                'created'        => now()->toDateTimeString(),
+            ],
         ], 202);
+    }
+
+    public function importStatus(
+        string $applicationId,
+        IncomingLoanApplicationStore $payloadStore,
+    ): JsonResponse {
+        $application = TempApplication::query()
+            ->where('application_id', $applicationId)
+            ->first();
+
+        if ($application?->sync_status === 'completed') {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'status' => 'completed',
+                    'application_id' => $applicationId,
+                    'temp_application_id' => $application->id,
+                ],
+            ]);
+        }
+
+        if ($application?->sync_status === 'failed') {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'status' => 'failed',
+                    'application_id' => $applicationId,
+                    'error' => $application->sync_error,
+                ],
+            ]);
+        }
+
+        if ($application?->sync_status === 'processing') {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'status' => 'processing',
+                    'application_id' => $applicationId,
+                ],
+            ]);
+        }
+
+        if ($payloadStore->exists($applicationId)) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'status' => 'queued',
+                    'application_id' => $applicationId,
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'data' => [
+                'status' => 'not_found',
+                'application_id' => $applicationId,
+            ],
+        ], 404);
     }
 
     public function show($id): JsonResponse
     {
         try {
             $application = TempApplication::with(['user', 'groupMembers', 'expenses', 'files'])
-                ->findOrFail($id);
+                ->where('application_id', $id)
+                ->first();
+
+            if (!$application && is_numeric($id)) {
+                $application = TempApplication::with(['user', 'groupMembers', 'expenses', 'files'])
+                    ->find($id);
+            }
+
+            if (!$application) {
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException();
+            }
 
             return response()->json([
                 'success' => true,

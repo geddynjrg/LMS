@@ -267,7 +267,7 @@ class LoanApplicationService
             'sync_status'   => 'processing',
             'last_sync_at'  => now(),
             'sync_attempts' => DB::raw('sync_attempts + 1'),
-            'raw_data'      => $data,
+            'raw_data'      => $this->compactPayloadForRawDataStorage($data),
         ];
 
         return TempApplication::updateOrCreate(
@@ -687,5 +687,52 @@ class LoanApplicationService
         ]);
 
         return false;
+    }
+
+    /**
+     * Store a lightweight copy of the portal payload in raw_data (no base64 blobs).
+     */
+    private function compactPayloadForRawDataStorage(array $data): array
+    {
+        $compact = $data;
+
+        foreach ([
+            'group_registration_certificate',
+            'list_of_members_certificate',
+        ] as $fileKey) {
+            if (!empty($compact[$fileKey]) && is_array($compact[$fileKey])) {
+                $compact[$fileKey] = $this->compactFileReference($compact[$fileKey]);
+            }
+        }
+
+        foreach (['group_meeting_minutes', 'group_credit_history'] as $fileKey) {
+            if (!empty($compact[$fileKey]) && is_array($compact[$fileKey])) {
+                $compact[$fileKey] = array_map(
+                    fn ($file) => is_array($file) ? $this->compactFileReference($file) : $file,
+                    $compact[$fileKey],
+                );
+            }
+        }
+
+        if (!empty($compact['group_members']) && is_array($compact['group_members'])) {
+            $compact['group_members'] = array_map(function (array $member) {
+                foreach (['photo_member_id', 'certificate_of_disability', 'certificate_disability'] as $fileKey) {
+                    if (!empty($member[$fileKey]) && is_array($member[$fileKey])) {
+                        $member[$fileKey] = $this->compactFileReference($member[$fileKey]);
+                    }
+                }
+
+                return $member;
+            }, $compact['group_members']);
+        }
+
+        return $compact;
+    }
+
+    private function compactFileReference(array $file): array
+    {
+        unset($file['data']);
+
+        return $file;
     }
 }
