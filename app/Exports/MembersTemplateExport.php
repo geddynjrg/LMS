@@ -55,9 +55,10 @@ class MembersTemplateExport implements WithHeadings, WithEvents
                 $this->styleHeader($sheet);
 
                 $lookupLastRow = $this->createGroupsLookupSheet($sheet);
+                $phasesLastRow = $this->createPhasesLookupSheet($sheet);
 
-                if (!empty($this->phases)) {
-                    $this->addDropdown($sheet, 'B', $this->phases, $rowLimit);
+                if ($phasesLastRow >= 2) {
+                    $this->addSheetReferenceDropdown($sheet, 'B', 'PhasesLookup', 'A', 2, $phasesLastRow, $rowLimit);
                 }
 
                 $this->addDropdown($sheet, 'C', $this->loan_types, $rowLimit);
@@ -121,6 +122,32 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             $lookupSheet->setCellValue("D{$row}", $gfsCode);
             $lookupSheet->setCellValue("E{$row}", $lookupKey);
             $lookupSheet->setCellValue("F{$row}", $label);
+            $row++;
+        }
+
+        return $row - 1;
+    }
+
+    private function createPhasesLookupSheet(Worksheet $membersSheet): int
+    {
+        if (empty($this->phases)) {
+            return 1;
+        }
+
+        $spreadsheet = $membersSheet->getParent();
+        $lookupSheet = $spreadsheet->createSheet();
+        $lookupSheet->setTitle('PhasesLookup');
+        $lookupSheet->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
+        $lookupSheet->setCellValue('A1', 'Phase');
+
+        $row = 2;
+        foreach ($this->phases as $phase) {
+            $phaseName = trim((string) $phase);
+            if ($phaseName === '') {
+                continue;
+            }
+
+            $lookupSheet->setCellValue("A{$row}", $phaseName);
             $row++;
         }
 

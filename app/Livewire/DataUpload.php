@@ -244,7 +244,10 @@ class DataUpload extends Component
     #[Computed]
     public function getPhases()
     {
-        return $this->loanPhaseService->getPhasesForConstituencyByStatus($this->constituency->constituency_code, 'disbursed');
+        return $this->loanPhaseService
+            ->getAllPhasesForConstituency($this->constituency->constituency_code)
+            ->sortBy('phase')
+            ->values();
     }
 
     #[Computed]
