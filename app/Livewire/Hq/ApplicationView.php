@@ -314,7 +314,7 @@ class ApplicationView extends Component
                         ])
                         ->log("Application rejected due to: " . $this->rejectionReasons[$this->selectedRejectionKey]);
 
-                    SyncApplicationStatusToDrupal::dispatch($this->application->id)->afterCommit();
+                    SyncApplicationStatusToDrupal::pushAfterCommit($this->application->id);
 
                     return true;
 

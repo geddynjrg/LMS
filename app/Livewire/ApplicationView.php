@@ -858,7 +858,7 @@ class ApplicationView extends Component
                     ])
                     ->log("Recommended application for HQ review.");
 
-                SyncApplicationStatusToDrupal::dispatch($this->application->id)->afterCommit();
+                SyncApplicationStatusToDrupal::pushAfterCommit($this->application->id);
 
                 return true;
             });
@@ -1030,7 +1030,7 @@ public function downloadMemberFile($memberId, $field)
                         ])
                         ->log("Application rejected due to: " . $this->rejectionReasons[$this->selectedRejectionKey]);
 
-                    SyncApplicationStatusToDrupal::dispatch($this->application->id)->afterCommit();
+                    SyncApplicationStatusToDrupal::pushAfterCommit($this->application->id);
 
                     return true;
                 }
@@ -1190,7 +1190,7 @@ public function downloadMemberFile($memberId, $field)
                         'lms_to_loan_app_sync_status'  => 'pending',
                     ]);
 
-                    SyncApplicationStatusToDrupal::dispatch($this->application->id)->afterCommit();
+                    SyncApplicationStatusToDrupal::pushAfterCommit($this->application->id);
                 }
 
                 return true;

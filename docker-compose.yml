@@ -101,4 +101,4 @@ networks:
     name: uwezo-network
   ddev_bridge:
     external: true
-    name: ddev-uwezo_default
+    name: uwezo_default

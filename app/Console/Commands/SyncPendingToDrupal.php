@@ -53,11 +53,16 @@ class SyncPendingToDrupal extends Command
             $this->info("Dispatching {$pending->count()} pending/failed sync job(s)...");
 
             foreach ($pending as $app) {
-                SyncApplicationStatusToDrupal::dispatch($app->id);
+                try {
+                    SyncApplicationStatusToDrupal::pushNow($app->id);
+                    $this->line("  synced {$app->application_id}");
+                } catch (\Throwable $e) {
+                    $this->error("  failed {$app->application_id}: {$e->getMessage()}");
+                }
             }
         }
 
-        $this->info('Drupal sync jobs dispatched.');
+        $this->info('Drupal sync completed.');
 
         return self::SUCCESS;
     }
@@ -102,7 +107,7 @@ class SyncPendingToDrupal extends Command
                     'lms_to_loan_app_sync_error' => null,
                 ]);
 
-                SyncApplicationStatusToDrupal::dispatch($fullApp->id);
+                SyncApplicationStatusToDrupal::pushNow($fullApp->id);
                 $requeued++;
 
                 Log::warning('Re-queued stale Drupal sync', [

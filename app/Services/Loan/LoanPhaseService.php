@@ -991,7 +991,7 @@ class LoanPhaseService
                     ])
                     ->log("Application #{$app->tempApplication->application_id} for {$app->tempApplication->group_name} was submitted to HQ.");
 
-                SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
+                SyncApplicationStatusToDrupal::pushAfterCommit($app->temp_application_id);
             }
 
             $phase->update([
@@ -1087,7 +1087,7 @@ class LoanPhaseService
                     ])
                     ->log('Application returned to constituency for amendment by HQ.');
 
-                SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
+                SyncApplicationStatusToDrupal::pushAfterCommit($app->temp_application_id);
             }
 
             activity()
@@ -1287,7 +1287,7 @@ class LoanPhaseService
                         ->log("New group record created in constituency {$phase->constituency_code} during HQ approval.");
                 }
 
-                SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
+                SyncApplicationStatusToDrupal::pushAfterCommit($app->temp_application_id);
             }
 
             $phase->update([
@@ -1395,7 +1395,7 @@ class LoanPhaseService
                     ])
                     ->log("Application #{$app->tempApplication->application_id} for {$app->tempApplication->group_name} was set for training.");
 
-                SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
+                SyncApplicationStatusToDrupal::pushAfterCommit($app->temp_application_id);
             }
 
             $phase->update([

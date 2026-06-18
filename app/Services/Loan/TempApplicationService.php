@@ -1370,7 +1370,7 @@ class TempApplicationService
                     'updated_at' => now(),
                 ]);
 
-                SyncApplicationStatusToDrupal::dispatch($application->tempApplication->id)->afterCommit();
+                SyncApplicationStatusToDrupal::pushAfterCommit($application->tempApplication->id);
             }
 
             activity()

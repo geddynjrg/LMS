@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redis;
 use App\Services\DrupalApiService;
 use App\Models\TempApplication;
@@ -84,6 +85,29 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
 
     public static function syncNow(int $tempApplicationId): void
     {
+        self::dispatchSync($tempApplicationId);
+    }
+
+    /**
+     * Push LMS status to Drupal immediately so member SMS notifications fire
+     * without depending on a queue worker (Horizon).
+     */
+    public static function pushNow(int $tempApplicationId): void
+    {
+        self::dispatchSync($tempApplicationId);
+    }
+
+    /**
+     * Same as pushNow, but waits until the active DB transaction commits.
+     */
+    public static function pushAfterCommit(int $tempApplicationId): void
+    {
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit(fn () => self::dispatchSync($tempApplicationId));
+
+            return;
+        }
+
         self::dispatchSync($tempApplicationId);
     }
 

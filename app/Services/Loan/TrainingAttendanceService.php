@@ -52,7 +52,7 @@ class TrainingAttendanceService
                 ]);
 
                 if ($application->tempApplication) {
-                    SyncApplicationStatusToDrupal::dispatch($application->tempApplication->id)->afterCommit();
+                    SyncApplicationStatusToDrupal::pushAfterCommit($application->tempApplication->id);
                 }
 
                 activity()
@@ -108,7 +108,7 @@ class TrainingAttendanceService
             ]);
 
             if ($application->tempApplication) {
-                SyncApplicationStatusToDrupal::dispatch($application->tempApplication->id)->afterCommit();
+                SyncApplicationStatusToDrupal::pushAfterCommit($application->tempApplication->id);
             }
 
             activity()

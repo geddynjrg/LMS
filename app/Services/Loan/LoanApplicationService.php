@@ -55,7 +55,7 @@ class LoanApplicationService
                     'temp_application_id' => $application->id,
                 ]);
 
-                SyncApplicationStatusToDrupal::dispatch($application->id);
+                SyncApplicationStatusToDrupal::pushNow($application->id);
 
                 DB::afterCommit(function () use ($application) {
                     app(WorkflowNotificationService::class)

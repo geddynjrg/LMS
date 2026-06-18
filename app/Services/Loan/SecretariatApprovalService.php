@@ -309,10 +309,10 @@ class SecretariatApprovalService
             $this->syncApplicationsAfterApproval($phase, $type);
 
             if ($type === SecretariatApproval::TYPE_TRAINING_AUTHORIZATION) {
-                SendWorkflowNotification::dispatch(
+                DB::afterCommit(fn () => SendWorkflowNotification::dispatchSync(
                     $phase->id,
                     SendWorkflowNotification::TYPE_TRAINING_SCHEDULE_REQUIRED
-                )->afterCommit();
+                ));
             }
 
             return $approval;
@@ -381,7 +381,7 @@ class SecretariatApprovalService
                         'lms_to_loan_app_sync_status' => 'pending',
                     ]);
 
-                    SyncApplicationStatusToDrupal::dispatch($app->temp_application_id)->afterCommit();
+                    SyncApplicationStatusToDrupal::pushAfterCommit($app->temp_application_id);
                 }
             }
 
@@ -439,7 +439,7 @@ class SecretariatApprovalService
                 'lms_to_loan_app_sync_status' => 'pending',
             ]);
 
-            SyncApplicationStatusToDrupal::dispatch($phaseApp->tempApplication->id)->afterCommit();
+            SyncApplicationStatusToDrupal::pushAfterCommit($phaseApp->tempApplication->id);
         }
     }
 
