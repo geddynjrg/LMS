@@ -35,7 +35,7 @@
                         </div>
                         <p class="mb-0 text-muted mt-1">
                             To maintain data integrity for <strong>{{ $constituency->constituency_name }}</strong>, please process these steps in numerical order.
-                            <span class="text-info-emphasis font-weight-bold">Step 1 (Phases)</span> must be completed before <span class="text-info-emphasis font-weight-bold">Step 2 (Groups)</span>, and Step 2 before <span class="text-info-emphasis font-weight-bold">Step 3 (Members)</span>.
+                            <span class="text-info-emphasis font-weight-bold">Step 2 (Groups)</span> relies on the successful completion of <span class="text-info-emphasis font-weight-bold">Step 1 (Phases)</span>.
                         </p>
                         <div class="mt-2 align-items-center">
                             <span class="extra-small text-uppercase font-weight-bold text-muted mr-3">
@@ -191,7 +191,7 @@
                                             <button type="submit" class="btn btn-info btn-block btn-lg mt-3 shadow-sm rounded-pill py-2"
                                                     wire:loading.attr="disabled" wire:target="loanPhasesForm">
                                                 <span wire:loading.remove wire:target="loanPhasesForm">
-                                                    <i class="fas fa-play-circle mr-1"></i> Start Phase Import
+                                                    <i class="fas fa-play-circle mr-1"></i> Start Group Import
                                                 </span>
                                                 <span wire:loading wire:target="loanPhasesForm">
                                                     <i class="fas fa-spinner fa-spin mr-1"></i> Processing...
@@ -322,14 +322,6 @@
                             </h3>
 
                             <div class="timeline-body">
-                                @unless($this->hasUploadedPhases)
-                                    <div class="alert alert-warning shadow-sm mb-4">
-                                        <i class="fas fa-lock mr-2"></i>
-                                        Complete <strong>Step 1 (Loan Phases)</strong> before uploading groups. Download and import your phase data first.
-                                    </div>
-                                @endunless
-
-                                <div class="@unless($this->hasUploadedPhases) opacity-50 @endunless">
                                 <div class="row">
                                     <div class="col-md-8">
                                         <div class="d-flex align-items-center mb-3">
@@ -372,8 +364,8 @@
                                                     <div>
                                                         <h6 class="text-danger font-weight-bold mb-1 small text-uppercase">Critical: Unique Identifier Rule</h6>
                                                         <p class="small text-danger-emphasis mb-0" style="line-height: 1.4;">
-                                                            The <strong>Group GFS Code</strong> prefix is auto-generated from <strong>Category</strong> and <strong>Sector</strong>.
-                                                            Edit the <strong>Group Code</strong> column (last 3–4 digits) to assign each group a unique suffix — duplicate codes will corrupt financial history and member links.
+                                                            The <strong>Group GFS Code</strong> acts as the system's DNA.
+                                                            Duplicate codes or manual overrides will corrupt financial history, member links, and disbursement tracking.
                                                         </p>
                                                     </div>
                                                 </div>
@@ -391,8 +383,7 @@
                                                         class="btn btn-outline-info btn-sm btn-block shadow-sm rounded-pill py-2 font-weight-bold"
                                                         wire:click.prevent="downloadTemplate('groups')"
                                                         wire:loading.attr="disabled"
-                                                        wire:target="downloadTemplate('groups')"
-                                                        @unless($this->hasUploadedPhases) disabled @endunless>
+                                                        wire:target="downloadTemplate('groups')">
 
                                                     <span wire:loading.remove wire:target="downloadTemplate('groups')">
                                                         <i class="fas fa-file-excel mr-2"></i>Download Template
@@ -437,7 +428,6 @@
                                                     <th class="border-bottom-0">Loan Phase*</th>
                                                     <th class="border-bottom-0">Loan Type*</th>
                                                     <th class="border-bottom-0">GFS Code*</th>
-                                                    <th class="border-bottom-0">Group Code*</th>
                                                     <th class="border-bottom-0">Idetifier</th>
                                                     <th class="border-bottom-0">Category*</th>
                                                     <th class="border-bottom-0">Sector*</th>
@@ -455,7 +445,6 @@
                                                     <td><span class="badge badge-outline-info">Phase 1</span></td>
                                                     <td><span class="badge badge-outline-info">New</span></td>
                                                     <td class="">4-{{ $constituency->county_code }}-{{ $constituency->constituency_code }}-4110202-201-001</td>
-                                                    <td class="font-weight-bold">001</td>
                                                     <td>MZW001</td>
                                                     <td>Women</td>
                                                     <td>Trade</td>
@@ -544,20 +533,6 @@
                                                             <span class="font-italic">Trade, Service, Manufacturing, Agriculture, Other</span>
                                                         </div>
                                                     </li>
-                                                    <li class="mb-2 d-flex align-items-start">
-                                                        <span class="text-success mr-2">●</span>
-                                                        <div>
-                                                            <strong>GFS Code:</strong>
-                                                            <span class="font-italic">Auto-calculated prefix from Category and Sector; suffix comes from Group Code (format: 4-{{ $constituency->county_code }}-{{ $constituency->constituency_code }}-411020…-001)</span>
-                                                        </div>
-                                                    </li>
-                                                    <li class="mb-2 d-flex align-items-start">
-                                                        <span class="text-success mr-2">●</span>
-                                                        <div>
-                                                            <strong>Group Code:</strong>
-                                                            <span class="font-italic">Editable 3–4 digit unique suffix (defaults from S/No; override as needed)</span>
-                                                        </div>
-                                                    </li>
                                                 </ul>
                                                 </div>
                                             </div>
@@ -615,7 +590,7 @@
                                 </div>
 
                                 {{-- Import Form with x-ref pattern --}}
-                                <div id="groupsImportSection" x-data="{ dragging: false }" @unless($this->hasUploadedPhases) style="pointer-events: none;" @endunless>
+                                <div id="groupsImportSection" x-data="{ dragging: false }">
                                     <form wire:submit.prevent="groupsForm">
                                         <div class="form-group">
                                             <div
@@ -761,7 +736,6 @@
                                         @endif
                                     </div>
                                 @endif
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -779,14 +753,6 @@
                             </h3>
 
                             <div class="timeline-body">
-                                @unless($this->hasUploadedGroups)
-                                    <div class="alert alert-warning shadow-sm mb-4">
-                                        <i class="fas fa-lock mr-2"></i>
-                                        Complete <strong>Step 2 (Groups)</strong> before uploading members. Groups with GFS codes must exist in the system first.
-                                    </div>
-                                @endunless
-
-                                <div class="@unless($this->hasUploadedGroups) opacity-50 @endunless">
                                 <div class="row">
                                     <div class="col-md-8">
                                         <div class="d-flex align-items-center mb-3">
@@ -816,7 +782,7 @@
                                         </div>
 
                                         <p class="text-muted small mb-3">
-                                            Select a group from the dropdown in the member template (<strong>Phase | Loan Type | Group Name</strong>). Phase, loan type, and GFS code auto-fill from your uploaded groups.
+                                            Members must be mapped to existing groups using the <strong>Phase + Loan Type + Group Name + Group GFS Code </strong>. Ensure every member has a valid National ID and unique phone number to prevent KYC (Know Your Customer) conflicts.
                                         </p>
 
                                         {{-- Critical Warning --}}
@@ -847,8 +813,7 @@
                                                 <button type="button"
                                                         class="btn btn-outline-info btn-sm btn-block shadow-sm rounded-pill py-2 font-weight-bold"
                                                         wire:click.prevent="downloadTemplate('members')"
-                                                        wire:loading.attr="disabled"
-                                                        @unless($this->hasUploadedGroups) disabled @endunless>
+                                                        wire:loading.attr="disabled">
                                                     <span wire:loading.remove>
                                                         <i class="fas fa-file-excel mr-2"></i>Download Template
                                                     </span>
@@ -1025,7 +990,7 @@
                                 </div>
 
                                 {{-- Import Form --}}
-                                <div id="membersImportSection" x-data="{ dragging: false }" @unless($this->hasUploadedGroups) style="pointer-events: none;" @endunless>
+                                <div id="membersImportSection" x-data="{ dragging: false }">
                                     <form wire:submit.prevent="groupMembersForm">
                                         <div class="form-group">
                                             <div class="upload-zone p-5 text-center transition-all b-radius-15"
@@ -1136,7 +1101,6 @@
                                         @endif
                                     </div>
                                 @endif
-                                </div>
                             </div>
                         </div>
                     </div>

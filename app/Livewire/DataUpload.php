@@ -13,7 +13,6 @@ use App\Exports\MembersTemplateExport;
 use App\Services\Loan\LoanPhaseService;
 use App\Models\Constituency;
 use App\Models\Group;
-use App\Models\GroupLoan;
 
 class DataUpload extends Component
 {
@@ -83,42 +82,26 @@ class DataUpload extends Component
                 return;
             }
 
-            return Excel::download(
-                new LoanTemplateExport(
-                    $wards,
-                    $phases,
-                    (string) $this->constituency->county_code,
-                    (string) $this->constituency->constituency_code
-                ),
-                'Group_Loan_Template.xlsx'
-            );
+            return Excel::download(new LoanTemplateExport($wards, $phases), 'Group_Loan_Template.xlsx');
         }
 
-        if ($type === 'members') {
-            if (empty($phases)) {
+        if ($type === 'members'){
+
+            $hasGroups = Group::whereHas('ward', function($q) {
+                $q->where('constituency_code', $this->constituency->constituency_code);
+            })->exists();
+
+            if (!$hasGroups){
                 $this->dispatch('swal:toast',
                     title: 'Download failed 😕',
-                    message: 'There are no loan phase records. Ensure you completed step 1',
+                    message: 'There are no groups recorded. Ensure you completed step 2',
                     type: 'error'
                 );
                 return;
             }
-
-            $groups = $this->getGroupsForMembersTemplate();
-
-            if (empty($groups)) {
-                $this->dispatch('swal:toast',
-                    title: 'Download failed 😕',
-                    message: 'There are no groups with GFS codes recorded. Ensure you completed step 2',
-                    type: 'error'
-                );
-                return;
-            }
-
             return Excel::download(
                 new MembersTemplateExport(
-                    $phases,
-                    $groups
+                    $phases
                 ),
                 'Member_Template.xlsx'
             );
@@ -244,57 +227,7 @@ class DataUpload extends Component
     #[Computed]
     public function getPhases()
     {
-        return $this->loanPhaseService
-            ->getAllPhasesForConstituency($this->constituency->constituency_code)
-            ->sortBy('phase')
-            ->values();
-    }
-
-    #[Computed]
-    public function hasUploadedPhases(): bool
-    {
-        return $this->getPhases->isNotEmpty();
-    }
-
-    #[Computed]
-    public function hasUploadedGroups(): bool
-    {
-        return GroupLoan::query()
-            ->whereHas('loanPhase', function ($query) {
-                $query->where('constituency_code', $this->constituency->constituency_code);
-            })
-            ->whereNotNull('gfs_code')
-            ->exists();
-    }
-
-    private function getGroupsForMembersTemplate(): array
-    {
-        return GroupLoan::query()
-            ->whereHas('loanPhase', function ($query) {
-                $query->where('constituency_code', $this->constituency->constituency_code);
-            })
-            ->whereHas('group.ward', function ($query) {
-                $query->where('constituency_code', $this->constituency->constituency_code);
-            })
-            ->whereNotNull('gfs_code')
-            ->with([
-                'group:id,name',
-                'loanPhase:id,phase',
-            ])
-            ->get()
-            ->map(function (GroupLoan $groupLoan) {
-                $loanType = ucfirst(strtolower((string) ($groupLoan->loan_type ?: 'new')));
-
-                return [
-                    'phase' => $groupLoan->loanPhase->phase ?? '',
-                    'loan_type' => $loanType,
-                    'group_name' => $groupLoan->group->name ?? '',
-                    'gfs_code' => $groupLoan->gfs_code,
-                ];
-            })
-            ->filter(fn (array $group) => $group['phase'] !== '' && $group['group_name'] !== '' && $group['gfs_code'] !== '')
-            ->values()
-            ->all();
+        return $this->loanPhaseService->getPhasesForConstituencyByStatus($this->constituency->constituency_code, 'disbursed');
     }
 
     public function groupsForm()

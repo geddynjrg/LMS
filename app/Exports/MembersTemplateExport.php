@@ -15,16 +15,14 @@ use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 class MembersTemplateExport implements WithHeadings, WithEvents
 {
     protected $phases;
-    protected array $groups;
     protected $yesNo = ['Yes', 'No'];
     protected $loan_types = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
     protected $gender = ['Male', 'Female'];
     protected $roles = ['Chairperson', 'Secretary', 'Treasurer', 'Member'];
 
-    public function __construct($phases, array $groups = [])
+    public function __construct($phases)
     {
         $this->phases = is_array($phases) ? $phases : $phases->toArray();
-        $this->groups = $groups;
     }
 
     public function headings(): array
@@ -54,22 +52,14 @@ class MembersTemplateExport implements WithHeadings, WithEvents
 
                 $this->styleHeader($sheet);
 
-                $lookupLastRow = $this->createGroupsLookupSheet($sheet);
-                $phasesLastRow = $this->createPhasesLookupSheet($sheet);
-
-                if ($phasesLastRow >= 2) {
-                    $this->addSheetReferenceDropdown($sheet, 'B', 'PhasesLookup', 'A', 2, $phasesLastRow, $rowLimit);
+                if (!empty($this->phases)) {
+                    $this->addDropdown($sheet, 'B', $this->phases, $rowLimit);
                 }
 
                 $this->addDropdown($sheet, 'C', $this->loan_types, $rowLimit);
                 $this->addDropdown($sheet, 'H', $this->roles, $rowLimit);
                 $this->addDropdown($sheet, 'J', $this->gender, $rowLimit);
                 $this->addDropdown($sheet, 'K', $this->yesNo, $rowLimit);
-
-                if ($lookupLastRow >= 2) {
-                    $this->addSheetReferenceDropdown($sheet, 'D', 'GroupsLookup', 'F', 2, $lookupLastRow, $rowLimit);
-                    $this->applyGroupLookupFormulas($sheet, $rowLimit);
-                }
 
                 $this->formatColumns($sheet, $rowLimit);
                 $this->addMemberIdValidation($sheet, $rowLimit);
@@ -89,121 +79,6 @@ class MembersTemplateExport implements WithHeadings, WithEvents
                 $this->prepareEditableDataArea($sheet, $highestColumn, $rowLimit);
             },
         ];
-    }
-
-    private function createGroupsLookupSheet(Worksheet $membersSheet): int
-    {
-        $spreadsheet = $membersSheet->getParent();
-        $lookupSheet = $spreadsheet->createSheet();
-        $lookupSheet->setTitle('GroupsLookup');
-        $lookupSheet->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
-
-        $lookupSheet->fromArray([
-            ['Phase', 'Loan Type', 'Group Name', 'GFS Code', 'Lookup Key', 'Picker Label'],
-        ], null, 'A1');
-
-        $row = 2;
-        foreach ($this->groups as $group) {
-            $phase = (string) ($group['phase'] ?? '');
-            $loanType = (string) ($group['loan_type'] ?? '');
-            $groupName = (string) ($group['group_name'] ?? '');
-            $gfsCode = (string) ($group['gfs_code'] ?? '');
-
-            if ($phase === '' || $groupName === '' || $gfsCode === '') {
-                continue;
-            }
-
-            $label = sprintf('%s | %s | %s', $phase, $loanType, $groupName);
-            $lookupKey = strtolower($phase . '|' . $loanType . '|' . $groupName);
-
-            $lookupSheet->setCellValue("A{$row}", $phase);
-            $lookupSheet->setCellValue("B{$row}", $loanType);
-            $lookupSheet->setCellValue("C{$row}", $groupName);
-            $lookupSheet->setCellValue("D{$row}", $gfsCode);
-            $lookupSheet->setCellValue("E{$row}", $lookupKey);
-            $lookupSheet->setCellValue("F{$row}", $label);
-            $row++;
-        }
-
-        return $row - 1;
-    }
-
-    private function createPhasesLookupSheet(Worksheet $membersSheet): int
-    {
-        if (empty($this->phases)) {
-            return 1;
-        }
-
-        $spreadsheet = $membersSheet->getParent();
-        $lookupSheet = $spreadsheet->createSheet();
-        $lookupSheet->setTitle('PhasesLookup');
-        $lookupSheet->setSheetState(Worksheet::SHEETSTATE_HIDDEN);
-        $lookupSheet->setCellValue('A1', 'Phase');
-
-        $row = 2;
-        foreach ($this->phases as $phase) {
-            $phaseName = trim((string) $phase);
-            if ($phaseName === '') {
-                continue;
-            }
-
-            $lookupSheet->setCellValue("A{$row}", $phaseName);
-            $row++;
-        }
-
-        return $row - 1;
-    }
-
-    private function applyGroupLookupFormulas(Worksheet $sheet, int $rowLimit): void
-    {
-        for ($row = 2; $row <= $rowLimit; $row++) {
-            $sheet->setCellValue(
-                "B{$row}",
-                "=IF(D{$row}=\"\",\"\",INDEX(GroupsLookup!A:A,MATCH(D{$row},GroupsLookup!F:F,0)))"
-            );
-            $sheet->setCellValue(
-                "C{$row}",
-                "=IF(D{$row}=\"\",\"\",INDEX(GroupsLookup!B:B,MATCH(D{$row},GroupsLookup!F:F,0)))"
-            );
-            $sheet->setCellValue(
-                "E{$row}",
-                "=IF(D{$row}=\"\",\"\",INDEX(GroupsLookup!D:D,MATCH(D{$row},GroupsLookup!F:F,0)))"
-            );
-        }
-
-        $sheet->getStyle("B2:C{$rowLimit}")->getProtection()->setLocked(Protection::PROTECTION_PROTECTED);
-        $sheet->getStyle("E2:E{$rowLimit}")->getProtection()->setLocked(Protection::PROTECTION_PROTECTED);
-        $sheet->getStyle("B2:E{$rowLimit}")
-            ->getFill()
-            ->setFillType(Fill::FILL_SOLID)
-            ->getStartColor()
-            ->setARGB('FFF9FAFB');
-    }
-
-    private function addSheetReferenceDropdown(
-        Worksheet $sheet,
-        string $column,
-        string $lookupSheet,
-        string $lookupColumn,
-        int $startRow,
-        int $endRow,
-        int $rowLimit
-    ): void {
-        if ($endRow < $startRow) {
-            return;
-        }
-
-        $range = "={$lookupSheet}!\${$lookupColumn}\${$startRow}:\${$lookupColumn}\${$endRow}";
-        $validation = $sheet->getCell("{$column}2")->getDataValidation();
-        $validation->setType(DataValidation::TYPE_LIST)
-            ->setErrorStyle(DataValidation::STYLE_STOP)
-            ->setAllowBlank(false)
-            ->setShowDropDown(true)
-            ->setShowErrorMessage(true)
-            ->setErrorTitle('Invalid Selection')
-            ->setError('Please select a group from the dropdown list (Phase | Loan Type | Group Name).')
-            ->setFormula1($range)
-            ->setSqref("{$column}2:{$column}{$rowLimit}");
     }
 
     private function styleHeader(Worksheet $sheet): void
@@ -266,7 +141,7 @@ class MembersTemplateExport implements WithHeadings, WithEvents
         foreach (range('A', $highestColumn) as $col) {
             if (in_array($col, ['D', 'E', 'F'])) {
                 $sheet->getColumnDimension($col)->setAutoSize(false);
-                $sheet->getColumnDimension($col)->setWidth(28);
+                $sheet->getColumnDimension($col)->setWidth(24);
             } else {
                 $sheet->getColumnDimension($col)->setAutoSize(true);
             }
@@ -283,11 +158,9 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             ->getNumberFormat()
             ->setFormatCode('0');
 
-        foreach (['D', 'F', 'G', 'H', 'I', 'J', 'K'] as $column) {
-            $sheet->getStyle("{$column}2:{$column}{$rowLimit}")
-                ->getNumberFormat()
-                ->setFormatCode('@');
-        }
+        $sheet->getStyle("B2:K{$rowLimit}")
+            ->getNumberFormat()
+            ->setFormatCode('@');
     }
 
     private function addMemberIdValidation(Worksheet $sheet, int $rowLimit): void
@@ -322,7 +195,7 @@ class MembersTemplateExport implements WithHeadings, WithEvents
     }
 
     /**
-     * Keep editable cells unlocked; formula cells stay protected when sheet protection is enabled.
+     * Keep data cells editable (no worksheet protection — avoids Excel undo/edit lock issues).
      */
     private function prepareEditableDataArea(Worksheet $sheet, string $highestColumn, int $rowLimit): void
     {

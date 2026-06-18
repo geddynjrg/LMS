@@ -17,18 +17,14 @@ class LoanTemplateExport implements WithHeadings, WithEvents
 {
     protected $wards;
     protected $phases;
-    protected string $countyCode;
-    protected string $constituencyCode;
     protected $loan_types = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
     protected $categories = ['Youth', 'Women', 'PWD'];
     protected $sectors    = ['Trade', 'Service', 'Manufacturing', 'Agriculture', 'Other'];
 
-    public function __construct($wards, $phases, string $countyCode, string $constituencyCode)
+    public function __construct($wards, $phases)
     {
         $this->wards  = is_array($wards)  ? $wards  : $wards->toArray();
         $this->phases = is_array($phases) ? $phases : $phases->toArray();
-        $this->countyCode = str_pad($countyCode, 3, '0', STR_PAD_LEFT);
-        $this->constituencyCode = str_pad($constituencyCode, 3, '0', STR_PAD_LEFT);
     }
 
     public function headings(): array
@@ -41,7 +37,6 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             'Loan Phase*',
             'Loan Type*',
             'GFS Code*',
-            'Group Code*',
             'Identifier',
             'Category*',
             'Sector*',
@@ -62,14 +57,14 @@ class LoanTemplateExport implements WithHeadings, WithEvents
 
                 // 1. HEADER & TOTALS (Rows 1 and 2)
                 $sheet->insertNewRowBefore(2, 1);
-                $sheet->setCellValue("K2", "TOTALS:");
+                $sheet->setCellValue("J2", "TOTALS:");
+                $sheet->setCellValue("K2", "=SUBTOTAL(109, K3:K{$limit})");
                 $sheet->setCellValue("L2", "=SUBTOTAL(109, L3:L{$limit})");
                 $sheet->setCellValue("M2", "=SUBTOTAL(109, M3:M{$limit})");
-                $sheet->setCellValue("N2", "=SUBTOTAL(109, N3:N{$limit})");
 
-                $sheet->getStyle("A2:N2")->getFont()->setBold(true);
-                $sheet->getStyle("L2:N2")->getNumberFormat()->setFormatCode('#,##0');
-                $sheet->getStyle("A2:N2")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFF3F4F6');
+                $sheet->getStyle("A2:M2")->getFont()->setBold(true);
+                $sheet->getStyle("K2:M2")->getNumberFormat()->setFormatCode('#,##0');
+                $sheet->getStyle("A2:M2")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFF3F4F6');
 
                 // 2. DYNAMIC S/NO (Column A)
 
@@ -93,11 +88,8 @@ class LoanTemplateExport implements WithHeadings, WithEvents
                 $this->addDropdown($sheet, 'D', $this->wards, $limit);
                 $this->addDropdown($sheet, 'E', $this->phases, $limit);
                 $this->addDropdown($sheet, 'F', $this->loan_types, $limit);
-                $this->addDropdown($sheet, 'J', $this->categories, $limit);
-                $this->addDropdown($sheet, 'K', $this->sectors, $limit);
-
-                $this->applyGroupCodeDefaults($sheet, $limit);
-                $this->applyGfsFormulas($sheet, $limit);
+                $this->addDropdown($sheet, 'I', $this->categories, $limit);
+                $this->addDropdown($sheet, 'J', $this->sectors, $limit);
 
                 // Freeze Rows 1 and 2 (Headings and Totals)
                 $sheet->freezePane('A3');
@@ -142,69 +134,14 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             ->setFormula1(3)
             ->setSqref("C2:C{$limit}");
 
-        $groupCodeVal = $sheet->getCell('H3')->getDataValidation();
-        $groupCodeVal->setType(DataValidation::TYPE_WHOLE)
-            ->setOperator(DataValidation::OPERATOR_BETWEEN)
+        // GFS Code (Exact 10)
+        $gfsVal = $sheet->getCell('G3')->getDataValidation();
+        $gfsVal->setType(DataValidation::TYPE_TEXTLENGTH)
+            ->setOperator(DataValidation::OPERATOR_EQUAL)
+            ->setFormula1(10)
             ->setAllowBlank(false)
-            ->setShowErrorMessage(true)
-            ->setErrorStyle(DataValidation::STYLE_STOP)
-            ->setErrorTitle('Invalid Group Code')
-            ->setError('Enter a unique 3-4 digit group code (e.g., 1, 42, 001, 1001).')
-            ->setFormula1(1)
-            ->setFormula2(9999)
-            ->setSqref("H3:H{$limit}");
-    }
-
-    private function applyGroupCodeDefaults(Worksheet $sheet, int $limit): void
-    {
-        for ($row = 3; $row <= $limit; $row++) {
-            $sheet->setCellValue("H{$row}", "=IF(A{$row}=\"\",\"\",TEXT(A{$row},\"000\"))");
-        }
-
-        $sheet->getStyle("H3:H{$limit}")
-            ->getProtection()
-            ->setLocked(Protection::PROTECTION_UNPROTECTED);
-
-        $sheet->getStyle("H3:H{$limit}")
-            ->getFill()
-            ->setFillType(Fill::FILL_SOLID)
-            ->getStartColor()
-            ->setARGB('FFFFF7ED');
-    }
-
-    private function applyGfsFormulas(Worksheet $sheet, int $limit): void
-    {
-        $county = $this->countyCode;
-        $constituency = $this->constituencyCode;
-
-        for ($row = 3; $row <= $limit; $row++) {
-            $formula = sprintf(
-                '=IF(OR(J%d="",K%d="",H%d=""),"",CONCATENATE("4-","%s","-","%s","-411020",CHOOSE(MATCH(J%d,{"Youth","Women","PWD"},0),1,2,3),"-",CHOOSE(MATCH(K%d,{"Trade","Service","Manufacturing","Agriculture","Other"},0),1,2,3,4,5),"0",CHOOSE(MATCH(J%d,{"Youth","Women","PWD"},0),1,2,3),"-",IF(LEN(TRIM(H%d))>=4,TEXT(VALUE(H%d),"0000"),TEXT(VALUE(H%d),"000"))))',
-                $row,
-                $row,
-                $row,
-                $county,
-                $constituency,
-                $row,
-                $row,
-                $row,
-                $row,
-                $row,
-                $row
-            );
-
-            $sheet->setCellValue("G{$row}", $formula);
-        }
-
-        $sheet->getStyle("G3:G{$limit}")
-            ->getProtection()
-            ->setLocked(Protection::PROTECTION_PROTECTED);
-
-        $sheet->getStyle("G3:G{$limit}")
-            ->getFill()
-            ->setFillType(Fill::FILL_SOLID)
-            ->getStartColor()
-            ->setARGB('FFF9FAFB');
+            ->setError('GFS Code must be exactly 10 characters.')
+            ->setSqref("G2:G{$limit}");
     }
 
     private function applyStyles(Worksheet $sheet, string $highestColumn, int $maxRows): void
@@ -253,7 +190,7 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        $sheet->getStyle("A{$summaryRow}:N{$summaryRow}")->applyFromArray([
+        $sheet->getStyle("A{$summaryRow}:M{$summaryRow}")->applyFromArray([
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['argb' => 'FFF3F4F6'],
