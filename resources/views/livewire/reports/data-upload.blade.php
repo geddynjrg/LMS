@@ -372,8 +372,8 @@
                                                     <div>
                                                         <h6 class="text-danger font-weight-bold mb-1 small text-uppercase">Critical: Unique Identifier Rule</h6>
                                                         <p class="small text-danger-emphasis mb-0" style="line-height: 1.4;">
-                                                            The <strong>Group GFS Code</strong> is auto-generated in the Excel template from <strong>S/No</strong>, <strong>Category</strong>, and <strong>Sector</strong>.
-                                                            Do not edit the GFS column manually — duplicate or incorrect codes will corrupt financial history and member links.
+                                                            The <strong>Group GFS Code</strong> prefix is auto-generated from <strong>Category</strong> and <strong>Sector</strong>.
+                                                            Edit the <strong>Group Code</strong> column (last 3–4 digits) to assign each group a unique suffix — duplicate codes will corrupt financial history and member links.
                                                         </p>
                                                     </div>
                                                 </div>
@@ -437,6 +437,7 @@
                                                     <th class="border-bottom-0">Loan Phase*</th>
                                                     <th class="border-bottom-0">Loan Type*</th>
                                                     <th class="border-bottom-0">GFS Code*</th>
+                                                    <th class="border-bottom-0">Group Code*</th>
                                                     <th class="border-bottom-0">Idetifier</th>
                                                     <th class="border-bottom-0">Category*</th>
                                                     <th class="border-bottom-0">Sector*</th>
@@ -454,6 +455,7 @@
                                                     <td><span class="badge badge-outline-info">Phase 1</span></td>
                                                     <td><span class="badge badge-outline-info">New</span></td>
                                                     <td class="">4-{{ $constituency->county_code }}-{{ $constituency->constituency_code }}-4110202-201-001</td>
+                                                    <td class="font-weight-bold">001</td>
                                                     <td>MZW001</td>
                                                     <td>Women</td>
                                                     <td>Trade</td>
@@ -546,7 +548,14 @@
                                                         <span class="text-success mr-2">●</span>
                                                         <div>
                                                             <strong>GFS Code:</strong>
-                                                            <span class="font-italic">Auto-calculated from S/No, Category, and Sector (format: 4-{{ $constituency->county_code }}-{{ $constituency->constituency_code }}-411020…)</span>
+                                                            <span class="font-italic">Auto-calculated prefix from Category and Sector; suffix comes from Group Code (format: 4-{{ $constituency->county_code }}-{{ $constituency->constituency_code }}-411020…-001)</span>
+                                                        </div>
+                                                    </li>
+                                                    <li class="mb-2 d-flex align-items-start">
+                                                        <span class="text-success mr-2">●</span>
+                                                        <div>
+                                                            <strong>Group Code:</strong>
+                                                            <span class="font-italic">Editable 3–4 digit unique suffix (defaults from S/No; override as needed)</span>
                                                         </div>
                                                     </li>
                                                 </ul>

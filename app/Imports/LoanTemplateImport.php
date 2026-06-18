@@ -214,26 +214,31 @@ class LoanTemplateImport implements
             }
 
             if ($colIndex === 7 && $value !== '') {
+                $gfs = strtolower(trim($row[6] ?? ''));
+                $this->validateGroupCode($value, $rowNumber, $gfs);
+            }
+
+            if ($colIndex === 8 && $value !== '') {
                 $groupName = strtolower(trim($row[2] ?? ''));
                 $gfs = strtolower(trim($row[6] ?? ''));
 
                 $this->validateIdentifier($lowerValue, $rowNumber, $groupName, $gfs);
             }
 
-            if ($colIndex === 8 && $value !== '') {
+            if ($colIndex === 9 && $value !== '') {
                 if (!in_array($lowerValue, $this->categories)) {
                     $this->errors[] = "Row {$rowNumber}: '{$value}' is not a valid Group Category.";
                 }
             }
 
-            if ($colIndex === 9 && $value !== '') {
+            if ($colIndex === 10 && $value !== '') {
                 if (!in_array($lowerValue, $this->sectors)) {
                     $this->errors[] = "Row {$rowNumber}: '{$value}' is not a valid Group Sector.";
                 }
             }
 
-            // 4. Numeric Checks (Approved, Issued, Repaid: 10, 11, 12)
-            if (in_array($colIndex, [10, 11, 12]) && $value !== '') {
+            // 4. Numeric Checks (Approved, Issued, Repaid: 11, 12, 13)
+            if (in_array($colIndex, [11, 12, 13]) && $value !== '') {
                 if (!is_numeric(str_replace(',', '', $value))) {
                     $this->errors[] = "Row {$rowNumber}: '{$setup['name']}' must be a number.";
                 }
@@ -325,7 +330,45 @@ class LoanTemplateImport implements
             return;
         }
 
+        $providedGroupCode = trim($row[7] ?? '');
+        if ($providedGroupCode !== '' && !$this->groupCodesMatch($providedGroupCode, $groupCode)) {
+            $this->errors[] = "Row {$rowNumber}: Group Code '{$providedGroupCode}' does not match the GFS suffix '{$groupCode}' in '{$value}'";
+            return;
+        }
+
         $this->checkForDuplicateGroupCodeInDoc($groupCode, $rowNumber, $value, $row, $mapping);
+    }
+
+    private function validateGroupCode(string $value, int $rowNumber, string $gfs = ''): void
+    {
+        if (!preg_match('/^\d{1,4}$/', $value)) {
+            $this->errors[] = "Row {$rowNumber}: Group Code '{$value}' must be a 3-4 digit number (e.g., 001 or 1001).";
+            return;
+        }
+
+        if ($gfs !== '') {
+            $gfsSuffix = $this->extractGroupCode($gfs);
+            if ($gfsSuffix && !$this->groupCodesMatch($value, $gfsSuffix)) {
+                $this->errors[] = "Row {$rowNumber}: Group Code '{$value}' does not match the GFS suffix '{$gfsSuffix}' in '{$gfs}'";
+            }
+        }
+    }
+
+    private function normalizeGroupCode(string $value): string
+    {
+        $digits = preg_replace('/\D/', '', $value) ?? '';
+        if ($digits === '') {
+            return '';
+        }
+
+        $length = strlen($digits) > 3 ? 4 : 3;
+
+        return str_pad($digits, $length, '0', STR_PAD_LEFT);
+    }
+
+    private function groupCodesMatch(string $left, string $right): bool
+    {
+        return $this->normalizeGroupCode($left) === $this->normalizeGroupCode($right);
     }
 
     public function chunkSize(): int
@@ -343,12 +386,13 @@ class LoanTemplateImport implements
             4  => ['name' => 'Loan Phase',           'required' => true],
             5  => ['name' => 'Loan Type',            'required' => true],
             6  => ['name' => 'GFS Code',             'required' => true],
-            7  => ['name' => 'Identifier',           'required' => false],
-            8  => ['name' => 'Category',             'required' => true],
-            9  => ['name' => 'Sector',               'required' => true],
-            10 => ['name' => 'Amount Approved',      'required' => true],
-            11 => ['name' => 'Amount Issued',        'required' => true],
-            12 => ['name' => 'Amount Repaid',        'required' => true],
+            7  => ['name' => 'Group Code',           'required' => true],
+            8  => ['name' => 'Identifier',           'required' => false],
+            9  => ['name' => 'Category',             'required' => true],
+            10 => ['name' => 'Sector',               'required' => true],
+            11 => ['name' => 'Amount Approved',      'required' => true],
+            12 => ['name' => 'Amount Issued',        'required' => true],
+            13 => ['name' => 'Amount Repaid',        'required' => true],
         ];
     }
 
@@ -561,14 +605,14 @@ class LoanTemplateImport implements
             'group_name' => $currentGroupName,
             'phase' => $currentPhase,
             'loan_type' => $currentLoanType,
-            'identifier' => trim($row[7] ?? ''),
+            'identifier' => trim($row[8] ?? ''),
             'ward' => trim($rowData[3] ?? ''),
             'date' => trim($row[1] ?? ''),
-            'category' => trim($rowData[8] ?? ''),
-            'sector' => trim($rowData[9] ?? ''),
-            'amount_approved' => trim($row[10] ?? ''),
-            'amount_issued' => trim($row[11] ?? ''),
-            'amount_repaid' => trim($row[12] ?? '')
+            'category' => trim($rowData[9] ?? ''),
+            'sector' => trim($rowData[10] ?? ''),
+            'amount_approved' => trim($row[11] ?? ''),
+            'amount_issued' => trim($row[12] ?? ''),
+            'amount_repaid' => trim($row[13] ?? '')
         ];
     }
 
