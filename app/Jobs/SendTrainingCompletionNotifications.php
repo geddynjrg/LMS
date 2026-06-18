@@ -26,6 +26,14 @@ class SendTrainingCompletionNotifications implements ShouldQueue
         }
 
         $notifications->notifyGroupMembersTrainingCompleted($application);
-        $notifications->notifyHeadOfSecretariatTrainingCompleted($application);
+
+        try {
+            $notifications->notifyHeadOfSecretariatTrainingCompleted($application);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Head of Secretariat training notification failed', [
+                'phase_application_id' => $this->phaseApplicationId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
