@@ -20,6 +20,8 @@ use App\Models\Group;
 use App\Models\GroupLoan;
 use App\Models\LoanPhase;
 use App\Models\Wards;
+use App\Services\Loan\LoanPhaseService;
+use App\Support\LoanPhaseFinancialTotals;
 
 class LoanTemplateImport implements
     ToCollection,
@@ -60,6 +62,7 @@ class LoanTemplateImport implements
     private $importedCount = 0;
     private $skippedCount = 0;
     private $errors = [];
+    private array $affectedPhaseIds = [];
 
     public function __construct(Constituency $constituency, $phases)
     {
@@ -1194,6 +1197,8 @@ class LoanTemplateImport implements
                 'updated_at' => now()
             ]);
 
+            $this->affectedPhaseIds[$loanPhase->id] = true;
+
             return true;
 
         } catch (\Exception $e) {
@@ -1268,6 +1273,12 @@ class LoanTemplateImport implements
 
              DB::afterCommit(function () {
                 Cache::tags([$this->cacheTag])->flush();
+
+                foreach (array_keys($this->affectedPhaseIds) as $phaseId) {
+                    LoanPhaseFinancialTotals::refresh($phaseId);
+                }
+
+                app(LoanPhaseService::class)->invalidatePhasesCache($this->constituency->constituency_code);
 
                 UpdateLoanDefaultStatusForConstituency::dispatch(
                     $this->constituency->constituency_code,

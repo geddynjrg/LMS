@@ -389,14 +389,7 @@ class LoanPhaseService
                 'constituencies.constituency_name',
                 'counties.county_name',
                 'counties.county_code',
-                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id) as total_apps'),
-                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "pending") as pending_apps'),
-                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "approved") as approved_apps'),
-                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "rejected") as rejected_apps'),
-                DB::raw('(SELECT COUNT(*) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "disbursed") as disbursed_apps'),
-                DB::raw('(SELECT COALESCE(SUM(amount_applied), 0) FROM phase_applications WHERE loan_phase_id = loan_phases.id) as total_requested'),
-                DB::raw('(SELECT COALESCE(SUM(amount_approved), 0) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status != "pending") as total_approved'),
-                DB::raw('(SELECT COALESCE(SUM(amount_approved), 0) FROM phase_applications WHERE loan_phase_id = loan_phases.id AND status = "disbursed") as total_issued'),
+                ...\App\Support\LoanPhaseFinancialTotals::selectExpressions(),
             ])
             ->leftJoin('constituencies', 'loan_phases.constituency_code', '=', 'constituencies.constituency_code')
             ->leftJoin('counties', 'constituencies.county_code', '=', 'counties.county_code')

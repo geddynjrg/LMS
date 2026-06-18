@@ -272,22 +272,7 @@ class LoanPhase extends Model
     // Stats calculation
     public function calculateStats(): void
     {
-        $stats = $this->phaseApplications()
-            ->selectRaw('
-                COUNT(*) as total_applications,
-                SUM(CASE WHEN status = "approved" THEN 1 ELSE 0 END) as approved,
-                SUM(CASE WHEN status = "rejected" THEN 1 ELSE 0 END) as rejected,
-                SUM(CASE WHEN status = "adjusted" THEN 1 ELSE 0 END) as adjusted,
-                SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending,
-                SUM(amount_applied) as total_amount_applied,
-                SUM(amount_approved) as total_amount_approved
-            ')
-            ->first();
-
-        $this->update([
-            'total_amount_applied' => $stats->total_amount_applied ?? 0,
-            'total_amount_approved' => $stats->total_amount_approved ?? 0,
-        ]);
+        \App\Support\LoanPhaseFinancialTotals::refresh($this);
     }
 
     public function getStatsAttribute(): array
