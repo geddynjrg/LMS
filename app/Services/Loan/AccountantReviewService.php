@@ -9,20 +9,39 @@ use Illuminate\Validation\ValidationException;
 
 class AccountantReviewService
 {
-    public function phaseHasRequiredDocuments(LoanPhase $phase): bool
+    public function phaseHasProcessedCodeList(LoanPhase $phase): bool
     {
         $phase->loadMissing('phaseApplicationDocuments');
 
         return $phase->phaseApplicationDocuments
             ->pluck('document_type')
             ->intersect(PhaseDocumentType::processedCodeListTypes())
-            ->isNotEmpty()
-            && $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::BANK_RECONCILIATION);
+            ->isNotEmpty();
+    }
+
+    public function phaseHasBankReconciliation(LoanPhase $phase): bool
+    {
+        $phase->loadMissing('phaseApplicationDocuments');
+
+        return $phase->phaseApplicationDocuments
+            ->contains('document_type', PhaseDocumentType::BANK_RECONCILIATION);
+    }
+
+    public function phaseHasRequiredDocuments(LoanPhase $phase): bool
+    {
+        return $this->phaseHasProcessedCodeList($phase)
+            && $this->phaseHasBankReconciliation($phase);
+    }
+
+    public function isEligibleForDashboard(LoanPhase $phase): bool
+    {
+        return $phase->status === 'submitted_to_hq'
+            && $this->phaseHasProcessedCodeList($phase);
     }
 
     public function queueForReview(LoanPhase $phase): void
     {
-        if (! $this->phaseHasRequiredDocuments($phase)) {
+        if (! $this->isEligibleForDashboard($phase)) {
             return;
         }
 
@@ -35,9 +54,28 @@ class AccountantReviewService
         ]);
     }
 
+    /**
+     * Backfill accountant queue for HQ-submitted phases that already have a processed code list.
+     */
+    public function syncPendingQueues(): void
+    {
+        LoanPhase::query()
+            ->where('status', 'submitted_to_hq')
+            ->whereHas('phaseApplicationDocuments', fn ($q) => $q->whereIn(
+                'document_type',
+                PhaseDocumentType::processedCodeListTypes()
+            ))
+            ->where(function ($q) {
+                $q->whereNull('accountant_review_status')
+                    ->orWhere('accountant_review_status', AccountantReviewStatus::RETURNED_TO_HQ);
+            })
+            ->each(fn (LoanPhase $phase) => $this->queueForReview($phase));
+    }
+
     public function approve(LoanPhase $phase, string $notes): void
     {
         $this->assertCanReview($phase);
+        $this->assertCanApprove($phase);
 
         if (trim($notes) === '') {
             throw ValidationException::withMessages([
@@ -91,9 +129,18 @@ class AccountantReviewService
             ]);
         }
 
-        if (! $this->phaseHasRequiredDocuments($phase)) {
+        if (! $this->phaseHasProcessedCodeList($phase)) {
             throw ValidationException::withMessages([
-                'phase' => 'Processed code list and bank reconciliation must be uploaded before accounts review.',
+                'phase' => 'The HQ processed code list must be uploaded before accounts review.',
+            ]);
+        }
+    }
+
+    protected function assertCanApprove(LoanPhase $phase): void
+    {
+        if (! $this->phaseHasBankReconciliation($phase)) {
+            throw ValidationException::withMessages([
+                'phase' => 'Bank reconciliation must be on file before accounts can approve and forward to HQ management.',
             ]);
         }
     }

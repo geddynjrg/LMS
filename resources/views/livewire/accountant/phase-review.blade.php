@@ -123,6 +123,11 @@
                     </h6>
                 </div>
                 <div class="card-body pt-0">
+                    @if(!$bankReconDoc)
+                        <div class="alert alert-warning small mb-3">
+                            Bank reconciliation is not on file for this phase. You can return it to HQ for follow-up, but approval requires the bank reconciliation document.
+                        </div>
+                    @endif
                     <p class="text-muted small">If the processed code list and bank reconciliation are correct, add notes and send to HQ for management committee approval.</p>
                     <div class="form-group">
                         <label class="small font-weight-bold text-uppercase text-muted">Notes for HQ</label>

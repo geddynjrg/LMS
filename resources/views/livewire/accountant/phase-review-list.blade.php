@@ -151,7 +151,7 @@
                                     <div class="font-weight-bold text-navy">No phases in this queue</div>
                                     <p class="text-muted small mb-0">
                                         @if($filter === 'pending')
-                                            Phases appear here after HQ uploads a processed code list and the constituency bank reconciliation is on file.
+                                            Phases appear here after HQ uploads a processed code list for a constituency submission.
                                         @else
                                             No phases have been cleared for HQ management yet.
                                         @endif

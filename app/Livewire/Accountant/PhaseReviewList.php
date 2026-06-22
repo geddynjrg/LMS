@@ -19,6 +19,7 @@ class PhaseReviewList extends Component
     public function mount(): void
     {
         $this->filter = request()->query('filter', 'pending');
+        app(\App\Services\Loan\AccountantReviewService::class)->syncPendingQueues();
     }
 
     public function updatingFilter(): void
@@ -36,8 +37,7 @@ class PhaseReviewList extends Component
                 'hqOfficer:id,name',
                 'accountantReviewer:id,name',
             ])
-            ->whereHas('phaseApplicationDocuments', fn ($q) => $q->whereIn('document_type', PhaseDocumentType::processedCodeListTypes()))
-            ->whereHas('phaseApplicationDocuments', fn ($q) => $q->where('document_type', PhaseDocumentType::BANK_RECONCILIATION));
+            ->whereHas('phaseApplicationDocuments', fn ($q) => $q->whereIn('document_type', PhaseDocumentType::processedCodeListTypes()));
     }
 
     protected function pendingCount(): int
