@@ -58,7 +58,9 @@ class PhaseReview extends Component
 
         $this->validate([
             'approvalType' => 'required|in:' . implode(',', $allowedTypes),
-            'signatureFile' => 'required|file|mimes:png,jpg,jpeg,pdf|max:2048',
+            'signatureFile' => $this->secretariatService->signatureRequiredForType($this->approvalType)
+                ? 'required|file|mimes:png,jpg,jpeg,pdf|max:2048'
+                : 'nullable',
             'notes' => 'nullable|string|max:2000',
         ]);
 

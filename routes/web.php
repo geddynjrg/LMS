@@ -16,6 +16,7 @@ use App\Http\Controllers\Hq\HqLoanController;
 use App\Http\Controllers\Hq\HqMemberController;
 use App\Http\Controllers\Hq\HqReportController;
 use App\Http\Controllers\Secretariat\SecretariatController;
+use App\Http\Controllers\Accountant\AccountantController;
 
 /*
 |--------------------------------------------------------------------------
@@ -121,6 +122,14 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/phases', [SecretariatController::class, 'index'])->name('phases.index');
             Route::get('/phases/{phase}/review', [SecretariatController::class, 'review'])->name('phases.review');
             Route::get('/phases/{phase}/code-list', [SecretariatController::class, 'downloadCodeList'])->name('phases.code-list');
+        });
+
+    Route::middleware(['role:super-admin|accountant'])
+        ->prefix('accountant')
+        ->name('accountant.')
+        ->group(function () {
+            Route::get('/phases', [AccountantController::class, 'index'])->name('phases.index');
+            Route::get('/phases/{phase}/review', [AccountantController::class, 'review'])->name('phases.review');
         });
 
     Route::middleware(['auth', 'role:super-admin|constituency_officer|head_of_secretariat'])

@@ -45,6 +45,16 @@
         <nav class="mt-2">
             <ul class="nav nav-pills nav-sidebar flex-column nav-flatt nav-child-indent nav-compact" data-widget="treeview" role="menu" data-accordion="false">
 
+            @hasrole('accountant|super-admin')
+                <li class="nav-header text-uppercase text-xs text-muted">Accounts</li>
+                <li class="nav-item">
+                    <a href="{{ route('accountant.phases.index') }}" class="nav-link {{ Route::is('accountant.*') ? 'active' : '' }}">
+                        <i class="nav-icon fas fa-calculator text-teal"></i>
+                        <p>Accounts Dashboard</p>
+                    </a>
+                </li>
+            @endhasrole
+
             @hasrole('head_of_secretariat|super-admin')
                 <li class="nav-header text-uppercase text-xs text-muted">Secretariat</li>
                 <li class="nav-item">

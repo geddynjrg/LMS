@@ -232,6 +232,11 @@ class SecretariatApprovalService
         ];
     }
 
+    public function signatureRequiredForType(string $type): bool
+    {
+        return $type === SecretariatApproval::TYPE_POST_HQ_REVIEW;
+    }
+
     public function recordApproval(
         LoanPhase $phase,
         string $type,
@@ -281,6 +286,12 @@ class SecretariatApprovalService
             && !$this->hasApproval($phase, SecretariatApproval::TYPE_TRAINING_AUTHORIZATION)) {
             throw ValidationException::withMessages([
                 'approval' => 'Training authorization must be completed before final disbursement approval.',
+            ]);
+        }
+
+        if ($this->signatureRequiredForType($type) && ! $signatureFile) {
+            throw ValidationException::withMessages([
+                'signatureFile' => 'A digital signature is required to sign the approved code list.',
             ]);
         }
 

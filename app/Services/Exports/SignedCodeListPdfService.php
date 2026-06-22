@@ -4,6 +4,7 @@ namespace App\Services\Exports;
 
 use App\Models\LoanPhase;
 use App\Models\SecretariatApproval;
+use App\Support\PhaseDocumentType;
 use App\Services\Loan\SecretariatApprovalService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
@@ -117,7 +118,7 @@ class SignedCodeListPdfService
         Storage::disk('local')->put($path, $pdfBytes);
 
         $existing = $phase->phaseApplicationDocuments
-            ->firstWhere('document_type', 'approved_code_list');
+            ->firstWhere('document_type', PhaseDocumentType::SIGNED_APPROVED_CODE_LIST);
 
         if ($existing) {
             if ($existing->path && Storage::disk('local')->exists($existing->path)) {
@@ -128,8 +129,8 @@ class SignedCodeListPdfService
 
         $phase->phaseApplicationDocuments()->create([
             'loan_phase_id' => $phase->id,
-            'title' => 'Approved Code List (Signed)',
-            'document_type' => 'approved_code_list',
+            'title' => 'Signed Approved Code List',
+            'document_type' => PhaseDocumentType::SIGNED_APPROVED_CODE_LIST,
             'original_filename' => $filename,
             'filename' => $filename,
             'path' => $path,

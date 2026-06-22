@@ -500,7 +500,7 @@
                                 </div>
 
                                 <div class="card-body pt-1 pb-3">
-                                    <span class="text-xs text-gray-500">Upload the approved code list to approve this batch. After Head of Secretariat signs off, the system replaces it with a signed PDF automatically.</span>
+                                    <span class="text-xs text-gray-500">Upload the approved code list (Excel preferred). Accounts will review it with the bank reconciliation before management committee approval.</span>
 
 
                                     <div class="form-group my-3 premium-file-container">
@@ -524,6 +524,35 @@
                                 </div>
                             </div>
                         @else
+                        @if($this->detailedPhase->accountant_review_status)
+                            <div class="card shadow-sm mb-3 border-0">
+                                <div class="card-body py-2">
+                                    <small class="text-muted d-block">Accounts review</small>
+                                    <strong>{{ \App\Support\AccountantReviewStatus::labels()[$this->detailedPhase->accountant_review_status] ?? $this->detailedPhase->accountant_review_status }}</strong>
+                                    @if($this->detailedPhase->accountant_notes)
+                                        <p class="text-xs text-gray-600 mb-0 mt-1">{{ $this->detailedPhase->accountant_notes }}</p>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
+
+                        @if($this->detailedPhase->accountant_review_status === \App\Support\AccountantReviewStatus::APPROVED && !$this->detailedPhase->has_management_proposal_minutes)
+                            <div class="card shadow-sm mb-4 border-0">
+                                <div class="card-header bg-light py-2">
+                                    <span class="text-xs font-weight-bold text-uppercase">Management proposal review committee minutes</span>
+                                </div>
+                                <div class="card-body">
+                                    <p class="text-xs text-gray-500">Mandatory before HQ batch approval. Upload the signed management committee minutes.</p>
+                                    <x-file-upload model="managementMinutesFile" height="48px" accept=".pdf,.doc,.docx" />
+                                    <div class="text-center mt-2">
+                                        <button wire:click="uploadManagementMinutes" wire:loading.attr="disabled" wire:target="managementMinutesFile, uploadManagementMinutes" class="btn btn-sm btn-primary">
+                                            Upload management minutes
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
                         <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                             @if(in_array($this->detailedPhase->status, ['approved', 'in_training', 'disbursed']))
                                 <div class="card-body">
@@ -541,14 +570,19 @@
                                 </div>
                             @else
                                 <div class="card-body">
-                                    <h6 class="text-sm font-weight-bold text-navy mb-1">Batch Approval Ready</h6>
-                                    <p class="text-xs text-gray-500 mb-0">The approved code list has been verified. You can now finalize this phase.</p>
+                                    <h6 class="text-sm font-weight-bold text-navy mb-1">Batch Approval</h6>
+                                    @if($this->canApproveAfterAccountsReview())
+                                        <p class="text-xs text-gray-500 mb-0">Accounts review and management minutes are in place. You may finalize this phase for Head of Secretariat.</p>
+                                    @else
+                                        <p class="text-xs text-warning mb-0">Waiting for accounts clearance and management proposal review committee minutes.</p>
+                                    @endif
 
                                     <div class="d-flex justify-content-center mt-2">
                                         <button wire:click="approvePhase"
                                                 wire:loading.attr="disabled"
                                                 wire:target="approvePhase"
-                                                class="btn btn-refresh-premium btn-sm shadow-sm">
+                                                class="btn btn-refresh-premium btn-sm shadow-sm"
+                                                @disabled(!$this->canApproveAfterAccountsReview())>
                                             <span wire:loading.remove wire:target="approvePhase">
                                                 <i class="fas fa-check mr-2"></i> Aprove Phase
                                             </span>

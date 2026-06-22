@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Builder;
 use App\Models\Member;
+use App\Support\PhaseDocumentType;
 
 
 class LoanPhaseService
@@ -531,9 +532,11 @@ class LoanPhaseService
             'hqOfficer:id,name,email,phone_number'
         ]);
 
-        $phase->has_minutes = $phase->phaseApplicationDocuments->contains('document_type', 'minutes');
-        $phase->has_bank_reconciliation = $phase->phaseApplicationDocuments->contains('document_type', 'bank_reconciliation');
-        $phase->has_approved_code_list = $phase->phaseApplicationDocuments->contains('document_type', 'approved_code_list');
+        $phase->has_minutes = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::MINUTES);
+        $phase->has_bank_reconciliation = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::BANK_RECONCILIATION);
+        $phase->has_approved_code_list = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::APPROVED_CODE_LIST);
+        $phase->has_management_proposal_minutes = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::MANAGEMENT_PROPOSAL_REVIEW_MINUTES);
+        $phase->has_signed_approved_code_list = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::SIGNED_APPROVED_CODE_LIST);
 
         $applicationsQuery = $phase->phaseApplications()
             ->select([
@@ -992,7 +995,11 @@ class LoanPhaseService
                 'submitted_to_hq_at' => now(),
                 'constituency_officer_id' => auth()->id(),
                 'phase_ref' => $ref,
-                'committee_remarks' => $remarks ?? null
+                'committee_remarks' => $remarks ?? null,
+                'accountant_review_status' => null,
+                'accountant_notes' => null,
+                'accountant_reviewed_at' => null,
+                'accountant_reviewed_by' => null,
             ]);
 
             activity()

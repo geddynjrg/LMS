@@ -15,6 +15,7 @@ use App\Exports\StandardVettedExport;
 use App\Exports\DisaggregatedDataExport;
 use App\Exports\DisbursementDataExport;
 use App\Services\Loan\LoanPhaseService;
+use App\Services\Loan\AccountantReviewService;
 use App\Services\Exports\ExportService;
 use App\Services\Loan\TempApplicationService;
 use App\Services\Loan\LoanAnalysisService;
@@ -24,6 +25,7 @@ use App\Models\GroupLoan;
 use App\Models\Group;
 use Carbon\Carbon;
 use App\Support\PhaseWorkflowStatus;
+use App\Support\PhaseDocumentType;
 
 class PhaseApplicationTask extends Component
 {
@@ -66,6 +68,7 @@ class PhaseApplicationTask extends Component
     ];
 
     public $codeListFile = null;
+    public $managementMinutesFile = null;
     public $extraUploads = [];
     public $returnRemarks = '';
 
@@ -256,6 +259,8 @@ class PhaseApplicationTask extends Component
 
             $this->phaseService->uploadPhaseTypedDocument($this->phase, $this->codeListFile, $filePayload);
 
+            app(AccountantReviewService::class)->queueForReview($this->phase->fresh());
+
             $this->reset('codeListFile');
 
             $this->refreshData();
@@ -276,6 +281,67 @@ class PhaseApplicationTask extends Component
         }
 
 
+    }
+
+
+    public function uploadManagementMinutes()
+    {
+        if (!$this->canUploadDocument()) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied',
+                message: 'You do not have permission to upload documents.',
+                type: 'error'
+            );
+            return;
+        }
+
+        if (!app(AccountantReviewService::class)->isApprovedForHqManagement($this->phase)) {
+            $this->dispatch('swal:toast',
+                title: 'Accounts review required',
+                message: 'The accounts team must clear this batch before management minutes can be uploaded.',
+                type: 'error'
+            );
+            return;
+        }
+
+        $this->validate([
+            'managementMinutesFile' => 'required|file|mimes:pdf,doc,docx|max:2048',
+        ], [
+            'managementMinutesFile.required' => 'Please attach the management proposal review committee minutes.',
+            'managementMinutesFile.mimes' => 'Only PDF or Word documents are accepted.',
+        ]);
+
+        try {
+            $filePayload = [
+                'fileName' => 'management-proposal-review-minutes-',
+                'modal' => 'managementMinutesFile',
+                'documentType' => PhaseDocumentType::MANAGEMENT_PROPOSAL_REVIEW_MINUTES,
+                'title' => 'Management Proposal Review Committee Minutes',
+            ];
+
+            $this->phaseService->uploadPhaseTypedDocument($this->phase, $this->managementMinutesFile, $filePayload);
+            $this->reset('managementMinutesFile');
+            $this->refreshData();
+
+            $this->dispatch('swal:toast',
+                title: 'Minutes uploaded',
+                message: 'Management proposal review committee minutes saved.',
+                type: 'success'
+            );
+        } catch (\Exception $e) {
+            logger()->error('Management minutes upload error: ' . $e->getMessage());
+            $this->dispatch('swal:toast',
+                title: 'Upload failed',
+                message: 'Could not upload management minutes. Please try again.',
+                type: 'error'
+            );
+        }
+    }
+
+    public function canApproveAfterAccountsReview(): bool
+    {
+        return app(AccountantReviewService::class)->isApprovedForHqManagement($this->detailedPhase ?? $this->phase)
+            && app(AccountantReviewService::class)->hasManagementProposalMinutes($this->detailedPhase ?? $this->phase);
     }
 
     public function getFileMetadata($file)
@@ -628,6 +694,16 @@ class PhaseApplicationTask extends Component
         $this->validate([
             'remarks' => 'nullable|string|max:1000',
         ]);
+
+        if (! $this->canApproveAfterAccountsReview()) {
+            $this->dispatch('swal:toast',
+                title: 'Cannot approve yet',
+                message: 'Accounts review and management proposal review committee minutes are required before HQ batch approval.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'phase-approval-modal');
+            return;
+        }
 
         $idempotencyKey = "phase_approval_{$this->phase->id}";
 

@@ -22,6 +22,32 @@
     <div class="row">
         <div class="col-lg-7">
             <div class="card shadow-sm mb-4">
+                <div class="card-header font-weight-bold">Documents for review</div>
+                <ul class="list-group list-group-flush">
+                    @php
+                        $docs = $phase->phaseApplicationDocuments->keyBy('document_type');
+                    @endphp
+                    @foreach([
+                        \App\Support\PhaseDocumentType::APPROVED_CODE_LIST => 'Approved code list (from loans / HQ)',
+                        \App\Support\PhaseDocumentType::MANAGEMENT_PROPOSAL_REVIEW_MINUTES => 'Management proposal review committee minutes',
+                        \App\Support\PhaseDocumentType::MINUTES => 'Constituency management committee minutes',
+                        \App\Support\PhaseDocumentType::SIGNED_APPROVED_CODE_LIST => 'Signed approved code list',
+                    ] as $type => $label)
+                        @php $doc = $docs->get($type); @endphp
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="font-weight-bold">{{ $label }}</div>
+                                <small class="text-muted">{{ $doc?->original_filename ?? 'Not yet available' }}</small>
+                            </div>
+                            @if($doc)
+                                <a href="{{ route('phase.doc.serve', ['id' => $doc->id, 'action' => 'download']) }}" class="btn btn-sm btn-outline-primary">Download</a>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+
+            <div class="card shadow-sm mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <strong>Authorization checklist</strong>
                     @if(!$nextType)
@@ -77,7 +103,11 @@
                     </div>
                     <div class="card-body">
                         <p class="text-muted small mb-3">
-                            Upload your digital signature for this step. The next step unlocks automatically after you save.
+                            @if($nextType === \App\Models\SecretariatApproval::TYPE_POST_HQ_REVIEW)
+                                Upload your digital signature once to sign the approved code list. A signed PDF will be generated and kept alongside the original Excel upload.
+                            @else
+                                Confirm this authorization step. No additional signature is required.
+                            @endif
                         </p>
                         @unless($requiresFundTransfer)
                             <p class="text-muted small mb-3">
@@ -90,9 +120,11 @@
                                 <input type="text" class="form-control bg-light" value="{{ $approvalTypes[$nextType] ?? $nextType }}" readonly>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Digital signature (PNG/JPG/PDF)</label>
-                                <input type="file" wire:model="signatureFile" class="form-control" accept=".png,.jpg,.jpeg,.pdf">
-                                @error('signatureFile') <div class="text-danger small">{{ $message }}</div> @enderror
+                                @if($nextType === \App\Models\SecretariatApproval::TYPE_POST_HQ_REVIEW)
+                                    <label class="form-label">Digital signature for code list (PNG/JPG/PDF)</label>
+                                    <input type="file" wire:model="signatureFile" class="form-control" accept=".png,.jpg,.jpeg,.pdf">
+                                    @error('signatureFile') <div class="text-danger small">{{ $message }}</div> @enderror
+                                @endif
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Notes (optional)</label>

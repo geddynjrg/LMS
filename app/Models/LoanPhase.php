@@ -39,6 +39,10 @@ class LoanPhase extends Model
         'total_amount_approved',
         'submitted_to_hq_at',
         'hq_reviewed_at',
+        'accountant_review_status',
+        'accountant_notes',
+        'accountant_reviewed_at',
+        'accountant_reviewed_by',
     ];
 
     protected $casts = [
@@ -46,6 +50,7 @@ class LoanPhase extends Model
         'submitted_to_hq_at' => 'datetime',
         'hq_approved_at' => 'datetime',
         'hq_reviewed_at' => 'datetime',
+        'accountant_reviewed_at' => 'datetime',
         'total_amount_applied' => 'decimal:2',
         'total_amount_approved' => 'decimal:2',
         'is_locked' => 'boolean',
@@ -183,6 +188,11 @@ class LoanPhase extends Model
     public function hqOfficer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'hq_officer_id');
+    }
+
+    public function accountantReviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'accountant_reviewed_by');
     }
 
     public function assignedHqOfficer(): BelongsTo
