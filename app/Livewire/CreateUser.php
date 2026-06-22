@@ -62,7 +62,7 @@ class CreateUser extends Component
         $user->assignRole($this->role);
 
         // Attach constituencies (national officers operate at HQ/secretariat level only)
-        if (! in_array($this->role, ['hq_officer', 'head_of_secretariat'], true)) {
+        if (! in_array($this->role, ['hq_officer', 'head_of_secretariat', 'accountant'], true)) {
             $user->constituencies()->attach($this->assignedConstituencies);
         }
 

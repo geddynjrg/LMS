@@ -21,11 +21,9 @@ use App\Services\Loan\TempApplicationService;
 use App\Services\Loan\LoanAnalysisService;
 use App\Services\IdempotencyService;
 use App\Models\LoanPhase;
-use App\Models\GroupLoan;
-use App\Models\Group;
-use Carbon\Carbon;
-use App\Support\PhaseWorkflowStatus;
 use App\Support\PhaseDocumentType;
+use App\Models\GroupLoan;
+use App\Support\PhaseWorkflowStatus;
 
 class PhaseApplicationTask extends Component
 {
@@ -232,12 +230,12 @@ class PhaseApplicationTask extends Component
             return;
         }
         $this->validate([
-            'codeListFile' => 'required|file|mimes:pdf,doc,docx,xls,xlsx|max:2048',
+            'codeListFile' => 'required|file|mimes:xls,xlsx|max:2048',
         ],
         [
             'codeListFile.max' => 'The document is too heavy. Please keep it under 2MB.',
-            'codeListFile.mimes' => 'Only PDF, Word, and Excel documents are accepted.',
-            'codeListFile.required' => 'Please attach the required document before proceeding.',
+            'codeListFile.mimes' => 'Only Excel workbooks (.xls, .xlsx) are accepted for the processed code list.',
+            'codeListFile.required' => 'Please attach the processed code list before proceeding.',
         ]);
 
         if (!$this->canUploadDocument()) {
@@ -251,10 +249,10 @@ class PhaseApplicationTask extends Component
 
         try {
             $filePayload = [
-                'fileName'      => 'approved-code-list-',
+                'fileName'      => 'processed-code-list-',
                 'modal'         => 'codeListFile',
-                'documentType'  => 'approved_code_list',
-                'title'         => 'Approved Code List'
+                'documentType'  => PhaseDocumentType::PROCESSED_CODE_LIST,
+                'title'         => 'Processed Code List',
             ];
 
             $this->phaseService->uploadPhaseTypedDocument($this->phase, $this->codeListFile, $filePayload);
@@ -266,8 +264,8 @@ class PhaseApplicationTask extends Component
             $this->refreshData();
 
             $this->dispatch('swal:toast',
-                title: 'Code List Upload 😊',
-                message: 'Code List uploaded successfully! ',
+                title: 'Processed Code List Upload 😊',
+                message: 'Processed code list uploaded successfully. Sent to accounts for review.',
                 type: 'success'
             );
         }catch (\Exception $e) {

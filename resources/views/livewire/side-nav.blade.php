@@ -17,6 +17,8 @@
                             <a class="brand-text text-lime">National Headquarters</a>
                         @elseif(auth()->user()->hasRole('head_of_secretariat'))
                             <a class="brand-text text-purple">Head of Secretariat</a>
+                        @elseif(auth()->user()->hasRole('accountant'))
+                            <a class="brand-text text-teal">Accounts</a>
                         @else
                             @if(isset($county))
                                 <a class="brand-text">{{ $county->county_name}} County</a>
@@ -107,6 +109,12 @@
                 </li>
 
                 <li class="nav-header text-uppercase text-xs font-weight-bold text-muted mt-3">Finance & Portfolio</li>
+                <li class="nav-item">
+                    <a href="{{ route('hq.allocations.index') }}" class="nav-link {{ Route::is('hq.allocations.*') ? 'active' : '' }}">
+                        <i class="nav-icon fas fa-coins text-warning"></i>
+                        <p>Constituency Allocations</p>
+                    </a>
+                </li>
                 <li class="nav-item {{ Route::is('hq.loans*') ? 'menu-open' : '' }}">
                     <a href="#" class="nav-link {{ Route::is('hq.loans*') ? 'active shadow-sm' : '' }}">
                         <i class="nav-icon fas fa-hand-holding-usd"></i>

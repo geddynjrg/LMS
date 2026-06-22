@@ -197,7 +197,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function isNationalOfficer(): bool
     {
-        return $this->hasAnyRole(['hq_officer', 'head_of_secretariat']);
+        return $this->hasAnyRole(['hq_officer', 'head_of_secretariat', 'accountant']);
     }
 
     public function clearLocalAssignments(): void

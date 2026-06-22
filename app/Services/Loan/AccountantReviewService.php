@@ -5,7 +5,6 @@ namespace App\Services\Loan;
 use App\Models\LoanPhase;
 use App\Support\AccountantReviewStatus;
 use App\Support\PhaseDocumentType;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class AccountantReviewService
@@ -14,7 +13,10 @@ class AccountantReviewService
     {
         $phase->loadMissing('phaseApplicationDocuments');
 
-        return $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::APPROVED_CODE_LIST)
+        return $phase->phaseApplicationDocuments
+            ->pluck('document_type')
+            ->intersect(PhaseDocumentType::processedCodeListTypes())
+            ->isNotEmpty()
             && $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::BANK_RECONCILIATION);
     }
 
@@ -57,7 +59,7 @@ class AccountantReviewService
 
         if (strlen(trim($comments)) < 20) {
             throw ValidationException::withMessages([
-                'comments' => 'Please provide detailed comments for HQ (at least 20 characters).',
+                'comments' => 'Please provide clarification notes for HQ (at least 20 characters).',
             ]);
         }
 
@@ -67,32 +69,6 @@ class AccountantReviewService
             'accountant_reviewed_at' => now(),
             'accountant_reviewed_by' => auth()->id(),
         ]);
-    }
-
-    public function returnToConstituency(LoanPhase $phase, string $comments, LoanPhaseService $phaseService): void
-    {
-        $this->assertCanReview($phase);
-
-        if (strlen(trim($comments)) < 20) {
-            throw ValidationException::withMessages([
-                'comments' => 'Please explain what the constituency officer must correct (at least 20 characters).',
-            ]);
-        }
-
-        DB::transaction(function () use ($phase, $comments, $phaseService) {
-            $phase->update([
-                'accountant_review_status' => AccountantReviewStatus::RETURNED_TO_CONSTITUENCY,
-                'accountant_notes' => $comments,
-                'accountant_reviewed_at' => now(),
-                'accountant_reviewed_by' => auth()->id(),
-            ]);
-
-            $phaseService->returnPhaseToConstituency(
-                $phase,
-                $comments,
-                'accountant_return_constituency_' . $phase->id
-            );
-        });
     }
 
     public function isApprovedForHqManagement(LoanPhase $phase): bool
@@ -117,7 +93,7 @@ class AccountantReviewService
 
         if (! $this->phaseHasRequiredDocuments($phase)) {
             throw ValidationException::withMessages([
-                'phase' => 'Approved code list and bank reconciliation must be uploaded before accounts review.',
+                'phase' => 'Processed code list and bank reconciliation must be uploaded before accounts review.',
             ]);
         }
     }

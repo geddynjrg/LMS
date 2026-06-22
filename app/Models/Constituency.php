@@ -47,6 +47,11 @@ class Constituency extends Model
         return $this->belongsTo(County::class, 'county_code', 'county_code');
     }
 
+    public function allocationProfile()
+    {
+        return $this->hasOne(ConstituencyAllocationProfile::class, 'constituency_code', 'constituency_code');
+    }
+
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(

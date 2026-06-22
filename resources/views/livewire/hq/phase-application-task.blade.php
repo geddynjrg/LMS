@@ -491,21 +491,21 @@
                     @endif
 
                     @if($this->canApproveApplication())
-                        @if(!$this->detailedPhase->has_approved_code_list)
+                        @if(!$this->detailedPhase->has_processed_code_list)
                             <div class="card shadow-sm mb-4 border-0 animate__animated animate__fadeIn">
                                 <div class="card-header bg-amber-50 border-0 py-2">
                                     <span class="text-xs font-weight-bold text-uppercase text-navy">
-                                        <i class="fas fa-exclamation-triangle mr-1"></i> Missing Mandatory Document
+                                        <i class="fas fa-file-excel mr-1 text-success"></i> Processed Code List Required
                                     </span>
                                 </div>
 
                                 <div class="card-body pt-1 pb-3">
-                                    <span class="text-xs text-gray-500">Upload the approved code list (Excel preferred). Accounts will review it with the bank reconciliation before management committee approval.</span>
+                                    <span class="text-xs text-gray-500">Upload the processed code list as Excel (.xlsx). Accounts will review it together with the bank reconciliation submitted by the constituency when this phase was pushed to HQ.</span>
 
 
                                     <div class="form-group my-3 premium-file-container">
-                                        <label class="small font-weight-bold text-uppercase text-muted mb-2">Approved Code List (Excel or PDF for HQ review)</label>
-                                        <x-file-upload model="codeListFile" height="48px" accept=".pdf,.doc,.docx,.xls,.xlsx" />
+                                        <label class="small font-weight-bold text-uppercase text-muted mb-2">Processed Code List (Excel only)</label>
+                                        <x-file-upload model="codeListFile" height="48px" accept=".xls,.xlsx" />
                                     </div>
 
                                     <div class="d-flex justify-content-center mt-2">
@@ -514,7 +514,7 @@
                                                 wire:target="codeListFile, uploadCodeList"
                                                 class="btn btn-refresh-premium btn-sm shadow-sm">
                                             <span wire:loading.remove wire:target="uploadCodeList">
-                                                <i class="fas fa-cloud-upload-alt mr-2"></i> Upload & Unlock
+                                                <i class="fas fa-cloud-upload-alt mr-2"></i> Upload processed code list
                                             </span>
                                             <span wire:loading wire:target="uploadCodeList">
                                                 <i class="fas fa-spinner fa-spin mr-2"></i> Uploading...

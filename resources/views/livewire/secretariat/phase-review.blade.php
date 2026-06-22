@@ -26,17 +26,19 @@
                 <ul class="list-group list-group-flush">
                     @php
                         $docs = $phase->phaseApplicationDocuments->keyBy('document_type');
+                        $processedDoc = $docs->get(\App\Support\PhaseDocumentType::PROCESSED_CODE_LIST)
+                            ?? $docs->get(\App\Support\PhaseDocumentType::LEGACY_APPROVED_CODE_LIST);
                     @endphp
                     @foreach([
-                        \App\Support\PhaseDocumentType::APPROVED_CODE_LIST => 'Approved code list (from loans / HQ)',
-                        \App\Support\PhaseDocumentType::MANAGEMENT_PROPOSAL_REVIEW_MINUTES => 'Management proposal review committee minutes',
-                        \App\Support\PhaseDocumentType::MINUTES => 'Constituency management committee minutes',
-                        \App\Support\PhaseDocumentType::SIGNED_APPROVED_CODE_LIST => 'Signed approved code list',
-                    ] as $type => $label)
-                        @php $doc = $docs->get($type); @endphp
+                        ['doc' => $processedDoc, 'label' => 'Processed code list (HQ Excel upload)'],
+                        ['doc' => $docs->get(\App\Support\PhaseDocumentType::MANAGEMENT_PROPOSAL_REVIEW_MINUTES), 'label' => 'Management proposal review committee minutes'],
+                        ['doc' => $docs->get(\App\Support\PhaseDocumentType::MINUTES), 'label' => 'Constituency management committee minutes'],
+                        ['doc' => $docs->get(\App\Support\PhaseDocumentType::SIGNED_APPROVED_CODE_LIST), 'label' => 'Signed processed code list'],
+                    ] as $item)
+                        @php $doc = $item['doc']; @endphp
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             <div>
-                                <div class="font-weight-bold">{{ $label }}</div>
+                                <div class="font-weight-bold">{{ $item['label'] }}</div>
                                 <small class="text-muted">{{ $doc?->original_filename ?? 'Not yet available' }}</small>
                             </div>
                             @if($doc)

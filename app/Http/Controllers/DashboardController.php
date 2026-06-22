@@ -20,6 +20,10 @@ class DashboardController extends Controller
             return redirect()->route('secretariat.phases.index');
         }
 
+        if ($user && $user->hasRole('accountant')) {
+            return redirect()->route('accountant.phases.index');
+        }
+
         $constituencies = $user->constituencies;
 
         return view('dashboard.dashboard', [

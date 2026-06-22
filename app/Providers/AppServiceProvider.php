@@ -24,7 +24,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Event::listen(RoleAttached::class, function (RoleAttached $event): void {
-            if (! in_array($event->role->name, ['hq_officer', 'head_of_secretariat'], true)) {
+            if (! in_array($event->role->name, ['hq_officer', 'head_of_secretariat', 'accountant'], true)) {
                 return;
             }
 

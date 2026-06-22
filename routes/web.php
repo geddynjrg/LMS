@@ -14,6 +14,7 @@ use App\Http\Controllers\Hq\HqApplications;
 use App\Http\Controllers\Hq\HqGroupController;
 use App\Http\Controllers\Hq\HqLoanController;
 use App\Http\Controllers\Hq\HqMemberController;
+use App\Http\Controllers\Hq\HqConstituencyAllocationController;
 use App\Http\Controllers\Hq\HqReportController;
 use App\Http\Controllers\Secretariat\SecretariatController;
 use App\Http\Controllers\Accountant\AccountantController;
@@ -109,6 +110,11 @@ Route::middleware(['auth'])->group(function () {
 
         // Reports
         Route::get('/reports', [HqReportController::class, 'index'])->name('reports.index');
+
+        Route::prefix('allocations')->name('allocations.')->group(function () {
+            Route::get('/', [HqConstituencyAllocationController::class, 'index'])->name('index');
+            Route::get('/{constituency}/template', [HqConstituencyAllocationController::class, 'downloadTemplate'])->name('template');
+        });
 
 
         // Global Reports (National level)

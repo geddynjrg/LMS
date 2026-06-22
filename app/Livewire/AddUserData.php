@@ -3,6 +3,8 @@
 namespace App\Livewire;
 
 use App\Models\User;
+use App\Support\SystemRoles;
+use App\Rules\SingletonRoleAvailable;
 use Spatie\Permission\Models\Role;
 use Livewire\Component;
 use Livewire\Attributes\On;
@@ -32,7 +34,7 @@ class AddUserData extends Component
             'email' => 'required|email|unique:users,email',
             'id_number' => 'required|unique:users,id_number',
             'phone_number' => 'required|regex:/^254[17][0-9]{8}$/',
-            'selected_role' => 'required|exists:roles,name',
+            'selected_role' => ['required', 'exists:roles,name', new SingletonRoleAvailable()],
 
             'selected_county' => [
                 // Only require county if the user is a constituency_officer
@@ -51,7 +53,7 @@ class AddUserData extends Component
 
                 function ($attribute, $value, $fail) {
                     // Skip validation logic entirely if it's an HQ user
-                    if ($this->selected_role === 'hq_officer' || $this->selected_role === 'super-admin') {
+                    if ($this->selected_role === 'hq_officer' || $this->selected_role === 'super-admin' || $this->selected_role === 'accountant' || $this->selected_role === 'head_of_secretariat') {
                         return;
                     }
 
@@ -196,7 +198,16 @@ class AddUserData extends Component
         } else {
             $roleQuery->where('name', '!=', 'super-admin')->where('name', '!=', 'intern');
 
+            $roles = $roleQuery->get()->filter(function ($role) {
+                return ! SystemRoles::singletonRoleTaken($role->name);
+            });
+
             $available_constituencies = $this->available_constituencies;
+
+            return view('livewire.users.add-user-data', [
+                'roles' => $roles,
+                'available_constituencies' => $available_constituencies
+            ]);
         }
 
         return view('livewire.users.add-user-data', [

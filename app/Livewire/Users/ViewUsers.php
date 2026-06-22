@@ -15,6 +15,8 @@ use App\Services\MailService;
 use App\Models\County;
 use App\Models\Constituency;
 use App\Models\User;
+use App\Support\SystemRoles;
+use App\Rules\SingletonRoleAvailable;
 
 class ViewUsers extends Component
 {
@@ -62,7 +64,7 @@ class ViewUsers extends Component
             'email' => 'required|email|unique:users,email',
             'idNumber' => 'required|unique:users,id_number',
             'phoneNumber' => 'required|regex:/^254[17][0-9]{8}$/',
-            'selectedRole' => 'required|exists:roles,name',
+            'selectedRole' => ['required', 'exists:roles,name', new SingletonRoleAvailable()],
 
             'selectedCounty' => [
                 'bail',
@@ -79,7 +81,7 @@ class ViewUsers extends Component
                 in_array($this->selectedRole, ['constituency_officer', 'intern']) ? 'min:1' : '',
 
                 function ($attribute, $value, $fail) {
-                    if (in_array($this->selectedRole, ['hq_officer', 'super-admin', 'admin'])) {
+                    if (in_array($this->selectedRole, ['hq_officer', 'super-admin', 'admin', 'accountant', 'head_of_secretariat'])) {
                         return;
                     }
 
@@ -349,11 +351,16 @@ class ViewUsers extends Component
     private function getRoleOptions()
     {
         return Role::all()
-            ->filter(function($role) {
-                if ($this->isSuperAdmin) {
-                    return true;
+            ->filter(function ($role) {
+                if (! $this->isSuperAdmin) {
+                    return $role->name === 'intern';
                 }
-                return $role->name === 'intern';
+
+                if (SystemRoles::singletonRoleTaken($role->name)) {
+                    return false;
+                }
+
+                return true;
             })
             ->map(fn($role) => [
                 'id' => $role->name,

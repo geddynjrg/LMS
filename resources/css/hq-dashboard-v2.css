@@ -114,3 +114,15 @@
     font-weight: 700;
     padding: 0.35rem 0.75rem;
 }
+
+.hq-allocations-shell {
+    background: #f4f6f9;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    overflow: visible;
+}
+
+.hq-allocations-shell .hq-filter-card,
+.hq-allocations-shell .hq-filter-card .card-body {
+    overflow: visible !important;
+}

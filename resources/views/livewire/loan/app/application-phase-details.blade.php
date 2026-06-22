@@ -667,6 +667,44 @@
                                 </div>
                             </div>
                         @else
+                            @if($this->canUploadRequestForTransferLetter() && !$this->detailedPhase->has_request_for_transfer_letter && ($this->detailedPhase->has_minutes || $this->detailedPhase->status === 'submitted_to_hq'))
+                                <div class="card shadow-sm mb-4 border-0">
+                                    <div class="card-header bg-light border-0 py-2">
+                                        <span class="text-xs font-weight-bold text-uppercase text-navy">
+                                            <i class="fas fa-file-signature mr-1 text-info"></i> Optional Document
+                                        </span>
+                                    </div>
+                                    <div class="card-body pt-1 pb-3">
+                                        <p class="text-xs text-gray-500 mb-2">
+                                            Upload the request for transfer letter if available. This is <strong>not mandatory</strong> for HQ submission but will be visible to accounts when uploaded.
+                                        </p>
+                                        <div class="form-group my-3 premium-file-container">
+                                            <label class="small font-weight-bold text-uppercase text-muted mb-2">Request for Transfer Letter (PDF/Word)</label>
+                                            <x-file-upload model="transferLetterFile" height="48px" accept=".pdf,.doc,.docx" />
+                                            @error('transferLetterFile')
+                                                <small class="text-danger d-block mt-2" style="font-size: 0.75rem;">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i> {{ $message }}
+                                                </small>
+                                            @enderror
+                                        </div>
+                                        <div class="d-flex justify-content-center mt-2">
+                                            <button wire:click="uploadRequestForTransferLetter"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="transferLetterFile, uploadRequestForTransferLetter"
+                                                    class="btn btn-outline-info btn-sm shadow-sm"
+                                                    style="min-width: 200px; border-radius: 10px; height: 40px;">
+                                                <span wire:loading.remove wire:target="uploadRequestForTransferLetter">
+                                                    <i class="fas fa-cloud-upload-alt mr-2"></i> Upload transfer letter
+                                                </span>
+                                                <span wire:loading wire:target="uploadRequestForTransferLetter">
+                                                    <i class="fas fa-spinner fa-spin mr-2"></i> Uploading...
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+
                             @if($this->detailedPhase->status ==='draft')
                                 <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                                     @if ($this->detailedPhase->has_minutes && $this->detailedPhase->has_bank_reconciliation && $detailedPhase->pending_count == 0)

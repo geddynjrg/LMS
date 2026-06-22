@@ -24,6 +24,7 @@ use App\Services\Loan\TrainingAttendanceService;
 use App\Services\Exports\SignedCodeListPdfService;
 use App\Services\Exports\LetterOfAuthorityPdfService;
 use App\Services\IdempotencyService;
+use App\Support\PhaseDocumentType;
 use App\Support\PhaseWorkflowStatus;
 use App\Livewire\Concerns\ManagesPhaseDisbursement;
 use Illuminate\Validation\ValidationException;
@@ -80,6 +81,7 @@ class ApplicationPhaseDetails extends Component
     public $extraUploads = [];
     public $minutesFile;
     public $bankReconciliationFile;
+    public $transferLetterFile;
     public $selectedAppId;
     public $selectedGroupId;
     public $selectedRejectionKey;
@@ -339,6 +341,77 @@ class ApplicationPhaseDetails extends Component
                 type: 'error'
             );
         }
+    }
+
+    public function uploadRequestForTransferLetter()
+    {
+        if (!$this->canUploadRequestForTransferLetter()) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied',
+                message: 'You cannot upload this document for this phase.',
+                type: 'error'
+            );
+            return;
+        }
+
+        $this->validate([
+            'transferLetterFile' => 'required|file|mimes:pdf,doc,docx|max:2048',
+        ], [
+            'transferLetterFile.max' => 'The document is too heavy. Please keep it under 2MB.',
+            'transferLetterFile.mimes' => 'Only PDF and Word documents are accepted.',
+            'transferLetterFile.required' => 'Please attach the request for transfer letter.',
+        ]);
+
+        try {
+            $filePayload = [
+                'fileName' => 'request-for-transfer-letter-',
+                'modal' => 'transferLetterFile',
+                'documentType' => PhaseDocumentType::REQUEST_FOR_TRANSFER_LETTER,
+                'title' => 'Request for Transfer Letter',
+            ];
+            $this->phaseService->uploadPhaseTypedDocument($this->phase, $this->transferLetterFile, $filePayload);
+
+            $this->reset('transferLetterFile');
+            $this->refreshData();
+
+            $this->dispatch('swal:toast',
+                title: 'Transfer Letter Upload',
+                message: 'Request for transfer letter uploaded successfully.',
+                type: 'success'
+            );
+        } catch (ValidationException $ve) {
+            $this->addError('transferLetterFile', $ve->errors()['transferLetterFile'][0] ?? $ve->getMessage());
+        } catch (\Exception $e) {
+            logger()->error('Transfer letter upload error: ' . $e->getMessage());
+            $this->dispatch('swal:toast',
+                title: 'Upload failed',
+                message: 'Failed to upload your document. Please try again later.',
+                type: 'error'
+            );
+        }
+    }
+
+    public function canUploadRequestForTransferLetter(): bool
+    {
+        $user = auth()->user();
+
+        if (!$user || !$user->can('submit application')) {
+            return false;
+        }
+
+        if (!in_array($this->phase->status, ['draft', 'submitted_to_hq'], true)) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin')) {
+            return true;
+        }
+
+        if (!$user->hasRole('constituency_officer')) {
+            return false;
+        }
+
+        return $user->constituencies->contains('constituency_code', $this->phase->constituency_code);
     }
 
     public function deleteDocument($docId)

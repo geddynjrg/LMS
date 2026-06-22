@@ -16,6 +16,8 @@ use App\Services\LocationService;
 use App\Services\UserService;
 use App\Models\County;
 use App\Models\User;
+use App\Support\SystemRoles;
+use App\Rules\SingletonRoleAvailable;
 use App\Services\MailService;
 
 class ViewUserData extends Component
@@ -186,11 +188,16 @@ class ViewUserData extends Component
     private function getRoleOptions()
     {
         return Role::all()
-            ->filter(function($role) {
-                if ($this->isSuperAdmin) {
-                    return true;
+            ->filter(function ($role) {
+                if (! $this->isSuperAdmin) {
+                    return $role->name === 'intern';
                 }
-                return $role->name === 'intern';
+
+                if (SystemRoles::singletonRoleTaken($role->name, $this->user->id)) {
+                    return false;
+                }
+
+                return true;
             })
             ->map(fn($role) => [
                 'id' => $role->name,
@@ -362,6 +369,7 @@ class ViewUserData extends Component
             'state.role' => [
                 'required',
                 'exists:roles,name',
+                new SingletonRoleAvailable($this->user->id),
                 Rule::when(auth()->user()->hasRole('constituency_officer'), [
                     'in:intern'
                 ]),

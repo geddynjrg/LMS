@@ -411,8 +411,17 @@ class ApplicationView extends Component
             return null;
         }
 
+        if (is_array($path)) {
+            $path = $path['path'] ?? $path['url'] ?? null;
+        }
+
+        if (empty($path)) {
+            return null;
+        }
+
         $path = str_replace('storage/storage/', 'storage/', $path);
         $path = str_replace('storage/app/public/', '', $path);
+        $path = preg_replace('#^/?storage/#', '', $path);
         $path = ltrim($path, '/');
 
         $encodedPath = base64_encode($path);

@@ -534,7 +534,12 @@ class LoanPhaseService
 
         $phase->has_minutes = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::MINUTES);
         $phase->has_bank_reconciliation = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::BANK_RECONCILIATION);
-        $phase->has_approved_code_list = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::APPROVED_CODE_LIST);
+        $phase->has_request_for_transfer_letter = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::REQUEST_FOR_TRANSFER_LETTER);
+        $phase->has_processed_code_list = $phase->phaseApplicationDocuments
+            ->pluck('document_type')
+            ->intersect(PhaseDocumentType::processedCodeListTypes())
+            ->isNotEmpty();
+        $phase->has_approved_code_list = $phase->has_processed_code_list;
         $phase->has_management_proposal_minutes = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::MANAGEMENT_PROPOSAL_REVIEW_MINUTES);
         $phase->has_signed_approved_code_list = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::SIGNED_APPROVED_CODE_LIST);
 
