@@ -15,7 +15,7 @@ class ProcessedCodeListController extends Controller
     {
         $phase->loadMissing('constituency:constituency_code,constituency_name');
 
-        app(ConstituencyAllocationService::class)->syncPhaseIssuedFromLoanPhase($phase);
+        app(ConstituencyAllocationService::class)->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase);
 
         $query = app(ExportService::class)->exportCodeList($phase->id);
         $constituencyName = str_replace(' ', '_', $phase->constituency?->constituency_name ?? $phase->constituency_code);
@@ -26,7 +26,7 @@ class ProcessedCodeListController extends Controller
 
     public function downloadSigned(LoanPhase $phase)
     {
-        app(ConstituencyAllocationService::class)->syncPhaseIssuedFromLoanPhase($phase);
+        app(ConstituencyAllocationService::class)->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase);
 
         return app(SignedCodeListPdfService::class)->downloadResponse($phase);
     }

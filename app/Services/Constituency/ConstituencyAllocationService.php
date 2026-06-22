@@ -121,7 +121,68 @@ class ConstituencyAllocationService
             return null;
         }
 
-        return $this->syncPhaseIssuedFromLoanPhase($phase);
+        return $this->syncAllSubmittedPhasesForConstituency($constituencyCode, $phase);
+    }
+
+    /**
+     * Merge recommended totals from every HQ-submitted loan phase into the allocation profile.
+     * Preserves manually entered phase rows that have no matching loan phase.
+     */
+    public function syncAllSubmittedPhasesForConstituency(string $constituencyCode, ?LoanPhase $includePhase = null): ?ConstituencyAllocationProfile
+    {
+        $submittedPhases = LoanPhase::query()
+            ->where('constituency_code', $constituencyCode)
+            ->whereNotNull('submitted_to_hq_at')
+            ->with('phaseApplications')
+            ->orderBy('submitted_to_hq_at')
+            ->orderBy('id')
+            ->get();
+
+        if ($includePhase && ! $submittedPhases->contains('id', $includePhase->id)) {
+            $includePhase->loadMissing('phaseApplications');
+            $submittedPhases = $submittedPhases->push($includePhase);
+        }
+
+        if ($submittedPhases->isEmpty()) {
+            return $includePhase ? $this->syncPhaseIssuedFromLoanPhase($includePhase) : null;
+        }
+
+        $existing = $this->forConstituency($constituencyCode);
+        $payload = $existing
+            ? $this->profileToPayload($existing)
+            : ConstituencyAllocationFields::emptyPayload();
+
+        $syncedPhaseNumbers = [];
+
+        foreach ($submittedPhases as $phase) {
+            $phaseNumber = self::extractPhaseNumber((string) ($phase->phase ?? ''));
+
+            if ($phaseNumber === null) {
+                continue;
+            }
+
+            $syncedPhaseNumbers[] = $phaseNumber;
+
+            $totalRecommended = (float) $phase->phaseApplications
+                ->whereNotIn('status', ['rejected', 'deferred', 'pending'])
+                ->sum('amount_approved');
+
+            $this->upsertPhaseIssuedAmount($payload, $phaseNumber, round($totalRecommended, 2));
+        }
+
+        $payload['phase_issued_amounts'] = collect($payload['phase_issued_amounts'] ?? [])
+            ->reject(function (array $row) use ($syncedPhaseNumbers) {
+                $phaseNumber = (int) ($row['phase'] ?? 0);
+                $amount = (float) ($row['amount'] ?? 0);
+
+                return $phaseNumber > 0
+                    && $amount === 0.0
+                    && ! in_array($phaseNumber, $syncedPhaseNumbers, true);
+            })
+            ->values()
+            ->all();
+
+        return $this->save($constituencyCode, $payload);
     }
 
     public static function extractPhaseNumber(string $phaseLabel): ?int

@@ -463,7 +463,7 @@ class PhaseApplicationTask extends Component
     {
         switch ($document) {
             case 'code_list':
-                app(ConstituencyAllocationService::class)->syncPhaseIssuedFromLoanPhase($this->phase);
+                app(ConstituencyAllocationService::class)->syncAllSubmittedPhasesForConstituency($this->phase->constituency_code, $this->phase);
                 $query  = $this->exportService->exportCodeList($this->phase->id);
                 try {
                     $fileName = "Processed_Codelist_{$this->phase->constituency->constituency_name}_" . now()->format('Ymd_His') . ".xlsx";

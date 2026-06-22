@@ -1029,7 +1029,7 @@ class LoanPhaseService
                 ->log("Phase finalized and submitted to HQ with Ref: {$ref}");
 
             app(\App\Services\Constituency\ConstituencyAllocationService::class)
-                ->syncPhaseIssuedFromLoanPhase($phase->fresh());
+                ->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase->fresh());
 
             $this->idempotencyService->release($idempotencyKey);
         });

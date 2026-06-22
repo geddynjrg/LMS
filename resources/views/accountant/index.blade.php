@@ -17,7 +17,7 @@
                     <i class="fas fa-calculator text-teal mr-2"></i>Accounts Dashboard
                 </h3>
                 <p class="text-gray-600 mb-0">
-                    Review HQ processed code lists (Excel) and constituency bank reconciliations. Request for transfer letter appears only when uploaded by the constituency officer.
+                    Review HQ processed code lists (Excel) and constituency bank reconciliations.
                 </p>
             </div>
             <div class="col-md-4 text-md-right mt-3 mt-md-0">

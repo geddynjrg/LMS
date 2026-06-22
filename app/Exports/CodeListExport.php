@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\ConstituencyAllocationProfile;
+use App\Models\LoanPhase;
 use App\Support\ConstituencyAllocationFields;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\Exportable;
@@ -92,8 +93,8 @@ class CodeListExport extends DefaultValueBinder implements
             'E' => 12,
             'F' => 14,
             'G' => 14,
-            'H' => 12,
-            'I' => 14,
+            'H' => 9.86,
+            'I' => 19,
             'J' => 12,
             'K' => 14,
         ];
@@ -160,11 +161,12 @@ class CodeListExport extends DefaultValueBinder implements
                 $countyName = $phase->constituency->county->county_name ?? 'N/A';
                 $phaseLabel = $phase->phase ?? 'N/A';
 
-                app(\App\Services\Constituency\ConstituencyAllocationService::class)
-                    ->syncPhaseIssuedFromLoanPhase($phase);
-
                 $highestRow = max($sheet->getHighestRow(), self::DATA_START_ROW);
                 $totalRow = $highestRow + 1;
+
+                $sheet->getParent()->getDefaultStyle()->getFont()
+                    ->setName(self::FONT_NAME)
+                    ->setSize(self::FONT_SIZE);
 
                 $this->writeDocumentHeader($sheet, $phaseLabel, $constituencyName, $constCode, $countyName);
                 $this->addLogo($sheet);
@@ -177,7 +179,8 @@ class CodeListExport extends DefaultValueBinder implements
                     $constCode,
                     $totalRow,
                     $phaseLabel,
-                    $phaseRecommendedTotal
+                    $phaseRecommendedTotal,
+                    $phase
                 );
 
                 $this->applyWorkbookFont($sheet, max($summaryEndRow, $totalRow));
@@ -214,16 +217,16 @@ class CodeListExport extends DefaultValueBinder implements
                 ->setVertical(Alignment::VERTICAL_CENTER);
             $sheet->getStyle("B{$row}")->getFont()->setBold(true);
         }
-
-        $sheet->getStyle('B1')->getFont()->setSize(14);
-        $sheet->getStyle('B2')->getFont()->setSize(13);
     }
 
     private function writeTotalsRow(Worksheet $sheet, int $highestRow, int $totalRow): void
     {
+        $dataRangeStart = self::DATA_START_ROW;
+
         $sheet->setCellValue("C{$totalRow}", 'TOTAL');
-        $sheet->setCellValue("E{$totalRow}", "=SUM(E" . self::DATA_START_ROW . ":E{$highestRow})");
-        $sheet->setCellValue("I{$totalRow}", "=SUM(I" . self::DATA_START_ROW . ":I{$highestRow})");
+        $sheet->setCellValue("E{$totalRow}", "=SUM(E{$dataRangeStart}:E{$highestRow})");
+        $sheet->setCellValue("G{$totalRow}", "=SUM(G{$dataRangeStart}:G{$highestRow})");
+        $sheet->setCellValue("I{$totalRow}", "=SUM(I{$dataRangeStart}:I{$highestRow})");
 
         $sheet->getStyle("C{$totalRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
         $sheet->getStyle("C{$totalRow}:I{$totalRow}")->getFont()->setBold(true);
@@ -231,24 +234,20 @@ class CodeListExport extends DefaultValueBinder implements
 
     private function styleMainTable(Worksheet $sheet, int $highestRow, int $totalRow): void
     {
-        $sheet->getRowDimension(self::HEADER_ROW)->setRowHeight(22);
+        $sheet->getRowDimension(self::HEADER_ROW)->setRowHeight(50.25);
 
         $sheet->getStyle('A' . self::HEADER_ROW . ':' . self::LAST_DATA_COLUMN . self::HEADER_ROW)->applyFromArray([
             'font' => ['bold' => true, 'name' => self::FONT_NAME, 'size' => self::FONT_SIZE],
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
                 'vertical' => Alignment::VERTICAL_CENTER,
-                'wrapText' => false,
+                'wrapText' => true,
             ],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => 'E9E9E9'],
             ],
         ]);
-
-        foreach (['B', 'H', 'I'] as $column) {
-            $sheet->getStyle("{$column}" . self::HEADER_ROW)->getAlignment()->setWrapText(false);
-        }
 
         $sheet->getStyle('A' . self::HEADER_ROW . ':' . self::LAST_DATA_COLUMN . $totalRow)
             ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
@@ -281,7 +280,11 @@ class CodeListExport extends DefaultValueBinder implements
         int $totalRow,
         string $phaseLabel,
         string $phaseRecommendedCellReference,
+        LoanPhase $phase,
     ): int {
+        app(\App\Services\Constituency\ConstituencyAllocationService::class)
+            ->syncAllSubmittedPhasesForConstituency($constituencyCode, $phase);
+
         $profile = ConstituencyAllocationProfile::query()
             ->where('constituency_code', $constituencyCode)
             ->first();
@@ -329,14 +332,14 @@ class CodeListExport extends DefaultValueBinder implements
 
             $sheet->setCellValue("{$labelCol}{$row}", 'TOTAL APPROVALS');
             if ($phaseAmountRows === []) {
-                $sheet->setCellValue("{$valueCol}{$row}", 0);
+                $sheet->setCellValue("{$valueCol}{$row}", $profile->totalApprovals());
             } else {
-                $approvalFormula = '=';
-                $approvalFormula .= implode('+', array_map(
-                    fn (int $phaseRowNumber) => "{$valueCol}{$phaseRowNumber}",
-                    $phaseAmountRows
-                ));
-                $sheet->setCellValue("{$valueCol}{$row}", $approvalFormula);
+                $firstPhaseRow = min($phaseAmountRows);
+                $lastPhaseRow = max($phaseAmountRows);
+                $sheet->setCellValue(
+                    "{$valueCol}{$row}",
+                    "=SUM({$valueCol}{$firstPhaseRow}:{$valueCol}{$lastPhaseRow})"
+                );
             }
             $approvalsRow = $row;
             $sheet->getStyle("{$labelCol}{$row}:{$valueCol}{$row}")->getFont()->setBold(true);
@@ -373,15 +376,13 @@ class CodeListExport extends DefaultValueBinder implements
         }
 
         $sheet->getColumnDimension($labelCol)->setWidth(30);
-        $sheet->getColumnDimension('H')->setWidth(2);
-        $sheet->getColumnDimension($valueCol)->setWidth(16);
 
         return $row;
     }
 
     private function applyWorkbookFont(Worksheet $sheet, int $lastRow): void
     {
-        $sheet->getStyle('A1:I' . $lastRow)->getFont()
+        $sheet->getStyle('A1:' . self::LAST_DATA_COLUMN . $lastRow)->getFont()
             ->setName(self::FONT_NAME)
             ->setSize(self::FONT_SIZE);
     }

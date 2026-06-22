@@ -165,7 +165,7 @@ class SignedCodeListPdfService
         $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
         $countyName = $phase->constituency?->county?->county_name ?? 'N/A';
 
-        app(ConstituencyAllocationService::class)->syncPhaseIssuedFromLoanPhase($phase);
+        app(ConstituencyAllocationService::class)->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase);
 
         $profile = ConstituencyAllocationProfile::query()
             ->where('constituency_code', $phase->constituency_code)

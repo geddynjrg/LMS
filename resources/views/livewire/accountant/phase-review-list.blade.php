@@ -39,7 +39,6 @@
                         <p class="mb-0 text-muted small">
                             <strong>Processed code list</strong> (HQ Excel) and
                             <strong>bank reconciliation</strong> from the constituency submission.
-                            Request for transfer letter is shown only when the constituency officer has uploaded it.
                         </p>
                     </div>
                 </div>
