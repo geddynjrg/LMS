@@ -86,7 +86,7 @@ final class ConstituencyAllocationFields
     {
         return array_merge(
             self::allocationKeys(),
-            ['transfer_levels', 'phase_issued_amounts', 'balance_main_account']
+            ['transfer_levels', 'phase_issued_amounts']
         );
     }
 
@@ -96,7 +96,6 @@ final class ConstituencyAllocationFields
             ...array_fill_keys(self::allocationKeys(), 0),
             'transfer_levels' => self::defaultTransferLevels(),
             'phase_issued_amounts' => self::defaultPhaseIssuedAmounts(),
-            'balance_main_account' => null,
         ];
     }
 

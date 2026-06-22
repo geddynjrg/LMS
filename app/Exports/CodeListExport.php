@@ -320,23 +320,25 @@ class CodeListExport extends DefaultValueBinder implements
 
             $sheet->setCellValue("{$labelCol}{$row}", 'TOTAL APPROVALS');
             if ($phaseAmountRows === []) {
-                $sheet->setCellValue("{$valueCol}{$row}", "={$valueCol}{$portfolioRow}");
+                $sheet->setCellValue("{$valueCol}{$row}", 0);
             } else {
-                $approvalFormula = "={$valueCol}{$portfolioRow}";
-                foreach ($phaseAmountRows as $phaseRowNumber) {
-                    $approvalFormula .= "+{$valueCol}{$phaseRowNumber}";
-                }
+                $approvalFormula = '=';
+                $approvalFormula .= implode('+', array_map(
+                    fn (int $phaseRowNumber) => "{$valueCol}{$phaseRowNumber}",
+                    $phaseAmountRows
+                ));
                 $sheet->setCellValue("{$valueCol}{$row}", $approvalFormula);
             }
+            $approvalsRow = $row;
             $sheet->getStyle("{$labelCol}{$row}:{$valueCol}{$row}")->getFont()->setBold(true);
             $row += 2;
 
-            if ($profile->balance_main_account !== null) {
-                $sheet->setCellValue("{$labelCol}{$row}", 'BALANCE IN THE MAIN ACCOUNT');
-                $sheet->setCellValue("{$valueCol}{$row}", (float) $profile->balance_main_account);
-                $sheet->getStyle("{$labelCol}{$row}:{$valueCol}{$row}")->getFont()->setBold(true);
-                $row += 2;
+            $sheet->setCellValue("{$labelCol}{$row}", 'BALANCE IN THE MAIN ACCOUNT');
+            $sheet->setCellValue("{$valueCol}{$row}", "={$valueCol}{$portfolioRow}-{$valueCol}{$approvalsRow}");
+            $sheet->getStyle("{$labelCol}{$row}:{$valueCol}{$row}")->getFont()->setBold(true);
+            $row += 2;
 
+            if ($profile->computedBalanceMainAccount() < 0) {
                 $sheet->setCellValue("{$labelCol}{$row}", 'NB* REQUIRES TRANSFER');
                 $sheet->getStyle("{$labelCol}{$row}")->getFont()->setBold(true);
                 $sheet->getStyle("{$labelCol}{$row}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);

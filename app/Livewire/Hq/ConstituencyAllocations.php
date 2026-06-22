@@ -24,7 +24,6 @@ class ConstituencyAllocations extends Component
     public array $transferLevels = [];
     /** @var list<array{phase:int,amount:string}> */
     public array $phaseIssuedAmounts = [];
-    public ?string $balanceMainAccount = null;
     public $uploadFile;
 
     protected LocationService $locationService;
@@ -114,10 +113,24 @@ class ConstituencyAllocations extends Component
                 ])
                 ->all();
         }
+    }
 
-        $this->balanceMainAccount = $profile->balance_main_account !== null
-            ? (string) $profile->balance_main_account
-            : null;
+    public function getComputedTotalLoanPortfolioProperty(): float
+    {
+        $allocations = collect($this->allocations)->sum(fn ($value) => (float) $value);
+        $transfers = collect($this->transferLevels)->sum(fn ($row) => (float) ($row['amount'] ?? 0));
+
+        return round($allocations + $transfers, 2);
+    }
+
+    public function getComputedTotalApprovalsProperty(): float
+    {
+        return round(collect($this->phaseIssuedAmounts)->sum(fn ($row) => (float) ($row['amount'] ?? 0)), 2);
+    }
+
+    public function getComputedBalanceMainAccountProperty(): float
+    {
+        return round($this->computedTotalLoanPortfolio - $this->computedTotalApprovals, 2);
     }
 
     public function save(): void
@@ -132,13 +145,11 @@ class ConstituencyAllocations extends Component
             'phaseIssuedAmounts' => 'array',
             'phaseIssuedAmounts.*.phase' => 'required|integer|min:1',
             'phaseIssuedAmounts.*.amount' => 'nullable|numeric|min:0',
-            'balanceMainAccount' => 'nullable|numeric',
         ]);
 
         $payload = array_merge($this->allocations, [
             'transfer_levels' => $this->transferLevels,
             'phase_issued_amounts' => $this->phaseIssuedAmounts,
-            'balance_main_account' => $this->balanceMainAccount,
         ]);
 
         $this->allocationService->save($this->constituencyFilter, $payload);
@@ -218,8 +229,6 @@ class ConstituencyAllocations extends Component
         foreach (ConstituencyAllocationFields::allocationKeys() as $key) {
             $this->allocations[$key] = '0';
         }
-
-        $this->balanceMainAccount = null;
     }
 
     protected function loadCountyOptions(): void

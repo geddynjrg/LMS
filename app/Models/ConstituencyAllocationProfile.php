@@ -121,6 +121,11 @@ class ConstituencyAllocationProfile extends Model
 
     public function totalApprovals(): float
     {
-        return $this->totalLoanPortfolio() + $this->totalPhaseIssuedAmounts();
+        return $this->totalPhaseIssuedAmounts();
+    }
+
+    public function computedBalanceMainAccount(): float
+    {
+        return round($this->totalLoanPortfolio() - $this->totalApprovals(), 2);
     }
 }

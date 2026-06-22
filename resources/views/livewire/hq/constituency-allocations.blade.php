@@ -129,27 +129,45 @@
                                         {{ \App\Support\ConstituencyAllocationFields::phaseIssuedLabel($phaseRow['phase']) }}
                                     </label>
                                     <input type="number" min="0" step="0.01"
-                                           wire:model="phaseIssuedAmounts.{{ $index }}.amount"
+                                           wire:model.live.debounce.300ms="phaseIssuedAmounts.{{ $index }}.amount"
                                            class="form-control"
                                            placeholder="0">
                                 </div>
                             @endforeach
+                        </div>
+
+                        <div class="border-top pt-3 mt-2">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="small font-weight-bold text-muted">Total Approvals</label>
+                                    <input type="text" readonly
+                                           value="KES {{ number_format($this->computedTotalApprovals, 2) }}"
+                                           class="form-control bg-light font-weight-bold">
+                                    <small class="text-muted">Sum of all phase issued amounts</small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="card hq-panel-card border-0 mb-4">
                     <div class="card-header bg-white border-0">
-                        <h6 class="font-weight-bold text-navy text-uppercase small mb-0">Account balance</h6>
+                        <h6 class="font-weight-bold text-navy text-uppercase small mb-0">Account balance (read only)</h6>
                     </div>
                     <div class="card-body pt-0">
                         <div class="row">
                             <div class="col-md-6 mb-3">
+                                <label class="small font-weight-bold text-muted">Total Loan Portfolio</label>
+                                <input type="text" readonly
+                                       value="KES {{ number_format($this->computedTotalLoanPortfolio, 2) }}"
+                                       class="form-control bg-light">
+                            </div>
+                            <div class="col-md-6 mb-3">
                                 <label class="small font-weight-bold text-muted">Balance in the main account</label>
-                                <input type="number" step="0.01"
-                                       wire:model="balanceMainAccount"
-                                       class="form-control"
-                                       placeholder="Optional">
+                                <input type="text" readonly
+                                       value="KES {{ number_format($this->computedBalanceMainAccount, 2) }}"
+                                       class="form-control bg-light font-weight-bold">
+                                <small class="text-muted">Total Loan Portfolio minus Total Approvals</small>
                             </div>
                         </div>
                     </div>

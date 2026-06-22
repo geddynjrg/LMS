@@ -38,7 +38,7 @@ class ConstituencyAllocationService
         $data = ConstituencyAllocationFields::emptyPayload();
 
         $labelMap = array_change_key_case(ConstituencyAllocationFields::allocationLabels(), CASE_LOWER);
-        $labelMap['balance in the main account'] = 'balance_main_account';
+        $labelMap['balance in the main account'] = '__skip__';
         $labelMap['total allocations'] = '__skip__';
         $labelMap['total transfers'] = '__skip__';
         $labelMap['total loan portfolio'] = '__skip__';
@@ -96,14 +96,23 @@ class ConstituencyAllocationService
             $payload['phase_issued_amounts'] = $this->normalizePhaseIssuedAmounts($data['phase_issued_amounts']);
         }
 
-        if (array_key_exists('balance_main_account', $data)) {
-            $value = $data['balance_main_account'];
-            $payload['balance_main_account'] = $value === '' || $value === null
-                ? null
-                : $this->parseAmount($value);
-        }
+        $payload['balance_main_account'] = $this->computeBalanceMainAccount($payload);
 
         return $payload;
+    }
+
+    protected function computeBalanceMainAccount(array $payload): float
+    {
+        $totalAllocations = collect(ConstituencyAllocationFields::allocationKeys())
+            ->sum(fn (string $key) => (float) ($payload[$key] ?? 0));
+
+        $totalTransfers = collect($payload['transfer_levels'] ?? [])
+            ->sum(fn (array $row) => (float) ($row['amount'] ?? 0));
+
+        $totalApprovals = collect($payload['phase_issued_amounts'] ?? [])
+            ->sum(fn (array $row) => (float) ($row['amount'] ?? 0));
+
+        return round(($totalAllocations + $totalTransfers) - $totalApprovals, 2);
     }
 
     /**

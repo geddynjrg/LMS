@@ -61,7 +61,7 @@ class ConstituencyAllocationTemplateExport implements FromArray, ShouldAutoSize,
 
         $rows[] = ['TOTAL APPROVALS', $this->profile?->totalApprovals() ?? 0];
         $rows[] = [];
-        $rows[] = ['Balance in the Main Account', $this->profile?->balance_main_account ?? ''];
+        $rows[] = ['Balance in the Main Account', $this->profile?->computedBalanceMainAccount() ?? 0];
 
         return $rows;
     }
