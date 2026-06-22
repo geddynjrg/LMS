@@ -79,10 +79,72 @@ class SignedCodeListPdfService
 
     public function downloadResponse(LoanPhase $phase)
     {
-        if (! $this->canDownload($phase)) {
+        $pdf = $this->buildPdf($phase);
+
+        if ($pdf === null) {
             throw ValidationException::withMessages([
                 'download' => 'Signed approved code list is not available yet.',
             ]);
+        }
+
+        $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
+        $fileName = 'Signed_Code_List_' . str_replace(' ', '_', $constituencyName) . '_' . $phase->phase . '.pdf';
+
+        return $pdf->download($fileName);
+    }
+
+    /**
+     * Generate the signed PDF and store it as the phase approved_code_list document.
+     * Replaces any HQ-uploaded Excel/Word version once Head of Secretariat has signed.
+     */
+    public function storeAsApprovedCodeListDocument(LoanPhase $phase, ?int $uploadedBy = null): bool
+    {
+        $pdf = $this->buildPdf($phase);
+
+        if ($pdf === null) {
+            return false;
+        }
+
+        if (! $phase->relationLoaded('phaseApplicationDocuments')) {
+            $phase->load('phaseApplicationDocuments');
+        }
+
+        $directory = "phases/{$phase->slug}";
+        $filename = 'approved-code-list-signed-' . now()->format('Ymd_His') . '.pdf';
+        $path = "{$directory}/{$filename}";
+        $pdfBytes = $pdf->output();
+
+        Storage::disk('local')->put($path, $pdfBytes);
+
+        $existing = $phase->phaseApplicationDocuments
+            ->firstWhere('document_type', 'approved_code_list');
+
+        if ($existing) {
+            if ($existing->path && Storage::disk('local')->exists($existing->path)) {
+                Storage::disk('local')->delete($existing->path);
+            }
+            $existing->delete();
+        }
+
+        $phase->phaseApplicationDocuments()->create([
+            'loan_phase_id' => $phase->id,
+            'title' => 'Approved Code List (Signed)',
+            'document_type' => 'approved_code_list',
+            'original_filename' => $filename,
+            'filename' => $filename,
+            'path' => $path,
+            'mime_type' => 'application/pdf',
+            'size' => strlen($pdfBytes),
+            'uploaded_by' => $uploadedBy,
+        ]);
+
+        return true;
+    }
+
+    protected function buildPdf(LoanPhase $phase): ?\Barryvdh\DomPDF\PDF
+    {
+        if (! $this->canDownload($phase)) {
+            return null;
         }
 
         $phase->loadMissing([
@@ -99,7 +161,7 @@ class SignedCodeListPdfService
         $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
         $countyName = $phase->constituency?->county?->county_name ?? 'N/A';
 
-        $pdf = Pdf::loadView('pdf.signed-code-list', [
+        return Pdf::loadView('pdf.signed-code-list', [
             'phase' => $phase,
             'rows' => $table['rows'],
             'totals' => $table['totals'],
@@ -111,10 +173,6 @@ class SignedCodeListPdfService
             'signedAt' => $approval->approved_at,
             'signedBy' => $approval->approver?->name ?? 'Head of Secretariat',
         ])->setPaper('a4', 'landscape');
-
-        $fileName = 'Signed_Code_List_' . str_replace(' ', '_', $constituencyName) . '_' . $phase->phase . '.pdf';
-
-        return $pdf->download($fileName);
     }
 
     protected function getSigningApproval(LoanPhase $phase): ?SecretariatApproval

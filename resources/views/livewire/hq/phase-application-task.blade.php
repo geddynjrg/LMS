@@ -500,11 +500,11 @@
                                 </div>
 
                                 <div class="card-body pt-1 pb-3">
-                                    <span class="text-xs text-gray-500">You must upload the approved code list to approve this batch.</span>
+                                    <span class="text-xs text-gray-500">Upload the approved code list to approve this batch. After Head of Secretariat signs off, the system replaces it with a signed PDF automatically.</span>
 
 
                                     <div class="form-group my-3 premium-file-container">
-                                        <label class="small font-weight-bold text-uppercase text-muted mb-2">Approved Code List (PDF, Word, or Excel)</label>
+                                        <label class="small font-weight-bold text-uppercase text-muted mb-2">Approved Code List (Excel or PDF for HQ review)</label>
                                         <x-file-upload model="codeListFile" height="48px" accept=".pdf,.doc,.docx,.xls,.xlsx" />
                                     </div>
 

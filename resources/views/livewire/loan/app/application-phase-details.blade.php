@@ -1032,7 +1032,7 @@
                                                 <tr>
                                                     <td class="pl-3 py-2" style="width: 75%;">
                                                         <div class="text-xs font-weight-bold text-dark">Signed Approved Code List (PDF)</div>
-                                                        <div class="x-small text-muted">Same layout as the Excel code list with Head of Secretariat signature</div>
+                                                        <div class="x-small text-muted">Signed PDF with Head of Secretariat signature (attached to phase documents after secretariat approval)</div>
                                                     </td>
                                                     <td class="text-right align-middle pr-3" style="width: 25%;">
                                                         <a href="{{ route('const.app.app_phase_signed_code_list', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"

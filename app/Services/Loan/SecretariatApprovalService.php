@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\GroupLoan;
 use App\Jobs\SyncApplicationStatusToDrupal;
 use App\Jobs\SendWorkflowNotification;
+use App\Services\Exports\SignedCodeListPdfService;
 use App\Services\WorkflowNotificationService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -307,6 +308,13 @@ class SecretariatApprovalService
             );
 
             $this->syncApplicationsAfterApproval($phase, $type);
+
+            if ($type === SecretariatApproval::TYPE_POST_HQ_REVIEW) {
+                app(SignedCodeListPdfService::class)->storeAsApprovedCodeListDocument(
+                    $phase->fresh(),
+                    auth()->id()
+                );
+            }
 
             if ($type === SecretariatApproval::TYPE_TRAINING_AUTHORIZATION) {
                 DB::afterCommit(fn () => SendWorkflowNotification::dispatchSync(
