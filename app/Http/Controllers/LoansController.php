@@ -12,6 +12,8 @@ use App\Models\Constituency;
 use App\Models\County;
 use App\Models\Group;
 use App\Services\Loan\LoanApplicationService;
+use App\Services\Exports\LetterOfAuthorityPdfService;
+use App\Services\Exports\SignedCodeListPdfService;
 use Exception;
 
 class LoansController extends Controller
@@ -126,6 +128,20 @@ class LoansController extends Controller
             'constituency' => $constituency,
             'phase' => $phase
         ]);
+    }
+
+    public function downloadSignedCodeList(Request $request, County $county, Constituency $constituency, LoanPhase $phase)
+    {
+        abort_unless($phase->constituency_code === $constituency->constituency_code, 404);
+
+        return app(SignedCodeListPdfService::class)->downloadResponse($phase);
+    }
+
+    public function downloadLetterOfAuthority(Request $request, County $county, Constituency $constituency, LoanPhase $phase)
+    {
+        abort_unless($phase->constituency_code === $constituency->constituency_code, 404);
+
+        return app(LetterOfAuthorityPdfService::class)->downloadResponse($phase);
     }
 
     public function app_loan_files_download(Request $request, County $county, Constituency $constituency, $applicationId, $action = 'download')

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Constituency;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,8 +31,12 @@ class EnsureCurrentConstituency
         }
 
         // 2. Get the slug from the URL and resolve the Constituency
-        $requestedConstituency = $request->route('constituency');   // instance of App\Models\Constituency
-        if (!$requestedConstituency) {
+        $requestedConstituency = $request->route('constituency');
+        if (is_string($requestedConstituency)) {
+            $requestedConstituency = Constituency::where('slug', $requestedConstituency)->first();
+        }
+
+        if (!$requestedConstituency instanceof Constituency) {
             return redirect()->route('dashboard')
                 ->with('error', 'Invalid constituency in URL.');
         }
