@@ -80,7 +80,7 @@
                                 <div class="col-12 mb-3">
                                     <label class="small font-weight-bold text-muted">{{ $label }}</label>
                                     <input type="number" min="0" step="0.01"
-                                           wire:model="allocations.{{ $key }}"
+                                           wire:model.live.debounce.300ms="allocations.{{ $key }}"
                                            class="form-control"
                                            placeholder="0">
                                     @error('allocations.'.$key) <small class="text-danger">{{ $message }}</small> @enderror
@@ -105,11 +105,26 @@
                                         {{ \App\Support\ConstituencyAllocationFields::transferLabelForLevel($transfer['level']) }}
                                     </label>
                                     <input type="number" min="0" step="0.01"
-                                           wire:model="transferLevels.{{ $index }}.amount"
+                                           wire:model.live.debounce.300ms="transferLevels.{{ $index }}.amount"
                                            class="form-control"
                                            placeholder="0">
                                 </div>
                             @endforeach
+                        </div>
+
+                        <div class="border-top pt-3 mt-2">
+                            <div class="row">
+                                <div class="col-12 mb-0">
+                                    <label class="small font-weight-bold text-muted">Total Loan Portfolio</label>
+                                    <input type="text" readonly
+                                           value="KES {{ number_format($this->computedTotalLoanPortfolio, 2) }}"
+                                           class="form-control bg-light font-weight-bold">
+                                    <small class="text-muted">
+                                        Total Allocations (KES {{ number_format($this->computedTotalAllocations, 2) }})
+                                        + Total Transfers (KES {{ number_format($this->computedTotalTransfers, 2) }})
+                                    </small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -156,12 +171,6 @@
                     </div>
                     <div class="card-body pt-0">
                         <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label class="small font-weight-bold text-muted">Total Loan Portfolio</label>
-                                <input type="text" readonly
-                                       value="KES {{ number_format($this->computedTotalLoanPortfolio, 2) }}"
-                                       class="form-control bg-light">
-                            </div>
                             <div class="col-md-6 mb-3">
                                 <label class="small font-weight-bold text-muted">Balance in the main account</label>
                                 <input type="text" readonly

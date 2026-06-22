@@ -115,12 +115,19 @@ class ConstituencyAllocations extends Component
         }
     }
 
+    public function getComputedTotalAllocationsProperty(): float
+    {
+        return round(collect($this->allocations)->sum(fn ($value) => (float) $value), 2);
+    }
+
+    public function getComputedTotalTransfersProperty(): float
+    {
+        return round(collect($this->transferLevels)->sum(fn ($row) => (float) ($row['amount'] ?? 0)), 2);
+    }
+
     public function getComputedTotalLoanPortfolioProperty(): float
     {
-        $allocations = collect($this->allocations)->sum(fn ($value) => (float) $value);
-        $transfers = collect($this->transferLevels)->sum(fn ($row) => (float) ($row['amount'] ?? 0));
-
-        return round($allocations + $transfers, 2);
+        return round($this->computedTotalAllocations + $this->computedTotalTransfers, 2);
     }
 
     public function getComputedTotalApprovalsProperty(): float
