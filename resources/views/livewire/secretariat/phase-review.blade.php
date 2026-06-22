@@ -10,8 +10,13 @@
             </p>
         </div>
         <a href="{{ route('secretariat.phases.code-list', $phase) }}" class="btn btn-outline-primary">
-            <i class="fas fa-file-excel mr-1"></i> Download code list
+            <i class="fas fa-file-excel mr-1"></i> Download processed codelist
         </a>
+        @if(app(\App\Services\Exports\SignedCodeListPdfService::class)->canDownload($phase))
+            <a href="{{ route('secretariat.phases.approved_code_list', $phase) }}" class="btn btn-outline-danger">
+                <i class="fas fa-file-pdf mr-1"></i> Download approved codelist
+            </a>
+        @endif
         @if($this->canReturnToHq())
             <button type="button" wire:click="returnToHq" class="btn btn-outline-warning">
                 <i class="fas fa-undo mr-1"></i> Return to HQ
@@ -33,7 +38,7 @@
                         ['doc' => $processedDoc, 'label' => 'Processed code list (HQ Excel upload)'],
                         ['doc' => $docs->get(\App\Support\PhaseDocumentType::MANAGEMENT_PROPOSAL_REVIEW_MINUTES), 'label' => 'Management proposal review committee minutes'],
                         ['doc' => $docs->get(\App\Support\PhaseDocumentType::MINUTES), 'label' => 'Constituency management committee minutes'],
-                        ['doc' => $docs->get(\App\Support\PhaseDocumentType::SIGNED_APPROVED_CODE_LIST), 'label' => 'Signed processed code list'],
+                        ['doc' => $docs->get(\App\Support\PhaseDocumentType::SIGNED_APPROVED_CODE_LIST), 'label' => 'Approved Codelist (signed PDF)'],
                     ] as $item)
                         @php $doc = $item['doc']; @endphp
                         <li class="list-group-item d-flex justify-content-between align-items-center">

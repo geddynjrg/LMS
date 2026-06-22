@@ -801,6 +801,30 @@
                                     </tbody>
                                 </table>
                             </div>
+                            @if($this->canDownloadSignedCodeList())
+                                <div class="bg-light px-3 py-2 border-top border-bottom">
+                                    <small class="text-uppercase font-weight-bold text-muted" style="letter-spacing: 1px;">Approved Secretariat Documents</small>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm mb-0" style="table-layout: fixed; width: 100%;">
+                                        <tbody>
+                                            <tr>
+                                                <td class="pl-3 py-2" style="width: 75%;">
+                                                    <div class="text-xs font-weight-bold text-dark">Approved Codelist (PDF)</div>
+                                                    <div class="x-small text-muted">Processed codelist with Head of Secretariat signature</div>
+                                                </td>
+                                                <td class="text-right align-middle pr-3" style="width: 25%;">
+                                                    <a href="{{ route('hq.submissions.phase.approved_code_list', $phase->slug) }}"
+                                                       class="btn btn-outline-danger btn-sm"
+                                                       title="Download approved codelist">
+                                                        <i class="fas fa-file-pdf"></i>
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
                         </div>
                     </div>
 

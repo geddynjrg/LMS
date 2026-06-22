@@ -4,8 +4,11 @@ namespace App\Services\Exports;
 
 use App\Models\LoanPhase;
 use App\Models\SecretariatApproval;
+use App\Models\ConstituencyAllocationProfile;
+use App\Support\ConstituencyAllocationFields;
 use App\Support\PhaseDocumentType;
 use App\Services\Loan\SecretariatApprovalService;
+use App\Services\Constituency\ConstituencyAllocationService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -89,7 +92,7 @@ class SignedCodeListPdfService
         }
 
         $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
-        $fileName = 'Signed_Code_List_' . str_replace(' ', '_', $constituencyName) . '_' . $phase->phase . '.pdf';
+        $fileName = 'Approved_Codelist_' . str_replace(' ', '_', $constituencyName) . '_' . $phase->phase . '.pdf';
 
         return $pdf->download($fileName);
     }
@@ -129,7 +132,7 @@ class SignedCodeListPdfService
 
         $phase->phaseApplicationDocuments()->create([
             'loan_phase_id' => $phase->id,
-            'title' => 'Signed Approved Code List',
+            'title' => 'Approved Codelist',
             'document_type' => PhaseDocumentType::SIGNED_APPROVED_CODE_LIST,
             'original_filename' => $filename,
             'filename' => $filename,
@@ -162,10 +165,17 @@ class SignedCodeListPdfService
         $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
         $countyName = $phase->constituency?->county?->county_name ?? 'N/A';
 
+        app(ConstituencyAllocationService::class)->syncPhaseIssuedFromLoanPhase($phase);
+
+        $profile = ConstituencyAllocationProfile::query()
+            ->where('constituency_code', $phase->constituency_code)
+            ->first();
+
         return Pdf::loadView('pdf.signed-code-list', [
             'phase' => $phase,
             'rows' => $table['rows'],
             'totals' => $table['totals'],
+            'financialSummary' => $profile ? $this->buildFinancialSummary($profile) : null,
             'constituencyName' => $constituencyName,
             'countyName' => $countyName,
             'constCode' => $phase->constituency_code,
@@ -174,6 +184,45 @@ class SignedCodeListPdfService
             'signedAt' => $approval->approved_at,
             'signedBy' => $approval->approver?->name ?? 'Head of Secretariat',
         ])->setPaper('a4', 'landscape');
+    }
+
+    protected function buildFinancialSummary(ConstituencyAllocationProfile $profile): array
+    {
+        $rows = [];
+
+        foreach (ConstituencyAllocationFields::allocationLabels() as $key => $label) {
+            $rows[] = ['label' => $label, 'amount' => (float) $profile->{$key}];
+        }
+
+        $rows[] = ['label' => 'Total Allocations', 'amount' => $profile->totalAllocations()];
+        $rows[] = ['label' => '', 'amount' => 0];
+
+        foreach ($profile->normalizedTransferLevels() as $transfer) {
+            $rows[] = [
+                'label' => ConstituencyAllocationFields::transferLabelForLevel((int) $transfer['level']),
+                'amount' => (float) $transfer['amount'],
+            ];
+        }
+
+        $rows[] = ['label' => 'Total Transfers', 'amount' => $profile->totalTransfers()];
+        $rows[] = ['label' => 'Total Loan Portfolio', 'amount' => $profile->totalLoanPortfolio()];
+        $rows[] = ['label' => '', 'amount' => 0];
+
+        foreach ($profile->normalizedPhaseIssuedAmounts() as $phaseRow) {
+            $rows[] = [
+                'label' => ConstituencyAllocationFields::phaseIssuedLabel((int) $phaseRow['phase']),
+                'amount' => (float) $phaseRow['amount'],
+            ];
+        }
+
+        $rows[] = ['label' => 'TOTAL APPROVALS', 'amount' => $profile->totalApprovals()];
+        $rows[] = ['label' => 'BALANCE IN THE MAIN ACCOUNT', 'amount' => $profile->computedBalanceMainAccount()];
+
+        if ($profile->computedBalanceMainAccount() < 0) {
+            $rows[] = ['label' => 'NB* REQUIRES TRANSFER', 'amount' => 0];
+        }
+
+        return ['rows' => array_values(array_filter($rows, fn (array $row) => $row['label'] !== '' || $row['amount'] != 0))];
     }
 
     protected function getSigningApproval(LoanPhase $phase): ?SecretariatApproval

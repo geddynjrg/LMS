@@ -143,6 +143,9 @@
                                     <label class="small font-weight-bold text-muted">
                                         {{ \App\Support\ConstituencyAllocationFields::phaseIssuedLabel($phaseRow['phase']) }}
                                     </label>
+                                    @if($loop->last)
+                                        <small class="text-muted d-block mb-1">Auto-filled from constituency total amount recommended for the latest phase submitted to HQ.</small>
+                                    @endif
                                     <input type="number" min="0" step="0.01"
                                            wire:model.live.debounce.300ms="phaseIssuedAmounts.{{ $index }}.amount"
                                            class="form-control"

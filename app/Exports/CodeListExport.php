@@ -86,14 +86,14 @@ class CodeListExport extends DefaultValueBinder implements
     {
         return [
             'A' => 6,
-            'B' => 7,
+            'B' => 8,
             'C' => 28,
             'D' => 24,
             'E' => 12,
             'F' => 14,
             'G' => 14,
-            'H' => 10,
-            'I' => 12,
+            'H' => 12,
+            'I' => 14,
             'J' => 12,
             'K' => 14,
         ];
@@ -160,6 +160,9 @@ class CodeListExport extends DefaultValueBinder implements
                 $countyName = $phase->constituency->county->county_name ?? 'N/A';
                 $phaseLabel = $phase->phase ?? 'N/A';
 
+                app(\App\Services\Constituency\ConstituencyAllocationService::class)
+                    ->syncPhaseIssuedFromLoanPhase($phase);
+
                 $highestRow = max($sheet->getHighestRow(), self::DATA_START_ROW);
                 $totalRow = $highestRow + 1;
 
@@ -195,7 +198,7 @@ class CodeListExport extends DefaultValueBinder implements
         $sheet->getRowDimension(1)->setRowHeight(22);
 
         $sheet->setCellValue('B1', 'UWEZO FUND');
-        $sheet->setCellValue('B2', 'CODE LIST ' . strtoupper($phaseLabel));
+        $sheet->setCellValue('B2', 'PROCESSED CODE LIST ' . strtoupper($phaseLabel));
         $sheet->setCellValue('B3', 'Republic of Kenya');
         $sheet->setCellValue('B4', 'Uwezo Fund Oversight Board');
         $sheet->setCellValue(
@@ -228,18 +231,24 @@ class CodeListExport extends DefaultValueBinder implements
 
     private function styleMainTable(Worksheet $sheet, int $highestRow, int $totalRow): void
     {
+        $sheet->getRowDimension(self::HEADER_ROW)->setRowHeight(22);
+
         $sheet->getStyle('A' . self::HEADER_ROW . ':' . self::LAST_DATA_COLUMN . self::HEADER_ROW)->applyFromArray([
             'font' => ['bold' => true, 'name' => self::FONT_NAME, 'size' => self::FONT_SIZE],
             'alignment' => [
                 'horizontal' => Alignment::HORIZONTAL_CENTER,
                 'vertical' => Alignment::VERTICAL_CENTER,
-                'wrapText' => true,
+                'wrapText' => false,
             ],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
                 'startColor' => ['rgb' => 'E9E9E9'],
             ],
         ]);
+
+        foreach (['B', 'H', 'I'] as $column) {
+            $sheet->getStyle("{$column}" . self::HEADER_ROW)->getAlignment()->setWrapText(false);
+        }
 
         $sheet->getStyle('A' . self::HEADER_ROW . ':' . self::LAST_DATA_COLUMN . $totalRow)
             ->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
@@ -414,6 +423,6 @@ class CodeListExport extends DefaultValueBinder implements
 
     public function title(): string
     {
-        return 'CODE LIST';
+        return 'PROCESSED CODE LIST';
     }
 }

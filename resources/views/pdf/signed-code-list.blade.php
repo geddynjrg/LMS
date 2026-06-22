@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Signed Code List</title>
+    <title>Approved Codelist</title>
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 9px; color: #111; margin: 18px; }
         .header { text-align: center; margin-bottom: 8px; }
@@ -15,17 +15,21 @@
         td.num { text-align: right; }
         td.center { text-align: center; }
         .totals td { font-weight: bold; background: #f5f5f5; }
-        .footer-wrap { margin-top: 14px; width: 100%; }
+        .summary-wrap { margin-top: 12px; width: 100%; }
+        .summary-wrap td { border: 1px solid #444; padding: 3px 5px; }
+        .summary-label { font-weight: bold; width: 65%; }
+        .summary-value { text-align: right; width: 35%; }
+        .footer-wrap { margin-top: 18px; width: 100%; }
         .footer-wrap td { border: none; vertical-align: bottom; padding: 0; }
-        .signature-box { text-align: right; width: 220px; margin-left: auto; }
-        .signature-box img { max-height: 70px; max-width: 200px; }
+        .signature-box { text-align: left; width: 240px; }
+        .signature-box img { max-height: 70px; max-width: 220px; }
         .signature-label { font-size: 8px; color: #555; margin-top: 4px; }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>UWEZO FUND</h1>
-        <h2>CODE LIST {{ strtoupper($phase->phase) }}</h2>
+        <h2>PROCESSED CODE LIST {{ strtoupper($phase->phase) }}</h2>
         <div>Republic of Kenya</div>
         <div>Uwezo Fund Oversight Board</div>
     </div>
@@ -79,10 +83,20 @@
         </tbody>
     </table>
 
+    @if(!empty($financialSummary))
+        <table class="summary-wrap">
+            @foreach($financialSummary['rows'] as $summaryRow)
+                <tr>
+                    <td class="summary-label">{{ $summaryRow['label'] }}</td>
+                    <td class="summary-value">{{ number_format($summaryRow['amount']) }}</td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
+
     <table class="footer-wrap">
         <tr>
-            <td style="width: 65%;"></td>
-            <td style="width: 35%;">
+            <td style="width: 40%;">
                 <div class="signature-box">
                     <img src="data:{{ $signatureMime }};base64,{{ $signatureData }}" alt="Signature">
                     <div class="signature-label">
@@ -91,6 +105,7 @@
                     </div>
                 </div>
             </td>
+            <td style="width: 60%;"></td>
         </tr>
     </table>
 </body>

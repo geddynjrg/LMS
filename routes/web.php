@@ -78,6 +78,8 @@ Route::middleware(['auth'])->group(function () {
             // Static routes first
             Route::get('/', [HqApplications::class, 'index'])->name('apps.index');
             Route::get('/approval-tasks', [HqApplications::class, 'tasks'])->name('tasks.phases');
+            Route::get('/phases/{phase}/processed-code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'download'])->name('phase.processed_code_list');
+            Route::get('/phases/{phase}/approved-code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'downloadSigned'])->name('phase.approved_code_list');
 
             // Wildcard routes last
             Route::get('/{applicationId}', [HqApplications::class, 'appView'])->name('app.view');
@@ -127,7 +129,8 @@ Route::middleware(['auth'])->group(function () {
         ->group(function () {
             Route::get('/phases', [SecretariatController::class, 'index'])->name('phases.index');
             Route::get('/phases/{phase}/review', [SecretariatController::class, 'review'])->name('phases.review');
-            Route::get('/phases/{phase}/code-list', [SecretariatController::class, 'downloadCodeList'])->name('phases.code-list');
+            Route::get('/phases/{phase}/code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'download'])->name('phases.code-list');
+            Route::get('/phases/{phase}/approved-code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'downloadSigned'])->name('phases.approved_code_list');
         });
 
     Route::middleware(['role:super-admin|accountant'])
@@ -136,6 +139,7 @@ Route::middleware(['auth'])->group(function () {
         ->group(function () {
             Route::get('/phases', [AccountantController::class, 'index'])->name('phases.index');
             Route::get('/phases/{phase}/review', [AccountantController::class, 'review'])->name('phases.review');
+            Route::get('/phases/{phase}/processed-code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'download'])->name('phases.processed_code_list');
         });
 
     Route::middleware(['auth', 'role:super-admin|constituency_officer|head_of_secretariat'])

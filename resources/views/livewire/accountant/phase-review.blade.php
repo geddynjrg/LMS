@@ -47,10 +47,14 @@
                                 </div>
                                 @if($codeListDoc)
                                     <a href="{{ route('phase.doc.serve', ['id' => $codeListDoc->id, 'action' => 'download']) }}"
-                                       class="btn btn-sm btn-outline-success">
-                                        <i class="fas fa-download mr-1"></i> Download Excel
+                                       class="btn btn-sm btn-outline-success mr-2">
+                                        <i class="fas fa-download mr-1"></i> HQ upload
                                     </a>
                                 @endif
+                                <a href="{{ route('accountant.phases.processed_code_list', $phase) }}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-file-excel mr-1"></i> Generate processed codelist
+                                </a>
                             </div>
                         </div>
 

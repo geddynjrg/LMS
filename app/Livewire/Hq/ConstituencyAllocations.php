@@ -79,6 +79,7 @@ class ConstituencyAllocations extends Component
             return;
         }
 
+        $this->allocationService->syncLatestActivePhaseForConstituency($this->constituencyFilter);
         $profile = $this->allocationService->forConstituency($this->constituencyFilter);
 
         if (! $profile) {

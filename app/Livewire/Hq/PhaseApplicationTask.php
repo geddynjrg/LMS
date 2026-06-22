@@ -16,7 +16,9 @@ use App\Exports\DisaggregatedDataExport;
 use App\Exports\DisbursementDataExport;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\AccountantReviewService;
+use App\Services\Constituency\ConstituencyAllocationService;
 use App\Services\Exports\ExportService;
+use App\Services\Exports\SignedCodeListPdfService;
 use App\Services\Loan\TempApplicationService;
 use App\Services\Loan\LoanAnalysisService;
 use App\Services\IdempotencyService;
@@ -59,7 +61,7 @@ class PhaseApplicationTask extends Component
     public $sortDirection = 'desc';
 
     public $generatedReports = [
-        ['id' => 'code_list', 'name' => 'Code List', 'meta' => 'GFS Codes, Loan Levels, Contact Persons & Financials'],
+        ['id' => 'code_list', 'name' => 'Processed Codelist', 'meta' => 'GFS codes, loan levels, financial summary & board remarks'],
         ['id' => 'standard_vetted', 'name' => 'Standard Vetted Form', 'meta' => 'Full demographics, Bank info, & Sectors'],
         ['id' => 'disaggregated', 'name' => 'Disaggregated Data', 'meta' => 'Gender & PWD breakdown by Ward'],
         ['id' => 'disbursement', 'name' => 'Disbursement Report', 'meta' => 'Bank Accounts & Final Amounts'],
@@ -452,13 +454,19 @@ class PhaseApplicationTask extends Component
         return $user->hasPermissionTo('approve application');
     }
 
+    public function canDownloadSignedCodeList(): bool
+    {
+        return app(SignedCodeListPdfService::class)->canDownload($this->detailedPhase);
+    }
+
     public function exportReport($document)
     {
         switch ($document) {
             case 'code_list':
+                app(ConstituencyAllocationService::class)->syncPhaseIssuedFromLoanPhase($this->phase);
                 $query  = $this->exportService->exportCodeList($this->phase->id);
                 try {
-                    $fileName = "Code_List_{$this->phase->constituency->constituency_name}_" . now()->format('Ymd_His') . ".xlsx";
+                    $fileName = "Processed_Codelist_{$this->phase->constituency->constituency_name}_" . now()->format('Ymd_His') . ".xlsx";
 
                     return Excel::download(
                         new CodeListExport(

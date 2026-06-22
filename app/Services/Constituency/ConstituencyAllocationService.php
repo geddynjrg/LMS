@@ -4,6 +4,7 @@ namespace App\Services\Constituency;
 
 use App\Models\Constituency;
 use App\Models\ConstituencyAllocationProfile;
+use App\Models\LoanPhase;
 use App\Support\ConstituencyAllocationFields;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -76,6 +77,74 @@ class ConstituencyAllocationService
         }
 
         return $this->save($constituencyCode, $data, $userId);
+    }
+
+    public function syncPhaseIssuedFromLoanPhase(LoanPhase $phase): ?ConstituencyAllocationProfile
+    {
+        $phaseNumber = self::extractPhaseNumber((string) ($phase->phase ?? ''));
+
+        if ($phaseNumber === null) {
+            return null;
+        }
+
+        $phase->loadMissing('phaseApplications');
+
+        $totalRecommended = (float) $phase->phaseApplications
+            ->whereNotIn('status', ['rejected', 'deferred', 'pending'])
+            ->sum('amount_approved');
+
+        $existing = $this->forConstituency($phase->constituency_code);
+        $payload = $existing
+            ? $this->profileToPayload($existing)
+            : ConstituencyAllocationFields::emptyPayload();
+
+        $payload['phase_issued_amounts'] = collect($payload['phase_issued_amounts'] ?? [])
+            ->reject(fn (array $row) => (int) ($row['phase'] ?? 0) === $phaseNumber)
+            ->push(['phase' => $phaseNumber, 'amount' => round($totalRecommended, 2)])
+            ->sortBy('phase')
+            ->values()
+            ->all();
+
+        return $this->save($phase->constituency_code, $payload);
+    }
+
+    public function syncLatestActivePhaseForConstituency(string $constituencyCode): ?ConstituencyAllocationProfile
+    {
+        $phase = LoanPhase::query()
+            ->where('constituency_code', $constituencyCode)
+            ->whereNotNull('submitted_to_hq_at')
+            ->orderByDesc('submitted_to_hq_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $phase) {
+            return null;
+        }
+
+        return $this->syncPhaseIssuedFromLoanPhase($phase);
+    }
+
+    public static function extractPhaseNumber(string $phaseLabel): ?int
+    {
+        if (preg_match('/phase\s*(\d+)/i', $phaseLabel, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return null;
+    }
+
+    protected function profileToPayload(ConstituencyAllocationProfile $profile): array
+    {
+        $payload = [];
+
+        foreach (ConstituencyAllocationFields::allocationKeys() as $key) {
+            $payload[$key] = (float) $profile->{$key};
+        }
+
+        $payload['transfer_levels'] = $profile->normalizedTransferLevels();
+        $payload['phase_issued_amounts'] = $profile->normalizedPhaseIssuedAmounts();
+
+        return $payload;
     }
 
     public function normalizePayload(array $data): array
