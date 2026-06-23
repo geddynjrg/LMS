@@ -335,6 +335,57 @@
             </div>
 
             <div class="col-md-7 pl-4">
+                @php $recommendation = $this->loanRecommendation; @endphp
+                <div class="mb-4 p-3 rounded border {{ $recommendation['should_decline'] ? 'border-danger bg-light' : 'border-success bg-white' }}">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <div class="small font-weight-bold text-uppercase text-muted">System Recommended Amount</div>
+                            <div class="h4 font-weight-bold mb-0 {{ $recommendation['should_decline'] ? 'text-danger' : 'text-success' }}">
+                                @if($recommendation['should_decline'])
+                                    Decline
+                                @else
+                                    KES {{ number_format($recommendation['recommended_amount'], 0) }}
+                                @endif
+                            </div>
+                        </div>
+                        <span class="badge {{ $recommendation['should_decline'] ? 'badge-danger' : 'badge-success' }}">
+                            {{ $recommendation['loan_type'] }}
+                        </span>
+                    </div>
+                    <div class="small text-muted mb-2">
+                        <div>Monthly profit: <strong>KES {{ number_format($recommendation['monthly_profit'], 0) }}</strong></div>
+                        @if($recommendation['table_banking_monthly'] > 0)
+                            <div>Table banking (monthly): <strong>KES {{ number_format($recommendation['table_banking_monthly'], 0) }}</strong></div>
+                        @endif
+                        <div>Base amount used: <strong>KES {{ number_format($recommendation['base_amount'], 0) }}</strong> over <strong>{{ $recommendation['months'] }}</strong> months</div>
+                        <div>Formula: <strong>{{ $recommendation['formula'] }}</strong></div>
+                    </div>
+                    <p class="small mb-0 {{ $recommendation['should_decline'] ? 'text-danger' : 'text-dark' }}">
+                        {{ $recommendation['explanation'] }}
+                    </p>
+                </div>
+
+                @if($summary = $this->wardAllocationSummary)
+                    <div class="mb-4 p-3 rounded border bg-light">
+                        <div class="small font-weight-bold text-uppercase text-muted mb-2">Ward allocation balance (this phase)</div>
+                        <div class="small text-muted mb-2">
+                            Approved so far: <strong>KES {{ number_format($summary['phase_total_approved'], 0) }}</strong>
+                            @if($summary['target_per_ward'])
+                                · Equal-share target per ward: <strong>KES {{ number_format($summary['target_per_ward'], 0) }}</strong>
+                            @endif
+                        </div>
+                        @foreach($summary['wards'] as $wardRow)
+                            <div class="d-flex justify-content-between small py-1 border-bottom">
+                                <span>{{ $wardRow['ward_name'] }} ({{ $wardRow['application_count'] }})</span>
+                                <span>KES {{ number_format($wardRow['approved_total'], 0) }} · {{ $wardRow['share_percent'] }}%</span>
+                            </div>
+                        @endforeach
+                        @foreach($summary['imbalance_notes'] as $note)
+                            <div class="small text-warning mt-2 mb-0"><i class="fas fa-balance-scale mr-1"></i>{{ $note }}</div>
+                        @endforeach
+                    </div>
+                @endif
+
                 <div class="form-group mb-4">
                     <label class="font-weight-bold text-primary uppercase mb-2 d-block">Final Approved Amount (KES) *</label>
                     <div class="finance-input-wrapper">
@@ -361,7 +412,7 @@
         </div>
 
         <x-slot name="footer">
-            @if($this->eligibility['can_borrow'])
+            @if($this->eligibility['can_borrow'] && ! $this->loanRecommendation['should_decline'])
                 <x-pill-button
                     label="Close"
                     color="info"
@@ -377,6 +428,13 @@
                     icon="fas fa-check-circle"
                     class="px-4 shadow-sm btn-refresh-premium"
                 />
+            @elseif($this->loanRecommendation['should_decline'])
+                <div class="alert alert-danger w-100 mb-0 d-flex justify-content-between align-items-center">
+                    <span class="font-weight-bold">
+                        <i class="fas fa-times-circle mr-2"></i> System recommends declining this application.
+                    </span>
+                    <button type="button" class="btn btn-refresh-premium shadow-sm px-4" data-dismiss="modal">Close</button>
+                </div>
             @else
                 <div class="alert bg-light border w-100 mb-0 d-flex justify-content-between align-items-center" style="border-radius: 50px;">
                     <span class="text-danger font-weight-bold ml-3">

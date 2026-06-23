@@ -15,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
 use App\Services\Loan\LoanAnalysisService;
+use App\Services\Loan\LoanRecommendationService;
+use App\Services\Loan\WardAllocationService;
 use App\Services\Loan\DefaultAnalysisService;
 use App\Services\IdempotencyService;
 use App\Exports\ApplicationInstitutionalDataExport;
@@ -53,6 +55,8 @@ class ApplicationView extends Component
     protected TempApplicationService $appService;
     protected DefaultAnalysisService $defaultService;
     protected LoanAnalysisService $analysisService;
+    protected LoanRecommendationService $recommendationService;
+    protected WardAllocationService $wardAllocationService;
     protected IdempotencyService $idempotencyService;
 
     public $isDataLoaded = false;
@@ -125,6 +129,8 @@ class ApplicationView extends Component
     public function boot(
         LoanPhaseService $phaseService,
         LoanAnalysisService $analysisService,
+        LoanRecommendationService $recommendationService,
+        WardAllocationService $wardAllocationService,
         TempApplicationService $appService,
         DefaultAnalysisService $defaultService,
         IdempotencyService $idempotencyService
@@ -134,6 +140,8 @@ class ApplicationView extends Component
         $this->appService = $appService;
         $this->defaultService = $defaultService;
         $this->analysisService = $analysisService;
+        $this->recommendationService = $recommendationService;
+        $this->wardAllocationService = $wardAllocationService;
         $this->idempotencyService = $idempotencyService;
     }
 
@@ -320,8 +328,29 @@ class ApplicationView extends Component
     {
         return $this->analysisService->getEligibilityData(
             $this->application->phaseApplication?->linkedGroup,
-            $this->application->loan_amount
+            (int) round((float) ($this->application->loan_amount ?? 0))
         );
+    }
+
+    #[Computed]
+    public function loanRecommendation()
+    {
+        return $this->recommendationService->recommend(
+            $this->application,
+            $this->eligibility
+        );
+    }
+
+    #[Computed]
+    public function wardAllocationSummary()
+    {
+        $phase = $this->application->phaseApplication?->reviewPhase;
+
+        if (! $phase) {
+            return null;
+        }
+
+        return $this->wardAllocationService->summarisePhase($phase);
     }
 
     #[Computed]
@@ -728,7 +757,10 @@ class ApplicationView extends Component
 
         $this->generateGfs();
 
-        $amount = (int) round((float) ($this->application->loan_amount ?? 0));
+        $recommendation = $this->loanRecommendation;
+        $amount = (int) round((float) ($recommendation['recommended_amount'] > 0
+            ? $recommendation['recommended_amount']
+            : ($this->application->loan_amount ?? 0)));
         $this->approvalAmount = $amount;
 
         // Open after Livewire morph completes; wire:ignore.self on the modal shell
@@ -749,6 +781,13 @@ class ApplicationView extends Component
 
     public function confirmApproval()
     {
+        $recommendation = $this->loanRecommendation;
+
+        if ($recommendation['should_decline']) {
+            $this->addError('approvalAmount', $recommendation['explanation']);
+
+            return;
+        }
 
         if (!$this->eligibility['can_borrow']) {
             $this->addError('approvalAmount', "This group has an outstanding balance of Kes " . number_format($this->eligibility['balance']));
