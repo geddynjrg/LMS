@@ -45,8 +45,7 @@ class PhaseReviewList extends Component
         return (clone $this->baseQuery())
             ->where(function ($q) {
                 $q->whereNull('accountant_review_status')
-                    ->orWhere('accountant_review_status', AccountantReviewStatus::PENDING)
-                    ->orWhere('accountant_review_status', AccountantReviewStatus::RETURNED_TO_HQ);
+                    ->orWhere('accountant_review_status', AccountantReviewStatus::PENDING);
             })
             ->count();
     }
@@ -65,8 +64,7 @@ class PhaseReviewList extends Component
         if ($this->filter === 'pending') {
             $query->where(function ($q) {
                 $q->whereNull('accountant_review_status')
-                    ->orWhere('accountant_review_status', AccountantReviewStatus::PENDING)
-                    ->orWhere('accountant_review_status', AccountantReviewStatus::RETURNED_TO_HQ);
+                    ->orWhere('accountant_review_status', AccountantReviewStatus::PENDING);
             });
         } elseif ($this->filter === 'approved') {
             $query->where('accountant_review_status', AccountantReviewStatus::APPROVED);

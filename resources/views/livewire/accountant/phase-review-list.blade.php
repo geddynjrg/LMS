@@ -100,6 +100,9 @@
                                 $transferDoc = $docs->get('request_for_transfer_letter');
                                 $status = $phase->accountant_review_status;
                                 $statusLabel = \App\Support\AccountantReviewStatus::labels()[$status] ?? 'Awaiting review';
+                                if ($status === \App\Support\AccountantReviewStatus::PENDING && $phase->hq_accountant_resubmit_notes) {
+                                    $statusLabel = 'Resubmitted by HQ';
+                                }
                                 $statusClass = match($status) {
                                     'approved' => 'badge-success',
                                     'returned_to_hq' => 'badge-warning',

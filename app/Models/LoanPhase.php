@@ -43,6 +43,9 @@ class LoanPhase extends Model
         'accountant_notes',
         'accountant_reviewed_at',
         'accountant_reviewed_by',
+        'hq_accountant_resubmit_notes',
+        'hq_accountant_resubmitted_at',
+        'hq_accountant_resubmitted_by',
     ];
 
     protected $casts = [
@@ -51,6 +54,7 @@ class LoanPhase extends Model
         'hq_approved_at' => 'datetime',
         'hq_reviewed_at' => 'datetime',
         'accountant_reviewed_at' => 'datetime',
+        'hq_accountant_resubmitted_at' => 'datetime',
         'total_amount_applied' => 'decimal:2',
         'total_amount_approved' => 'decimal:2',
         'is_locked' => 'boolean',
@@ -193,6 +197,11 @@ class LoanPhase extends Model
     public function accountantReviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'accountant_reviewed_by');
+    }
+
+    public function hqAccountantResubmittedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'hq_accountant_resubmitted_by');
     }
 
     public function assignedHqOfficer(): BelongsTo

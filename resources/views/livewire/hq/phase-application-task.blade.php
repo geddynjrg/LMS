@@ -491,7 +491,50 @@
                     @endif
 
                     @if($this->canApproveApplication())
-                        @if($this->canSendProcessedCodeListToAccountant())
+                        @if($this->canResubmitToAccountant())
+                            <div class="card shadow-sm mb-4 border-0 border-left border-warning animate__animated animate__fadeIn" style="border-left-width: 4px !important;">
+                                <div class="card-header bg-amber-50 border-0 py-2">
+                                    <span class="text-xs font-weight-bold text-uppercase text-navy">
+                                        <i class="fas fa-reply mr-1 text-warning"></i> Resubmit to Accounts
+                                    </span>
+                                </div>
+                                <div class="card-body pt-2 pb-3">
+                                    <p class="text-xs text-gray-600 mb-2">
+                                        Accounts returned this phase for clarification. Regenerate the processed code list if needed, then explain what HQ has corrected before sending it back for review.
+                                    </p>
+                                    @if($this->detailedPhase->accountant_notes)
+                                        <div class="alert alert-warning py-2 px-3 mb-3">
+                                            <div class="small font-weight-bold text-uppercase text-muted mb-1">Accounts clarification request</div>
+                                            <p class="text-xs mb-0">{{ $this->detailedPhase->accountant_notes }}</p>
+                                        </div>
+                                    @endif
+                                    <div class="form-group mb-3">
+                                        <label class="small font-weight-bold text-uppercase text-muted">HQ response notes for Accounts</label>
+                                        <textarea wire:model.blur="hqAccountantResubmitNotes"
+                                                  class="form-control"
+                                                  rows="4"
+                                                  placeholder="Describe what was corrected, updated, or clarified for accounts…"
+                                                  style="border-radius:10px;"></textarea>
+                                        @error('hqAccountantResubmitNotes')
+                                            <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                        @enderror
+                                    </div>
+                                    <div class="d-flex flex-wrap justify-content-center" style="gap: 8px;">
+                                        <button wire:click="resubmitToAccountantWithNotes"
+                                                wire:loading.attr="disabled"
+                                                wire:target="resubmitToAccountantWithNotes"
+                                                class="btn btn-warning btn-sm shadow-sm font-weight-bold">
+                                            <span wire:loading.remove wire:target="resubmitToAccountantWithNotes">
+                                                <i class="fas fa-paper-plane mr-2"></i> Resubmit to Accounts
+                                            </span>
+                                            <span wire:loading wire:target="resubmitToAccountantWithNotes">
+                                                <i class="fas fa-spinner fa-spin mr-2"></i> Sending...
+                                            </span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        @elseif($this->canSendProcessedCodeListToAccountant())
                             <div class="card shadow-sm mb-4 border-0 animate__animated animate__fadeIn">
                                 <div class="card-header bg-amber-50 border-0 py-2">
                                     <span class="text-xs font-weight-bold text-uppercase text-navy">

@@ -1078,6 +1078,9 @@ class LoanPhaseService
                 'accountant_notes' => null,
                 'accountant_reviewed_at' => null,
                 'accountant_reviewed_by' => null,
+                'hq_accountant_resubmit_notes' => null,
+                'hq_accountant_resubmitted_at' => null,
+                'hq_accountant_resubmitted_by' => null,
             ]);
 
             activity()

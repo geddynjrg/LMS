@@ -22,6 +22,33 @@
         </div>
     </div>
 
+    @if($phase->hq_accountant_resubmit_notes)
+        <div class="alert alert-info border-left-info shadow-sm mb-4" style="border-left: 4px solid #17a2b8 !important;">
+            <div class="d-flex align-items-start">
+                <i class="fas fa-reply fa-lg text-info mr-3 mt-1"></i>
+                <div>
+                    <div class="font-weight-bold text-navy mb-1">HQ resubmission notes</div>
+                    <p class="mb-2">{{ $phase->hq_accountant_resubmit_notes }}</p>
+                    <small class="text-muted">
+                        @if($phase->hqAccountantResubmittedBy)
+                            Submitted by {{ $phase->hqAccountantResubmittedBy->name }}
+                        @endif
+                        @if($phase->hq_accountant_resubmitted_at)
+                            · {{ $phase->hq_accountant_resubmitted_at->format('d M Y H:i') }}
+                        @endif
+                    </small>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    @if($phase->accountant_notes && $phase->accountant_review_status === \App\Support\AccountantReviewStatus::PENDING && $phase->hq_accountant_resubmit_notes)
+        <div class="alert alert-warning border-left-warning shadow-sm mb-4" style="border-left: 4px solid #f59e0b !important;">
+            <div class="font-weight-bold text-navy mb-1">Previous accounts return notes</div>
+            <p class="mb-0">{{ $phase->accountant_notes }}</p>
+        </div>
+    @endif
+
     <div class="row">
         <div class="col-lg-7">
             <div class="card hq-panel-card mb-4">

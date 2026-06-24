@@ -47,6 +47,10 @@ class AccountantReviewService
             return;
         }
 
+        if ($phase->accountant_review_status === AccountantReviewStatus::RETURNED_TO_HQ) {
+            return;
+        }
+
         $alreadyPending = $phase->accountant_review_status === AccountantReviewStatus::PENDING;
 
         $phase->update([
@@ -67,6 +71,49 @@ class AccountantReviewService
         }
     }
 
+    public function resubmitToAccountant(LoanPhase $phase, string $hqNotes): void
+    {
+        if ($phase->status !== 'submitted_to_hq') {
+            throw ValidationException::withMessages([
+                'phase' => 'This phase is not with HQ for accounts resubmission.',
+            ]);
+        }
+
+        if ($phase->accountant_review_status !== AccountantReviewStatus::RETURNED_TO_HQ) {
+            throw ValidationException::withMessages([
+                'phase' => 'This phase is not awaiting HQ resubmission to accounts.',
+            ]);
+        }
+
+        if (! $this->phaseHasProcessedCodeList($phase)) {
+            throw ValidationException::withMessages([
+                'phase' => 'Regenerate the processed code list before resubmitting to accounts.',
+            ]);
+        }
+
+        if (strlen(trim($hqNotes)) < 20) {
+            throw ValidationException::withMessages([
+                'hqNotes' => 'Please describe what HQ has corrected before resubmitting to accounts (at least 20 characters).',
+            ]);
+        }
+
+        $phase->update([
+            'accountant_review_status' => AccountantReviewStatus::PENDING,
+            'hq_accountant_resubmit_notes' => trim($hqNotes),
+            'hq_accountant_resubmitted_at' => now(),
+            'hq_accountant_resubmitted_by' => auth()->id(),
+        ]);
+
+        try {
+            app(WorkflowNotificationService::class)->notifyAccountantPhaseResubmitted($phase->fresh(), trim($hqNotes));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to notify accountant of HQ resubmission', [
+                'phase_id' => $phase->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     /**
      * Backfill accountant queue for HQ-submitted phases that already have a processed code list.
      */
@@ -79,8 +126,7 @@ class AccountantReviewService
                 PhaseDocumentType::processedCodeListTypes()
             ))
             ->where(function ($q) {
-                $q->whereNull('accountant_review_status')
-                    ->orWhere('accountant_review_status', AccountantReviewStatus::RETURNED_TO_HQ);
+                $q->whereNull('accountant_review_status');
             })
             ->each(fn (LoanPhase $phase) => $this->queueForReview($phase));
     }

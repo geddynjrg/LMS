@@ -24,6 +24,7 @@ use App\Services\Loan\TempApplicationService;
 use App\Services\Loan\LoanAnalysisService;
 use App\Services\IdempotencyService;
 use App\Models\LoanPhase;
+use App\Support\AccountantReviewStatus;
 use App\Support\PhaseDocumentType;
 use App\Models\GroupLoan;
 use App\Support\PhaseWorkflowStatus;
@@ -72,6 +73,7 @@ class PhaseApplicationTask extends Component
     public $managementMinutesFile = null;
     public $extraUploads = [];
     public $returnRemarks = '';
+    public string $hqAccountantResubmitNotes = '';
 
     public $approvedStatuses = ['pending_submission_to_hq', 'pending_hq_approval', 'in_training', 'approved'];
 
@@ -285,7 +287,73 @@ class PhaseApplicationTask extends Component
 
         $reviewStatus = $this->detailedPhase->accountant_review_status ?? null;
 
-        return in_array($reviewStatus, [null, \App\Support\AccountantReviewStatus::RETURNED_TO_HQ], true);
+        return $reviewStatus === null;
+    }
+
+    public function canResubmitToAccountant(): bool
+    {
+        if (!$this->canApproveApplication()) {
+            return false;
+        }
+
+        $status = $this->detailedPhase->status ?? $this->phase->status;
+        if ($status !== 'submitted_to_hq') {
+            return false;
+        }
+
+        return ($this->detailedPhase->accountant_review_status ?? null) === AccountantReviewStatus::RETURNED_TO_HQ;
+    }
+
+    public function resubmitToAccountantWithNotes(): void
+    {
+        if (!$this->canUploadDocument()) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied 😕',
+                message: 'You do not have the right to perform this action',
+                type: 'error'
+            );
+
+            return;
+        }
+
+        if (!$this->canResubmitToAccountant()) {
+            $this->dispatch('swal:toast',
+                title: 'Not available',
+                message: 'This phase cannot be resubmitted to accounts right now.',
+                type: 'warning'
+            );
+
+            return;
+        }
+
+        try {
+            app(ProcessedCodeListDocumentService::class)->generateAndAttach($this->phase);
+            app(AccountantReviewService::class)->resubmitToAccountant(
+                $this->phase->fresh(),
+                $this->hqAccountantResubmitNotes
+            );
+
+            $this->reset('hqAccountantResubmitNotes');
+            $this->refreshData();
+
+            $this->dispatch('swal:toast',
+                title: 'Resubmitted to Accounts 😊',
+                message: 'The phase has been sent back to accounts with your clarification notes.',
+                type: 'success'
+            );
+        } catch (ValidationException $e) {
+            foreach ($e->errors() as $field => $messages) {
+                $livewireField = $field === 'hqNotes' ? 'hqAccountantResubmitNotes' : $field;
+                $this->addError($livewireField, $messages[0]);
+            }
+        } catch (\Exception $e) {
+            logger()->error('Accounts resubmission error: ' . $e->getMessage());
+            $this->dispatch('swal:toast',
+                title: 'Resubmit failed 😕',
+                message: 'Could not resubmit to accounts. Please try again.',
+                type: 'error'
+            );
+        }
     }
 
 

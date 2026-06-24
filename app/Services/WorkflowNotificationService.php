@@ -275,6 +275,44 @@ class WorkflowNotificationService
         }
     }
 
+    public function notifyAccountantPhaseResubmitted(LoanPhase $phase, string $hqNotes, bool $queue = true): void
+    {
+        $phase->loadMissing(['constituency', 'hqAccountantResubmittedBy']);
+
+        $accountant = SystemRoles::accountantUser();
+        if (!$accountant || !$accountant->isActive()) {
+            Log::warning('No active accountant found for HQ resubmission notification', ['phase_id' => $phase->id]);
+
+            return;
+        }
+
+        $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
+        $reviewUrl = route('accountant.phases.review', $phase);
+        $hqOfficer = $phase->hqAccountantResubmittedBy?->name ?? 'HQ';
+
+        if ($accountant->email) {
+            $mail = new ConstituencyOfficerNotificationMail(
+                "{$phase->phase} resubmitted to accounts by HQ",
+                [
+                    "HQ has addressed accounts clarification and resubmitted {$phase->phase} in {$constituencyName}.",
+                    "Submitted by: {$hqOfficer}",
+                    'HQ notes: ' . $hqNotes,
+                    'Please review the updated processed code list and constituency documents.',
+                ],
+                $reviewUrl,
+                'Review phase',
+            );
+            $queue ? Mail::to($accountant->email)->queue($mail) : Mail::to($accountant->email)->send($mail);
+        }
+
+        if ($accountant->phone_number) {
+            $this->smsService->send(
+                $accountant->phone_number,
+                "Uwezo Fund: {$phase->phase} ({$constituencyName}) resubmitted by HQ for accounts review. Notes: {$hqNotes}"
+            );
+        }
+    }
+
     public function notifyHqOfficerPhaseReturnedFromSecretariat(LoanPhase $phase, string $reason, bool $queue = true): void
     {
         $phase->loadMissing(['constituency.county', 'assignedHqOfficer', 'hqOfficer']);

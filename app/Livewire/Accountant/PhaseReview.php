@@ -30,6 +30,7 @@ class PhaseReview extends Component
             'phaseApplicationDocuments',
             'hqOfficer:id,name',
             'accountantReviewer:id,name',
+            'hqAccountantResubmittedBy:id,name',
         ]);
     }
 
