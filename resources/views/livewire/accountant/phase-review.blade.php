@@ -81,7 +81,7 @@
                                         <span class="d-block">Statement: {{ $bankReconMainDoc->statement_period_label }}</span>
                                     @endif
                                 </div>
-                                @include('partials.phase-document-actions', ['doc' => $bankReconMainDoc])
+                                @include('partials.phase-document-actions', ['doc' => $bankReconMainDoc, 'labeled' => true])
                             </div>
                         </div>
 
@@ -101,30 +101,26 @@
                                         <span class="d-block">Statement: {{ $bankReconRepaymentDoc->statement_period_label }}</span>
                                     @endif
                                 </div>
-                                @include('partials.phase-document-actions', ['doc' => $bankReconRepaymentDoc])
+                                @include('partials.phase-document-actions', ['doc' => $bankReconRepaymentDoc, 'labeled' => true])
                             </div>
                         </div>
 
-                        @if($transferLetterDoc)
-                            <div class="col-12">
-                                <div class="border rounded p-3 d-flex align-items-center justify-content-between bg-light" style="border-radius:12px;">
-                                    <div class="d-flex align-items-start">
-                                        <div class="rounded bg-info text-white d-flex align-items-center justify-content-center mr-3" style="width:40px;height:40px;">
-                                            <i class="fas fa-file-signature"></i>
-                                        </div>
-                                        <div>
-                                            <div class="font-weight-bold text-navy">Request for transfer letter</div>
-                                            <small class="text-muted d-block">Uploaded by the constituency officer (optional).</small>
-                                            <small class="text-muted">{{ $transferLetterDoc->original_filename }}</small>
-                                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded-lg p-3 h-100 {{ $transferLetterDoc ? 'border-warning bg-light' : 'border-secondary' }}" style="border-radius:12px;">
+                                <div class="d-flex align-items-start justify-content-between mb-2">
+                                    <div class="rounded bg-warning text-white d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
+                                        <i class="fas fa-file-signature"></i>
                                     </div>
-                                    <a href="{{ route('phase.doc.serve', ['id' => $transferLetterDoc->id, 'action' => 'download']) }}"
-                                       class="btn btn-sm btn-outline-info">
-                                        <i class="fas fa-download mr-1"></i> Download
-                                    </a>
+                                    <span class="badge badge-warning text-dark">Constituency</span>
                                 </div>
+                                <div class="font-weight-bold text-navy">Request for transfer letter</div>
+                                <small class="text-muted d-block mb-2">Uploaded by the constituency before HQ submission.</small>
+                                <div class="small text-truncate text-muted mb-2" title="{{ $transferLetterDoc?->original_filename }}">
+                                    {{ $transferLetterDoc?->original_filename ?? 'Not on file' }}
+                                </div>
+                                @include('partials.phase-document-actions', ['doc' => $transferLetterDoc, 'labeled' => true])
                             </div>
-                        @endif
+                        </div>
                     </div>
                 </div>
             </div>
@@ -155,7 +151,7 @@
                             @if(!$bankReconRepaymentDoc) Loan repayment reconciliation is missing. @endif
                         </div>
                     @endif
-                    <p class="text-muted small">If the processed code list and both bank reconciliations are correct, add notes and send to HQ for management committee approval.</p>
+                    <p class="text-muted small">If the processed code list, bank reconciliations, and transfer letter are correct, add notes and send to HQ for management committee approval.</p>
                     <div class="form-group">
                         <label class="small font-weight-bold text-uppercase text-muted">Notes for HQ</label>
                         <textarea wire:model="notes" class="form-control border" rows="4" placeholder="Accounts review notes…" style="border-radius:10px;"></textarea>

@@ -37,8 +37,9 @@
                     <div>
                         <div class="font-weight-bold text-navy small text-uppercase">What you review</div>
                         <p class="mb-0 text-muted small">
-                            <strong>Processed code list</strong> (HQ Excel) and
-                            <strong>bank reconciliation</strong> from the constituency submission.
+                            <strong>Processed code list</strong> (HQ Excel),
+                            <strong>bank reconciliations</strong>, and
+                            <strong>request for transfer letter</strong> from the constituency submission.
                         </p>
                     </div>
                 </div>
@@ -128,11 +129,9 @@
                                         <span class="badge {{ $bankRepaymentDoc ? 'badge-light border text-info' : 'badge-secondary' }}">
                                             <i class="fas fa-hand-holding-usd mr-1"></i> Repayment recon
                                         </span>
-                                        @if($transferDoc)
-                                            <span class="badge badge-light border text-info">
-                                                <i class="fas fa-file-signature mr-1"></i> Transfer letter
-                                            </span>
-                                        @endif
+                                        <span class="badge {{ $transferDoc ? 'badge-light border text-warning' : 'badge-secondary' }}">
+                                            <i class="fas fa-file-signature mr-1"></i> Transfer letter
+                                        </span>
                                     </div>
                                 </td>
                                 <td>

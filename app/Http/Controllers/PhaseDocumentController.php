@@ -31,4 +31,17 @@ class PhaseDocumentController extends Controller
 
         return response()->download($fullPath, $doc->original_filename);
     }
+
+    public function preview(int $id)
+    {
+        $doc = PhaseApplicationDocument::with(['loanPhase.constituency'])->findOrFail($id);
+
+        return view('documents.phase-document-preview', [
+            'doc' => $doc,
+            'phase' => $doc->loanPhase,
+            'canEmbed' => $doc->can_view_inline,
+            'embedUrl' => route('phase.doc.serve', ['id' => $doc->id, 'action' => 'view']),
+            'downloadUrl' => route('phase.doc.serve', ['id' => $doc->id, 'action' => 'download']),
+        ]);
+    }
 }

@@ -228,6 +228,7 @@ Route::middleware(['auth'])->group(function () {
         }
     );
 
+    Route::get('/phase-document/{id}/preview', [PhaseDocumentController::class, 'preview'])->name('phase.doc.preview');
     Route::get('/phase-document/{id}/{action}', [PhaseDocumentController::class, 'serve'])->name('phase.doc.serve');
 });
 
