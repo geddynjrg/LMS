@@ -301,7 +301,8 @@ class PhaseApplicationTask extends Component
             return false;
         }
 
-        return ($this->detailedPhase->accountant_review_status ?? null) === AccountantReviewStatus::RETURNED_TO_HQ;
+        return app(AccountantReviewService::class)
+            ->phaseAwaitingHqResubmitToAccountant($this->detailedPhase ?? $this->phase);
     }
 
     public function resubmitToAccountantWithNotes(): void

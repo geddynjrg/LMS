@@ -79,7 +79,7 @@ class AccountantReviewService
             ]);
         }
 
-        if ($phase->accountant_review_status !== AccountantReviewStatus::RETURNED_TO_HQ) {
+        if (! $this->phaseAwaitingHqResubmitToAccountant($phase)) {
             throw ValidationException::withMessages([
                 'phase' => 'This phase is not awaiting HQ resubmission to accounts.',
             ]);
@@ -112,6 +112,19 @@ class AccountantReviewService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function phaseAwaitingHqResubmitToAccountant(LoanPhase $phase): bool
+    {
+        if ($phase->accountant_review_status === AccountantReviewStatus::RETURNED_TO_HQ) {
+            return true;
+        }
+
+        // Recovery when a return was overwritten back to pending by the old accounts sync job.
+        return $phase->accountant_review_status === AccountantReviewStatus::PENDING
+            && filled($phase->accountant_notes)
+            && $phase->accountant_reviewed_at !== null
+            && blank($phase->hq_accountant_resubmit_notes);
     }
 
     /**
