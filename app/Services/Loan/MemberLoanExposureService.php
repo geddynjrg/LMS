@@ -74,7 +74,8 @@ class MemberLoanExposureService
                 ),
                 'groupLoan.group' => fn ($q) => $q->select('id', 'name', 'reg_number', 'ward_id'),
                 'groupLoan.group.ward' => fn ($q) => $q->select('id', 'ward_name', 'constituency_code'),
-                'groupLoan.group.ward.constituency' => fn ($q) => $q->select('constituency_code', 'constituency_name', 'county_name'),
+                'groupLoan.group.ward.constituency' => fn ($q) => $q->select('constituency_code', 'constituency_name', 'county_code'),
+                'groupLoan.group.ward.constituency.county' => fn ($q) => $q->select('county_code', 'county_name'),
                 'groupLoan.loanPhase' => fn ($q) => $q->select('id', 'phase'),
             ])
             ->get()
@@ -122,7 +123,7 @@ class MemberLoanExposureService
             'group_reg_number' => $group?->reg_number,
             'constituency_code' => $constituency?->constituency_code,
             'constituency_name' => $constituency?->constituency_name,
-            'county_name' => $constituency?->county_name,
+            'county_name' => $constituency?->county?->county_name,
             'ward_name' => $group?->ward?->ward_name,
             'role' => $membership->role,
             'loan_id' => $loan?->id,

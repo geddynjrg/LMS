@@ -11,6 +11,14 @@ class LoanDebtCheckService
 {
     public const REPAYMENT_THRESHOLD_PERCENT = 80;
 
+    public const ENDELEZA_MIN_AMOUNT = 75000;
+
+    public const WEZESHA_MIN_AMOUNT = 50000;
+
+    public const WEZESHA_MAX_AMOUNT = 100000;
+
+    public const ENDELEZA_MAX_CEILING = 500000;
+
     public function checkMemberByNationalId(string $nationalId): array
     {
         $normalizedId = $this->normalizeNationalId($nationalId);
@@ -44,33 +52,64 @@ class LoanDebtCheckService
 
     public function checkGroupByRegistrationNumber(string $regNumber): array
     {
+        return $this->getGroupEligibilityByRegistrationNumber($regNumber);
+    }
+
+    public function getGroupEligibilityByRegistrationNumber(string $regNumber): array
+    {
         $normalized = $this->normalizeRegNumber($regNumber);
         if ($normalized === '') {
-            return $this->emptyResult();
+            return $this->emptyEligibilityResult();
         }
 
-        $groupIds = Group::query()
+        $groups = Group::query()
             ->whereRaw('UPPER(TRIM(reg_number)) = ?', [$normalized])
-            ->pluck('id');
+            ->get();
 
-        if ($groupIds->isEmpty()) {
-            return $this->emptyResult();
+        if ($groups->isEmpty()) {
+            return $this->emptyEligibilityResult($normalized);
         }
 
-        $loan = $this->pickBlockingLoan(
-            GroupLoan::query()
-                ->whereIn('group_id', $groupIds)
-                ->where('loan_status', 'financed')
-                ->with(['group.ward.constituency', 'groupMembers.member'])
-                ->orderByDesc('disbursement_date')
-                ->get(),
-        );
+        $groupIds = $groups->pluck('id');
+        $primaryGroup = $groups->first();
 
-        if (!$loan) {
-            return $this->emptyResult();
+        $latestLoan = GroupLoan::query()
+            ->whereIn('group_id', $groupIds)
+            ->where('loan_status', 'financed')
+            ->with(['group.ward.constituency', 'groupMembers.member'])
+            ->orderByDesc('disbursement_date')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$latestLoan) {
+            return array_merge($this->emptyEligibilityResult($normalized), [
+                'group_found' => true,
+                'group_id' => $primaryGroup->id,
+                'group_name' => $primaryGroup->name,
+                'group_registration_number' => $primaryGroup->reg_number ?? $normalized,
+                'eligible_for_wezesha' => true,
+            ]);
         }
 
-        return $this->formatDebtResult($loan, 'group', $normalized);
+        $status = $this->getDebtStatusForGroupLoan($latestLoan);
+        $loanCleared = $status['outstanding_balance'] <= 0;
+        $hasBlockingDebt = $status['blocks_proceed'];
+        $lastIssued = (float) $latestLoan->amount_issued;
+        $endelezaMax = (int) min(max($lastIssued * 2, self::ENDELEZA_MIN_AMOUNT), self::ENDELEZA_MAX_CEILING);
+
+        $base = $this->formatDebtResult($latestLoan, 'group', $normalized);
+
+        return array_merge($base, [
+            'group_found' => true,
+            'has_prior_financed_loan' => true,
+            'loan_cleared' => $loanCleared,
+            'eligible_for_endeleza' => $loanCleared && !$hasBlockingDebt,
+            'eligible_for_wezesha' => !$hasBlockingDebt && !$loanCleared,
+            'endeleza_min_amount' => self::ENDELEZA_MIN_AMOUNT,
+            'endeleza_max_amount' => $endelezaMax,
+            'wezesha_min_amount' => self::WEZESHA_MIN_AMOUNT,
+            'wezesha_max_amount' => self::WEZESHA_MAX_AMOUNT,
+        ]);
     }
 
     public function getDebtStatusForGroupLoan(GroupLoan $loan): array
@@ -213,15 +252,20 @@ class LoanDebtCheckService
 
     private function emptyResult(): array
     {
+        return $this->emptyEligibilityResult();
+    }
+
+    private function emptyEligibilityResult(?string $matchedValue = null): array
+    {
         return [
             'has_debt' => false,
             'can_proceed' => true,
             'check_type' => null,
-            'matched_value' => null,
+            'matched_value' => $matchedValue,
             'group_loan_id' => null,
             'group_id' => null,
             'group_name' => null,
-            'group_registration_number' => null,
+            'group_registration_number' => $matchedValue,
             'constituency_name' => null,
             'loan_type' => null,
             'amount_issued' => 0,
@@ -231,6 +275,15 @@ class LoanDebtCheckService
             'minimum_payment_required' => 0,
             'repayment_threshold_percent' => self::REPAYMENT_THRESHOLD_PERCENT,
             'members' => [],
+            'group_found' => false,
+            'has_prior_financed_loan' => false,
+            'loan_cleared' => false,
+            'eligible_for_endeleza' => false,
+            'eligible_for_wezesha' => true,
+            'endeleza_min_amount' => self::ENDELEZA_MIN_AMOUNT,
+            'endeleza_max_amount' => self::ENDELEZA_MAX_CEILING,
+            'wezesha_min_amount' => self::WEZESHA_MIN_AMOUNT,
+            'wezesha_max_amount' => self::WEZESHA_MAX_AMOUNT,
         ];
     }
 }
