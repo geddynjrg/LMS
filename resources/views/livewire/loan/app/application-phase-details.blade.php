@@ -546,6 +546,13 @@
             <div class="col-md-3 order-first order-md-last d-flex flex-column" style="max-height: 115vh;">
                 <div class="sidebar-upload-zone scrollable-sidebar-content flex-grow-1 pr-1" style="overflow-y: auto; overflow-x: hidden; min-height: 0;">
                     @if($this->canSubmitApplication())
+                        @if($this->canUploadBankReconciliationMain())
+                            @include('partials.application.bank-reconciliation-upload', ['detailedPhase' => $this->detailedPhase, 'reconciliationType' => 'main'])
+                        @endif
+                        @if($this->canUploadBankReconciliationLoanRepayment())
+                            @include('partials.application.bank-reconciliation-upload', ['detailedPhase' => $this->detailedPhase, 'reconciliationType' => 'repayment'])
+                        @endif
+
                         @if($this->detailedPhase->status === 'draft')
                             <div class="card shadow-sm mb-4 border-0">
                                 <div class="card-header bg-amber-50 border-0 py-2">
@@ -659,44 +666,7 @@
                             </div>
                         @endif
 
-                        @if(!$this->detailedPhase->has_bank_reconciliation)
-                            <div class="card shadow-sm mb-4 border-0">
-                                <div class="card-header bg-amber-50 border-0 py-2">
-                                    <span class="text-xs font-weight-bold text-uppercase text-navy">
-                                        <i class="fas fa-exclamation-triangle mr-1"></i> Missing Mandatory Document
-                                    </span>
-                                </div>
-                                <div class="card-body pt-1 pb-3">
-                                    <p class="text-xs text-gray-500">Upload the bank reconciliation document from your constituency accounts team. This is mandatory for HQ submission.</p>
-
-                                    <div class="form-group my-3 premium-file-container">
-                                        <label class="small font-weight-bold text-uppercase text-muted mb-2">Bank Reconciliation (PDF or Image)</label>
-                                        <x-file-upload model="bankReconciliationFile" height="48px" accept=".pdf,.jpg,.jpeg,.png,.gif,.webp" />
-                                        @error('bankReconciliationFile')
-                                            <small class="text-danger d-block mt-2" style="font-size: 0.75rem;">
-                                                <i class="fas fa-exclamation-triangle mr-1"></i> {{ $message }}
-                                            </small>
-                                        @enderror
-                                    </div>
-                                    <div class="d-flex justify-content-center mt-4">
-                                        <button wire:click="uploadBankReconciliation"
-                                                wire:loading.attr="disabled"
-                                                wire:target="bankReconciliationFile, uploadBankReconciliation"
-                                                class="btn btn-refresh-premium btn-sm shadow-sm"
-                                                style="min-width: 200px; border-radius: 10px; height: 40px;">
-                                            <span wire:loading.remove wire:target="uploadBankReconciliation">
-                                                <i class="fas fa-cloud-upload-alt mr-2"></i> Upload bank reconciliation
-                                            </span>
-                                            <span wire:loading wire:target="uploadBankReconciliation">
-                                                <i class="fas fa-spinner fa-spin mr-2"></i> Uploading...
-                                            </span>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        @endif
-
-                        @if($this->canUploadRequestForTransferLetter() && !$this->detailedPhase->has_request_for_transfer_letter)
+                        @if($this->canUploadRequestForTransferLetter())
                                 <div class="card shadow-sm mb-4 border-0">
                                     <div class="card-header bg-light border-0 py-2">
                                         <span class="text-xs font-weight-bold text-uppercase text-navy">
@@ -737,7 +707,7 @@
                             <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                                 @if ($this->hasAllMandatoryHqDocuments() && $detailedPhase->pending_count == 0)
                                     <div class="card-body">
-                                        <p class="text-xs text-gray-600">By submitting, you confirm that committee minutes and bank reconciliation are uploaded and amounts match the Excel sheets.</p>
+                                        <p class="text-xs text-gray-600">By submitting, you confirm that committee minutes and both current bank reconciliations are uploaded and amounts match the Excel sheets.</p>
 
                                         <div class="d-flex justify-content-center mt-2">
                                             <x-modal-trigger
@@ -751,7 +721,7 @@
                                     </div>
                                 @else
                                     <div class="card-body">
-                                        <p class="text-xs text-gray-600">To submit the phase to HQ, complete reviewing all applications, upload signed committee minutes and bank reconciliation, and ensure at least one application is approved.</p>
+                                        <p class="text-xs text-gray-600">To submit the phase to HQ, complete reviewing all applications, upload signed committee minutes, both current bank reconciliations (main account and loan repayment), and ensure at least one application is approved.</p>
                                         @if($missing = $this->missingMandatoryHqDocuments())
                                             <p class="text-xs text-danger mb-0 mt-2">
                                                 <i class="fas fa-exclamation-circle mr-1"></i>
@@ -762,7 +732,7 @@
                                 @endif
                             </div>
                         @elseif($this->detailedPhase->status === 'submitted_to_hq')
-                            @if($this->canUploadRequestForTransferLetter() && !$this->detailedPhase->has_request_for_transfer_letter)
+                            @if($this->canUploadRequestForTransferLetter())
                                 <div class="card shadow-sm mb-4 border-0">
                                     <div class="card-header bg-light border-0 py-2">
                                         <span class="text-xs font-weight-bold text-uppercase text-navy">
@@ -1076,6 +1046,9 @@
                                                             </div>
                                                             <div class="x-small text-muted text-truncate">
                                                                 Uploaded {{ $doc->created_at->format('d M, H:i') }} • {{ $doc->formatted_size }}
+                                                                @if($doc->statement_period_label)
+                                                                    • {{ $doc->statement_period_label }}
+                                                                @endif
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1170,6 +1143,12 @@
                                                         <div class="x-small text-muted">Same layout as HQ processed codelist, including financial summary</div>
                                                     </td>
                                                     <td class="text-right align-middle pr-3" style="width: 25%;">
+                                                        <a href="{{ route('const.app.app_phase_processed_code_list.preview', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
+                                                           target="_blank"
+                                                           class="btn btn-outline-info btn-sm mr-1"
+                                                           title="Preview in browser">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
                                                         <a href="{{ route('const.app.app_phase_processed_code_list', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
                                                            class="btn btn-outline-success btn-sm"
                                                            title="Download processed codelist">

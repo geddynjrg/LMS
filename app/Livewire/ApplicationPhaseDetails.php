@@ -16,6 +16,7 @@ use App\Models\Constituency;
 use App\Models\LoanPhase;
 use App\Models\Group;
 use App\Models\PhaseApplication;
+use App\Services\Loan\BankReconciliationService;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Exports\ExportService;
 use App\Services\Loan\TempApplicationService;
@@ -81,7 +82,10 @@ class ApplicationPhaseDetails extends Component
 
     public $extraUploads = [];
     public $minutesFile;
-    public $bankReconciliationFile;
+    public $bankReconciliationMainFile;
+    public $bankReconciliationMainPeriod;
+    public $bankReconciliationRepaymentFile;
+    public $bankReconciliationRepaymentPeriod;
     public $transferLetterFile;
     public $selectedAppId;
     public $selectedGroupId;
@@ -305,35 +309,85 @@ class ApplicationPhaseDetails extends Component
 
     }
 
-    public function uploadBankReconciliation()
+    public function uploadBankReconciliationMain(): void
     {
+        $this->uploadBankReconciliationOfType(
+            PhaseDocumentType::BANK_RECONCILIATION_MAIN_ACCOUNT,
+            'Main account bank reconciliation',
+            $this->bankReconciliationMainFile,
+            $this->bankReconciliationMainPeriod,
+            'bankReconciliationMainFile',
+            'bankReconciliationMainPeriod',
+        );
+        $this->reset('bankReconciliationMainFile', 'bankReconciliationMainPeriod');
+    }
+
+    public function uploadBankReconciliationLoanRepayment(): void
+    {
+        $this->uploadBankReconciliationOfType(
+            PhaseDocumentType::BANK_RECONCILIATION_LOAN_REPAYMENT,
+            'Loan repayment bank reconciliation',
+            $this->bankReconciliationRepaymentFile,
+            $this->bankReconciliationRepaymentPeriod,
+            'bankReconciliationRepaymentFile',
+            'bankReconciliationRepaymentPeriod',
+        );
+        $this->reset('bankReconciliationRepaymentFile', 'bankReconciliationRepaymentPeriod');
+    }
+
+    protected function uploadBankReconciliationOfType(
+        string $documentType,
+        string $title,
+        $file,
+        ?string $statementPeriod,
+        string $fileField,
+        string $periodField,
+    ): void {
+        if (!$this->canUploadBankReconciliationType($documentType)) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied',
+                message: 'You cannot upload this bank reconciliation for the current phase.',
+                type: 'error'
+            );
+            return;
+        }
+
+        try {
+            app(BankReconciliationService::class)->validateStatementPeriod($statementPeriod ?? '', $periodField);
+        } catch (ValidationException $e) {
+            foreach ($e->errors() as $field => $messages) {
+                $this->addError($field, $messages[0]);
+            }
+            return;
+        }
+
         $this->validate([
-            'bankReconciliationFile' => 'required|file|mimes:pdf,jpg,jpeg,png,gif,webp|max:5120',
+            $fileField => 'required|file|mimes:pdf,jpg,jpeg,png,gif,webp|max:5120',
         ], [
-            'bankReconciliationFile.max' => 'The document is too heavy. Please keep it under 5MB.',
-            'bankReconciliationFile.mimes' => 'Only PDF and image files (JPG, PNG, GIF, WEBP) are accepted.',
-            'bankReconciliationFile.required' => 'Please attach the bank reconciliation document before proceeding.',
+            "{$fileField}.max" => 'The document is too heavy. Please keep it under 5MB.',
+            "{$fileField}.mimes" => 'Only PDF and image files (JPG, PNG, GIF, WEBP) are accepted.',
+            "{$fileField}.required" => 'Please attach the bank reconciliation document before proceeding.',
         ]);
 
         try {
             $filePayload = [
-                'fileName' => 'bank-reconciliation-',
-                'modal' => 'bankReconciliationFile',
-                'documentType' => 'bank_reconciliation',
-                'title' => 'Bank Reconciliation',
+                'fileName' => str_replace('_', '-', $documentType) . '-',
+                'modal' => $fileField,
+                'documentType' => $documentType,
+                'title' => $title,
+                'statementPeriod' => $statementPeriod,
             ];
-            $this->phaseService->uploadPhaseTypedDocument($this->phase, $this->bankReconciliationFile, $filePayload);
+            $this->phaseService->uploadPhaseTypedDocument($this->phase, $file, $filePayload);
 
-            $this->reset('bankReconciliationFile');
             $this->refreshData();
 
             $this->dispatch('swal:toast',
                 title: 'Bank Reconciliation Upload',
-                message: 'Bank reconciliation uploaded successfully!',
+                message: $title . ' uploaded successfully.',
                 type: 'success'
             );
         } catch (ValidationException $ve) {
-            $this->addError('bankReconciliationFile', $ve->errors()['bankReconciliationFile'][0] ?? $ve->getMessage());
+            $this->addError($fileField, collect($ve->errors())->flatten()->first());
         } catch (\Exception $e) {
             logger()->error('Bank reconciliation upload error: ' . $e->getMessage());
             $this->dispatch('swal:toast',
@@ -392,7 +446,43 @@ class ApplicationPhaseDetails extends Component
         }
     }
 
+    public function canUploadBankReconciliationMain(): bool
+    {
+        return $this->canUploadBankReconciliationType(PhaseDocumentType::BANK_RECONCILIATION_MAIN_ACCOUNT);
+    }
+
+    public function canUploadBankReconciliationLoanRepayment(): bool
+    {
+        return $this->canUploadBankReconciliationType(PhaseDocumentType::BANK_RECONCILIATION_LOAN_REPAYMENT);
+    }
+
+    public function canUploadBankReconciliationType(string $documentType): bool
+    {
+        $bankRecon = app(BankReconciliationService::class);
+
+        $alreadyUploaded = match ($documentType) {
+            PhaseDocumentType::BANK_RECONCILIATION_MAIN_ACCOUNT => $bankRecon->hasMainAccountReconciliation($this->detailedPhase),
+            PhaseDocumentType::BANK_RECONCILIATION_LOAN_REPAYMENT => $bankRecon->hasLoanRepaymentReconciliation($this->detailedPhase),
+            default => false,
+        };
+
+        if ($alreadyUploaded) {
+            return false;
+        }
+
+        return $this->canUploadConstituencyPhaseDocument();
+    }
+
     public function canUploadRequestForTransferLetter(): bool
+    {
+        if ($this->detailedPhase->has_request_for_transfer_letter ?? false) {
+            return false;
+        }
+
+        return $this->canUploadConstituencyPhaseDocument();
+    }
+
+    protected function canUploadConstituencyPhaseDocument(): bool
     {
         $user = auth()->user();
 
@@ -602,8 +692,9 @@ class ApplicationPhaseDetails extends Component
                 'label' => PhaseDocumentType::label($type),
                 'uploaded' => match ($type) {
                     PhaseDocumentType::MINUTES => (bool) $phase->has_minutes,
-                    PhaseDocumentType::BANK_RECONCILIATION => (bool) $phase->has_bank_reconciliation,
-                    default => false,
+                    PhaseDocumentType::BANK_RECONCILIATION_MAIN_ACCOUNT => (bool) ($phase->has_bank_reconciliation_main ?? false),
+                    PhaseDocumentType::BANK_RECONCILIATION_LOAN_REPAYMENT => (bool) ($phase->has_bank_reconciliation_repayment ?? false),
+                    default => $phase->phaseApplicationDocuments->contains('document_type', $type),
                 },
             ])
             ->values()

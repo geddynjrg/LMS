@@ -6,6 +6,8 @@ final class PhaseDocumentType
 {
     public const MINUTES = 'minutes';
     public const BANK_RECONCILIATION = 'bank_reconciliation';
+    public const BANK_RECONCILIATION_MAIN_ACCOUNT = 'bank_reconciliation_main_account';
+    public const BANK_RECONCILIATION_LOAN_REPAYMENT = 'bank_reconciliation_loan_repayment';
     public const REQUEST_FOR_TRANSFER_LETTER = 'request_for_transfer_letter';
     public const PROCESSED_CODE_LIST = 'processed_code_list';
     /** @deprecated Use PROCESSED_CODE_LIST */
@@ -22,6 +24,8 @@ final class PhaseDocumentType
         return [
             self::MINUTES,
             self::BANK_RECONCILIATION,
+            self::BANK_RECONCILIATION_MAIN_ACCOUNT,
+            self::BANK_RECONCILIATION_LOAN_REPAYMENT,
             self::REQUEST_FOR_TRANSFER_LETTER,
             self::PROCESSED_CODE_LIST,
             self::SIGNED_APPROVED_CODE_LIST,
@@ -43,7 +47,9 @@ final class PhaseDocumentType
     {
         return [
             self::MINUTES => 'Constituency management committee minutes',
-            self::BANK_RECONCILIATION => 'Bank reconciliation',
+            self::BANK_RECONCILIATION => 'Bank reconciliation (legacy)',
+            self::BANK_RECONCILIATION_MAIN_ACCOUNT => 'Main account bank reconciliation',
+            self::BANK_RECONCILIATION_LOAN_REPAYMENT => 'Loan repayment bank reconciliation',
             self::REQUEST_FOR_TRANSFER_LETTER => 'Request for transfer letter',
             self::PROCESSED_CODE_LIST => 'Processed code list',
             self::LEGACY_APPROVED_CODE_LIST => 'Processed code list',
@@ -58,6 +64,26 @@ final class PhaseDocumentType
         return self::labels()[$type] ?? ucwords(str_replace('_', ' ', $type));
     }
 
+    public static function bankReconciliationTypes(): array
+    {
+        return [
+            self::BANK_RECONCILIATION,
+            self::BANK_RECONCILIATION_MAIN_ACCOUNT,
+            self::BANK_RECONCILIATION_LOAN_REPAYMENT,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function requiredBankReconciliationTypes(): array
+    {
+        return [
+            self::BANK_RECONCILIATION_MAIN_ACCOUNT,
+            self::BANK_RECONCILIATION_LOAN_REPAYMENT,
+        ];
+    }
+
     /**
      * Documents a constituency must upload before submitting a phase to HQ.
      *
@@ -65,9 +91,9 @@ final class PhaseDocumentType
      */
     public static function requiredForConstituencyHqSubmission(): array
     {
-        return [
-            self::MINUTES,
-            self::BANK_RECONCILIATION,
-        ];
+        return array_merge(
+            [self::MINUTES],
+            self::requiredBankReconciliationTypes(),
+        );
     }
 }

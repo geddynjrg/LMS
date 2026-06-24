@@ -79,15 +79,29 @@
                             </div>
                         </td>
                         <td class="pl-4 py-3">
-                            @if($member->is_defaulter)
-                                <span class="bg-red-50 border-red-200 text-red-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
-                                    Defaulter
-                                </span>
-                            @else
-                                <span class="bg-gray-50 border-gray-200 text-gray-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
-                                    Clean Record
-                                </span>
-                            @endif
+                            <div class="d-flex flex-wrap" style="gap: 4px;">
+                                @if($member->is_defaulter)
+                                    <span class="bg-red-50 border-red-200 text-red-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                                        Defaulter
+                                    </span>
+                                @endif
+                                @if($member->has_other_group_loan ?? false)
+                                    @if($member->has_non_performing_other_loan ?? false)
+                                        <span class="bg-red-50 border-red-200 text-red-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap" title="Member has a financed loan in another group">
+                                            Other group loan
+                                        </span>
+                                    @else
+                                        <span class="bg-amber-50 border-amber-200 text-amber-800 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap" title="Member has a performing loan in another group">
+                                            Other group loan (performing)
+                                        </span>
+                                    @endif
+                                @endif
+                                @if(!$member->is_defaulter && !($member->has_other_group_loan ?? false))
+                                    <span class="bg-gray-50 border-gray-200 text-gray-700 border d-inline-flex align-items-center font-medium px-2.5 py-1 rounded-lg text-xs whitespace-nowrap">
+                                        Clean Record
+                                    </span>
+                                @endif
+                            </div>
                         </td>
                         <td class="pl-4 py-3">
                              <div class="btn-group" role="group">

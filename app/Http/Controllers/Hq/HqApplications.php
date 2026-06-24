@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Hq;
 
 use App\Http\Controllers\Controller;
+use App\Services\ApplicationFileResolver;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use App\Models\TempApplication;
 use App\Models\LoanPhase;
@@ -51,7 +51,7 @@ class HqApplications extends Controller
             $decodedPath = trim(base64_decode($encodedPath));
             $decodedPath = ltrim($decodedPath, '/');
 
-            $finalPath = $this->getFilePath($decodedPath);
+            $finalPath = app(ApplicationFileResolver::class)->resolve($applicationId, $decodedPath);
 
             if (!$finalPath) {
                 Log::error('File not found in storage', [
@@ -65,7 +65,7 @@ class HqApplications extends Controller
 
             return $this->viewOrDownloadFile($finalPath, $filename, $action);
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             Log::error('Loan File Download Error: ' . $e->getMessage());
             abort(404, 'File Error');
         }
@@ -83,11 +83,9 @@ class HqApplications extends Controller
             $this->verifyApplicationExists($applicationId);
 
             $decodedPath = ltrim(base64_decode($encodedPath), '/');
-
             $filename = basename($decodedPath);
-            $cleanPath = preg_replace('#^(storage/|public/)#', '', $decodedPath);
 
-            $foundPath = $this->getFilePath($cleanPath);
+            $foundPath = app(ApplicationFileResolver::class)->resolve($applicationId, $decodedPath);
 
             if (!$foundPath) {
                 abort(404, "File not found: The document exists in the database but the file is missing from storage.");
@@ -96,7 +94,7 @@ class HqApplications extends Controller
             return $this->viewOrDownloadFile($foundPath, $filename, $action);
 
         } catch (\Exception $e) {
-            \Log::error('Member File Download Error:', [
+            Log::error('Member File Download Error:', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -109,11 +107,6 @@ class HqApplications extends Controller
         if (!TempApplication::where('application_id', $applicationId)->exists()) {
             abort(404, 'Application not found');
         }
-    }
-
-    private function getFilePath($decodedPath)
-    {
-        return \App\Http\Helpers\StoragePathHelper::resolveAbsolutePath($decodedPath);
     }
 
     private function viewOrDownloadFile($filePath, $filename, $action = 'download')

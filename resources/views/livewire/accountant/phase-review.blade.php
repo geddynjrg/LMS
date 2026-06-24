@@ -46,37 +46,62 @@
                                     {{ $codeListDoc?->original_filename ?? 'Not uploaded yet' }}
                                 </div>
                                 @if($codeListDoc)
-                                    <a href="{{ route('phase.doc.serve', ['id' => $codeListDoc->id, 'action' => 'download']) }}"
-                                       class="btn btn-sm btn-outline-success mr-2">
-                                        <i class="fas fa-download mr-1"></i> HQ upload
+                                    <a href="{{ route('accountant.phases.processed_code_list.preview', $phase) }}"
+                                       target="_blank"
+                                       class="btn btn-sm btn-outline-info mr-1">
+                                        <i class="fas fa-eye mr-1"></i> View
+                                    </a>
+                                    <a href="{{ route('phase.doc.serve', ['id' => $codeListDoc->id, 'action' => 'view']) }}"
+                                       target="_blank"
+                                       class="btn btn-sm btn-outline-secondary mr-1"
+                                       title="Open uploaded file">
+                                        <i class="fas fa-file-excel mr-1"></i> Uploaded file
                                     </a>
                                 @endif
                                 <a href="{{ route('accountant.phases.processed_code_list', $phase) }}"
                                    class="btn btn-sm btn-outline-primary">
-                                    <i class="fas fa-file-excel mr-1"></i> Generate processed codelist
+                                    <i class="fas fa-download mr-1"></i> Download Excel
                                 </a>
                             </div>
                         </div>
 
                         <div class="col-md-6 mb-3">
-                            <div class="border rounded-lg p-3 h-100 {{ $bankReconDoc ? 'border-primary bg-light' : 'border-secondary' }}" style="border-radius:12px;">
+                            <div class="border rounded-lg p-3 h-100 {{ $bankReconMainDoc ? 'border-primary bg-light' : 'border-secondary' }}" style="border-radius:12px;">
                                 <div class="d-flex align-items-start justify-content-between mb-2">
                                     <div class="rounded bg-primary text-white d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
                                         <i class="fas fa-university"></i>
                                     </div>
                                     <span class="badge badge-primary">Constituency</span>
                                 </div>
-                                <div class="font-weight-bold text-navy">Bank reconciliation</div>
-                                <small class="text-muted d-block mb-2">Uploaded by the constituency officer when this phase was submitted to HQ.</small>
-                                <div class="small text-truncate text-muted mb-2" title="{{ $bankReconDoc?->original_filename }}">
-                                    {{ $bankReconDoc?->original_filename ?? 'Not on file' }}
+                                <div class="font-weight-bold text-navy">Main account reconciliation</div>
+                                <small class="text-muted d-block mb-2">Current main account bank reconciliation from the constituency.</small>
+                                <div class="small text-truncate text-muted mb-2" title="{{ $bankReconMainDoc?->original_filename }}">
+                                    {{ $bankReconMainDoc?->original_filename ?? 'Not on file' }}
+                                    @if($bankReconMainDoc?->statement_period_label)
+                                        <span class="d-block">Statement: {{ $bankReconMainDoc->statement_period_label }}</span>
+                                    @endif
                                 </div>
-                                @if($bankReconDoc)
-                                    <a href="{{ route('phase.doc.serve', ['id' => $bankReconDoc->id, 'action' => 'download']) }}"
-                                       class="btn btn-sm btn-outline-primary">
-                                        <i class="fas fa-download mr-1"></i> Download
-                                    </a>
-                                @endif
+                                @include('partials.phase-document-actions', ['doc' => $bankReconMainDoc])
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded-lg p-3 h-100 {{ $bankReconRepaymentDoc ? 'border-info bg-light' : 'border-secondary' }}" style="border-radius:12px;">
+                                <div class="d-flex align-items-start justify-content-between mb-2">
+                                    <div class="rounded bg-info text-white d-flex align-items-center justify-content-center" style="width:40px;height:40px;">
+                                        <i class="fas fa-hand-holding-usd"></i>
+                                    </div>
+                                    <span class="badge badge-info">Constituency</span>
+                                </div>
+                                <div class="font-weight-bold text-navy">Loan repayment reconciliation</div>
+                                <small class="text-muted d-block mb-2">Current loan repayment account reconciliation from the constituency.</small>
+                                <div class="small text-truncate text-muted mb-2" title="{{ $bankReconRepaymentDoc?->original_filename }}">
+                                    {{ $bankReconRepaymentDoc?->original_filename ?? 'Not on file' }}
+                                    @if($bankReconRepaymentDoc?->statement_period_label)
+                                        <span class="d-block">Statement: {{ $bankReconRepaymentDoc->statement_period_label }}</span>
+                                    @endif
+                                </div>
+                                @include('partials.phase-document-actions', ['doc' => $bankReconRepaymentDoc])
                             </div>
                         </div>
 
@@ -123,12 +148,14 @@
                     </h6>
                 </div>
                 <div class="card-body pt-0">
-                    @if(!$bankReconDoc)
+                    @if(!$bankReconMainDoc || !$bankReconRepaymentDoc)
                         <div class="alert alert-warning small mb-3">
-                            Bank reconciliation is not on file for this phase. You can return it to HQ for follow-up, but approval requires the bank reconciliation document.
+                            Both current bank reconciliations (main account and loan repayment) must be on file before approval.
+                            @if(!$bankReconMainDoc) Main account reconciliation is missing. @endif
+                            @if(!$bankReconRepaymentDoc) Loan repayment reconciliation is missing. @endif
                         </div>
                     @endif
-                    <p class="text-muted small">If the processed code list and bank reconciliation are correct, add notes and send to HQ for management committee approval.</p>
+                    <p class="text-muted small">If the processed code list and both bank reconciliations are correct, add notes and send to HQ for management committee approval.</p>
                     <div class="form-group">
                         <label class="small font-weight-bold text-uppercase text-muted">Notes for HQ</label>
                         <textarea wire:model="notes" class="form-control border" rows="4" placeholder="Accounts review notes…" style="border-radius:10px;"></textarea>

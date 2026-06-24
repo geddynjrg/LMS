@@ -23,6 +23,7 @@ use App\Jobs\SendDisbursementNotifications;
 class TempApplicationService
 {
     protected DefaultAnalysisService $analysisService;
+    protected MemberLoanExposureService $exposureService;
     protected IdempotencyService $idempotencyService;
     protected ApplicationCacheService $appCache;
     protected AppCacheService $cacheService;
@@ -30,12 +31,14 @@ class TempApplicationService
     // Laravel automatically resolves this for you
     public function __construct(
         DefaultAnalysisService $analysisService,
+        MemberLoanExposureService $exposureService,
         IdempotencyService $idempotencyService,
         ApplicationCacheService $applicationCacheService,
         AppCacheService $cacheService,
     )
     {
         $this->analysisService = $analysisService;
+        $this->exposureService = $exposureService;
         $this->idempotencyService = $idempotencyService;
         $this->appCache = $applicationCacheService;
         $this->cacheService = $cacheService;
@@ -440,7 +443,7 @@ class TempApplicationService
 
         $phaseId = $application->phaseApplication->reviewPhase->id ?? null;
 
-        $defaulterData =  $this->analysisService->getApplicationDefaulterMembers(
+        $defaulterData = $this->analysisService->getApplicationDefaulterMembers(
             $appMemberIds,
             $application->application_id,
             $application->group_id,
@@ -448,14 +451,33 @@ class TempApplicationService
             $phaseId
         )->keyBy('member_Id');
 
-        $app = $application->groupMembers->transform(function ($appMember) use ($defaulterData) {
+        $exposureData = $this->exposureService->getExposuresForMembers(
+            $appMemberIds,
+            $application->group_id,
+            $application->application_id,
+            $application->constituency_code,
+            $phaseId,
+        );
+
+        $app = $application->groupMembers->transform(function ($appMember) use ($defaulterData, $exposureData) {
             $history = $defaulterData->get($appMember->id_number);
+            $exposure = $exposureData->get($appMember->id_number, [
+                'has_other_group_loan' => false,
+                'exposures' => collect(),
+                'external_fund_checks' => [],
+            ]);
 
             $appMember->is_defaulter = !is_null($history);
 
             $appMember->default_history = $history ? $history->groupMembers->filter(function ($gm) {
                 return $gm->groupLoan && $gm->groupLoan->is_defaulted;
             }) : collect();
+
+            $appMember->has_other_group_loan = (bool) ($exposure['has_other_group_loan'] ?? false);
+            $appMember->other_group_loans = collect($exposure['exposures'] ?? []);
+            $appMember->has_performing_other_loan = $appMember->other_group_loans->contains('is_performing', true);
+            $appMember->has_non_performing_other_loan = $appMember->other_group_loans->contains(fn ($row) => !($row['is_performing'] ?? false));
+            $appMember->external_fund_checks = $exposure['external_fund_checks'] ?? [];
 
             return $appMember;
         });

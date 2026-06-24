@@ -148,7 +148,9 @@ class ApplicationView extends Component
         if (!$this->application || !$this->application->groupMembers) {
             return 0;
         }
-        return $this->application->groupMembers->where('is_defaulter', true)->count();
+        return $this->application->groupMembers->filter(
+            fn ($member) => $member->is_defaulter || ($member->has_other_group_loan ?? false)
+        )->count();
     }
 
     public function getMemberFileData($data, $key = 'url')

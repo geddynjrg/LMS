@@ -94,7 +94,8 @@
                             @php
                                 $docs = $phase->phaseApplicationDocuments->keyBy('document_type');
                                 $processedDoc = $docs->get('processed_code_list') ?? $docs->get('approved_code_list');
-                                $bankDoc = $docs->get('bank_reconciliation');
+                                $bankMainDoc = $docs->get('bank_reconciliation_main_account') ?? $docs->get('bank_reconciliation');
+                                $bankRepaymentDoc = $docs->get('bank_reconciliation_loan_repayment');
                                 $transferDoc = $docs->get('request_for_transfer_letter');
                                 $status = $phase->accountant_review_status;
                                 $statusLabel = \App\Support\AccountantReviewStatus::labels()[$status] ?? 'Awaiting review';
@@ -121,8 +122,11 @@
                                         <span class="badge {{ $processedDoc ? 'badge-light border text-success' : 'badge-secondary' }}">
                                             <i class="fas fa-file-excel mr-1"></i> Processed list
                                         </span>
-                                        <span class="badge {{ $bankDoc ? 'badge-light border text-primary' : 'badge-secondary' }}">
-                                            <i class="fas fa-university mr-1"></i> Bank recon
+                                        <span class="badge {{ $bankMainDoc ? 'badge-light border text-primary' : 'badge-secondary' }}">
+                                            <i class="fas fa-university mr-1"></i> Main recon
+                                        </span>
+                                        <span class="badge {{ $bankRepaymentDoc ? 'badge-light border text-info' : 'badge-secondary' }}">
+                                            <i class="fas fa-hand-holding-usd mr-1"></i> Repayment recon
                                         </span>
                                         @if($transferDoc)
                                             <span class="badge badge-light border text-info">

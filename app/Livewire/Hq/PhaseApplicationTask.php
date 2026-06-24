@@ -19,6 +19,7 @@ use App\Services\Loan\AccountantReviewService;
 use App\Services\Constituency\ConstituencyAllocationService;
 use App\Services\Exports\ExportService;
 use App\Services\Exports\SignedCodeListPdfService;
+use App\Services\Exports\ProcessedCodeListDocumentService;
 use App\Services\Loan\TempApplicationService;
 use App\Services\Loan\LoanAnalysisService;
 use App\Services\IdempotencyService;
@@ -227,19 +228,11 @@ class PhaseApplicationTask extends Component
 
     public function uploadCodeList()
     {
-        if (!$this->codeListFile) {
-            $this->addError('codeListFile', 'Please select a file first.');
-            return;
-        }
-        $this->validate([
-            'codeListFile' => 'required|file|mimes:xls,xlsx|max:2048',
-        ],
-        [
-            'codeListFile.max' => 'The document is too heavy. Please keep it under 2MB.',
-            'codeListFile.mimes' => 'Only Excel workbooks (.xls, .xlsx) are accepted for the processed code list.',
-            'codeListFile.required' => 'Please attach the processed code list before proceeding.',
-        ]);
+        $this->sendProcessedCodeListToAccountant();
+    }
 
+    public function sendProcessedCodeListToAccountant(): void
+    {
         if (!$this->canUploadDocument()) {
             $this->dispatch('swal:toast',
                 title: 'Permission Denied 😕',
@@ -249,38 +242,50 @@ class PhaseApplicationTask extends Component
             return;
         }
 
-        try {
-            $filePayload = [
-                'fileName'      => 'processed-code-list-' . time() . '.' . $this->codeListFile->getClientOriginalExtension(),
-                'modal'         => 'codeListFile',
-                'documentType'  => PhaseDocumentType::PROCESSED_CODE_LIST,
-                'title'         => 'Processed Code List',
-            ];
-
-            $this->phaseService->uploadPhaseTypedDocument($this->phase, $this->codeListFile, $filePayload);
-
-            app(AccountantReviewService::class)->queueForReview($this->phase->fresh());
-
-            $this->reset('codeListFile');
-
-            $this->refreshData();
-
+        if (!$this->canSendProcessedCodeListToAccountant()) {
             $this->dispatch('swal:toast',
-                title: 'Processed Code List Upload 😊',
-                message: 'Processed code list uploaded successfully. Sent to accounts for review.',
-                type: 'success'
-            );
-        }catch (\Exception $e) {
-            logger()->error('Code List upload error: ' . $e->getMessage());
-            $this->dispatch('swal:toast',
-                title: 'Code List upload 😕',
-                message: 'Failed to upload your document. Please try again later',
-                type: 'error'
+                title: 'Not available',
+                message: 'This phase cannot be sent to accounts right now.',
+                type: 'warning'
             );
             return;
         }
 
+        try {
+            app(ProcessedCodeListDocumentService::class)->generateAndAttach($this->phase);
+            app(AccountantReviewService::class)->queueForReview($this->phase->fresh());
 
+            $this->refreshData();
+
+            $this->dispatch('swal:toast',
+                title: 'Sent to Accounts 😊',
+                message: 'Processed code list generated and queued for accounts review.',
+                type: 'success'
+            );
+        } catch (\Exception $e) {
+            logger()->error('Processed code list send error: ' . $e->getMessage());
+            $this->dispatch('swal:toast',
+                title: 'Send failed 😕',
+                message: 'Could not generate and send the processed code list. Please try again.',
+                type: 'error'
+            );
+        }
+    }
+
+    public function canSendProcessedCodeListToAccountant(): bool
+    {
+        if (!$this->canApproveApplication()) {
+            return false;
+        }
+
+        $status = $this->detailedPhase->status ?? $this->phase->status;
+        if ($status !== 'submitted_to_hq') {
+            return false;
+        }
+
+        $reviewStatus = $this->detailedPhase->accountant_review_status ?? null;
+
+        return in_array($reviewStatus, [null, \App\Support\AccountantReviewStatus::RETURNED_TO_HQ], true);
     }
 
 

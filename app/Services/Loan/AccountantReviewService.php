@@ -22,10 +22,7 @@ class AccountantReviewService
 
     public function phaseHasBankReconciliation(LoanPhase $phase): bool
     {
-        $phase->loadMissing('phaseApplicationDocuments');
-
-        return $phase->phaseApplicationDocuments
-            ->contains('document_type', PhaseDocumentType::BANK_RECONCILIATION);
+        return app(BankReconciliationService::class)->hasAllRequiredReconciliations($phase);
     }
 
     public function phaseHasRequiredDocuments(LoanPhase $phase): bool
@@ -147,7 +144,7 @@ class AccountantReviewService
 
         if (! $this->phaseHasProcessedCodeList($phase)) {
             throw ValidationException::withMessages([
-                'phase' => 'The HQ processed code list must be uploaded before accounts review.',
+                'phase' => 'The processed code list must be on file before accounts review.',
             ]);
         }
     }
@@ -156,7 +153,7 @@ class AccountantReviewService
     {
         if (! $this->phaseHasBankReconciliation($phase)) {
             throw ValidationException::withMessages([
-                'phase' => 'Bank reconciliation must be on file before accounts can approve and forward to HQ management.',
+                'phase' => 'Both current bank reconciliations (main account and loan repayment) must be on file before accounts can approve and forward to HQ management.',
             ]);
         }
     }

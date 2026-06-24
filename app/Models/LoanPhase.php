@@ -253,9 +253,7 @@ class LoanPhase extends Model
             return (bool) $this->attributes['has_bank_reconciliation'];
         }
 
-        return $this->phaseApplicationDocuments()
-            ->where('document_type', 'bank_reconciliation')
-            ->exists();
+        return app(\App\Services\Loan\BankReconciliationService::class)->hasAllRequiredReconciliations($this);
     }
 
     public function getHasAttendanceListAttribute(): bool

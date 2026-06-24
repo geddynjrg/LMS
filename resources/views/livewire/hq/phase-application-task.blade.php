@@ -491,36 +491,40 @@
                     @endif
 
                     @if($this->canApproveApplication())
-                        @if(!$this->detailedPhase->has_processed_code_list)
+                        @if($this->canSendProcessedCodeListToAccountant())
                             <div class="card shadow-sm mb-4 border-0 animate__animated animate__fadeIn">
                                 <div class="card-header bg-amber-50 border-0 py-2">
                                     <span class="text-xs font-weight-bold text-uppercase text-navy">
-                                        <i class="fas fa-file-excel mr-1 text-success"></i> Processed Code List Required
+                                        <i class="fas fa-file-excel mr-1 text-success"></i> Processed Code List
                                     </span>
                                 </div>
 
                                 <div class="card-body pt-1 pb-3">
-                                    <span class="text-xs text-gray-500">Upload the processed code list as Excel (.xlsx). Accounts will review it together with the bank reconciliation submitted by the constituency when this phase was pushed to HQ.</span>
+                                    <span class="text-xs text-gray-500 d-block mb-3">
+                                        Generate the processed code list from the current phase data and send it directly to Accounts for review — no download or re-upload required.
+                                        Accounts will also review the bank reconciliation submitted by the constituency.
+                                    </span>
 
-
-                                    <div class="form-group my-3 premium-file-container">
-                                        <label class="small font-weight-bold text-uppercase text-muted mb-2">Processed Code List (Excel only)</label>
-                                        <x-file-upload model="codeListFile" height="48px" accept=".xls,.xlsx" />
-                                    </div>
-
-                                    <div class="d-flex justify-content-center mt-2">
-                                        <button wire:click="uploadCodeList"
+                                    <div class="d-flex flex-wrap justify-content-center" style="gap: 8px;">
+                                        <button wire:click="sendProcessedCodeListToAccountant"
                                                 wire:loading.attr="disabled"
-                                                wire:target="codeListFile, uploadCodeList"
+                                                wire:target="sendProcessedCodeListToAccountant"
                                                 class="btn btn-refresh-premium btn-sm shadow-sm">
-                                            <span wire:loading.remove wire:target="uploadCodeList">
-                                                <i class="fas fa-cloud-upload-alt mr-2"></i> Upload processed code list
+                                            <span wire:loading.remove wire:target="sendProcessedCodeListToAccountant">
+                                                <i class="fas fa-paper-plane mr-2"></i>
+                                                {{ $this->detailedPhase->has_processed_code_list ? 'Regenerate & send to Accounts' : 'Generate & send to Accounts' }}
                                             </span>
-                                            <span wire:loading wire:target="uploadCodeList">
-                                                <i class="fas fa-spinner fa-spin mr-2"></i> Uploading...
+                                            <span wire:loading wire:target="sendProcessedCodeListToAccountant">
+                                                <i class="fas fa-spinner fa-spin mr-2"></i> Sending...
                                             </span>
                                         </button>
                                     </div>
+                                </div>
+                            </div>
+                        @elseif(!$this->detailedPhase->has_processed_code_list)
+                            <div class="card shadow-sm mb-4 border-0 animate__animated animate__fadeIn">
+                                <div class="card-body py-3">
+                                    <span class="text-xs text-gray-500">Processed code list will be available once this phase is submitted to HQ.</span>
                                 </div>
                             </div>
                         @else
@@ -721,6 +725,9 @@
                                                             </div>
                                                             <div class="x-small text-muted text-truncate">
                                                                 Uploaded {{ $doc->created_at->format('d M, H:i') }} • {{ $doc->formatted_size }}
+                                                                @if($doc->statement_period_label)
+                                                                    • {{ $doc->statement_period_label }}
+                                                                @endif
                                                             </div>
                                                         </div>
                                                     </div>
@@ -728,7 +735,14 @@
 
                                                 <td class="text-right align-middle pr-3" style="width: 25%;">
                                                     <div class="btn-group">
-                                                        @if($doc->can_view_inline)
+                                                        @if(in_array($doc->document_type, \App\Support\PhaseDocumentType::processedCodeListTypes()))
+                                                            <a href="{{ route('hq.submissions.phase.processed_code_list.preview', $phase->slug) }}"
+                                                               target="_blank"
+                                                               class="btn btn-xs btn-outline-info"
+                                                               title="Preview codelist">
+                                                                <i class="fas fa-eye"></i>
+                                                            </a>
+                                                        @elseif($doc->can_view_inline)
                                                             <a href="{{ route('phase.doc.serve', ['id' => $doc->id, 'action' => 'view']) }}"
                                                             target="_blank"
                                                             class="btn btn-xs btn-outline-info"
@@ -788,6 +802,14 @@
                                                     </div>
                                                 </td>
                                                 <td class="text-right align-middle pr-3" style="width: 25%;">
+                                                    @if($report['id'] === 'code_list')
+                                                        <a href="{{ route('hq.submissions.phase.processed_code_list.preview', $phase->slug) }}"
+                                                           target="_blank"
+                                                           class="btn btn-outline-info btn-sm mr-1"
+                                                           title="Preview in browser">
+                                                            <i class="fas fa-eye"></i>
+                                                        </a>
+                                                    @endif
                                                     <x-loading-button
                                                         target="exportReport('{{ $report['id'] }}')"
                                                         class="btn-outline-primary btn-sm"

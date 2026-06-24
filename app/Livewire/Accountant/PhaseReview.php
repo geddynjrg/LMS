@@ -74,9 +74,13 @@ class PhaseReview extends Component
 
     public function render()
     {
+        $bankRecon = app(\App\Services\Loan\BankReconciliationService::class);
+
         return view('livewire.accountant.phase-review', [
             'codeListDoc' => $this->processedCodeListDocument(),
-            'bankReconDoc' => $this->documentOfType(PhaseDocumentType::BANK_RECONCILIATION),
+            'bankReconMainDoc' => $bankRecon->documentOfType($this->phase, PhaseDocumentType::BANK_RECONCILIATION_MAIN_ACCOUNT)
+                ?? $bankRecon->documentOfType($this->phase, PhaseDocumentType::BANK_RECONCILIATION),
+            'bankReconRepaymentDoc' => $bankRecon->documentOfType($this->phase, PhaseDocumentType::BANK_RECONCILIATION_LOAN_REPAYMENT),
             'transferLetterDoc' => $this->documentOfType(PhaseDocumentType::REQUEST_FOR_TRANSFER_LETTER),
         ]);
     }

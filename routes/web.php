@@ -18,6 +18,7 @@ use App\Http\Controllers\Hq\HqConstituencyAllocationController;
 use App\Http\Controllers\Hq\HqReportController;
 use App\Http\Controllers\Secretariat\SecretariatController;
 use App\Http\Controllers\Accountant\AccountantController;
+use App\Http\Controllers\PhaseDocumentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -79,6 +80,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/', [HqApplications::class, 'index'])->name('apps.index');
             Route::get('/approval-tasks', [HqApplications::class, 'tasks'])->name('tasks.phases');
             Route::get('/phases/{phase}/processed-code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'download'])->name('phase.processed_code_list');
+            Route::get('/phases/{phase}/processed-code-list/preview', [\App\Http\Controllers\ProcessedCodeListController::class, 'preview'])->name('phase.processed_code_list.preview');
             Route::get('/phases/{phase}/approved-code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'downloadSigned'])->name('phase.approved_code_list');
 
             // Wildcard routes last
@@ -140,6 +142,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/phases', [AccountantController::class, 'index'])->name('phases.index');
             Route::get('/phases/{phase}/review', [AccountantController::class, 'review'])->name('phases.review');
             Route::get('/phases/{phase}/processed-code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'download'])->name('phases.processed_code_list');
+            Route::get('/phases/{phase}/processed-code-list/preview', [\App\Http\Controllers\ProcessedCodeListController::class, 'preview'])->name('phases.processed_code_list.preview');
         });
 
     Route::middleware(['auth', 'role:super-admin|constituency_officer|head_of_secretariat'])
@@ -210,6 +213,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/phases/{phase}', [LoansController::class, 'app_phase_details'])->name('app_phase_details');
                 Route::get('/phases/{phase}/signed-code-list', [LoansController::class, 'downloadSignedCodeList'])->name('app_phase_signed_code_list');
                 Route::get('/phases/{phase}/processed-code-list', [LoansController::class, 'downloadProcessedCodeList'])->name('app_phase_processed_code_list');
+                Route::get('/phases/{phase}/processed-code-list/preview', [\App\Http\Controllers\ProcessedCodeListController::class, 'preview'])->name('app_phase_processed_code_list.preview');
                 Route::get('/phases/{phase}/letter-of-authority', [LoansController::class, 'downloadLetterOfAuthority'])->name('app_phase_letter_of_authority');
 
                 // Existing routes for application viewing
@@ -224,23 +228,6 @@ Route::middleware(['auth'])->group(function () {
         }
     );
 
-    Route::get('/phase-document/{id}/{action}', function ($id, $action) {
-        $doc = \App\Models\PhaseApplicationDocument::findOrFail($id);
-
-        if (!Storage::disk('local')->exists($doc->path)) {
-            abort(404, "File not found: The document exists in the database but the file is missing from storage.");
-        }
-
-        $fullPath = Storage::disk('local')->path($doc->path);
-
-        if ($action === 'view') {
-            return response()->file($fullPath, [
-                'Content-Type' => $doc->mime_type ?? Storage::disk('local')->mimeType($doc->path),
-                'Content-Disposition' => 'inline; filename="'.$doc->original_filename.'"'
-            ]);
-        }
-
-        return response()->download($fullPath, $doc->original_filename);
-    })->name('phase.doc.serve');
+    Route::get('/phase-document/{id}/{action}', [PhaseDocumentController::class, 'serve'])->name('phase.doc.serve');
 });
 

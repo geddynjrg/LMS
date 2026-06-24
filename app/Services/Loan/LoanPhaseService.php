@@ -20,8 +20,8 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Builder;
-use App\Models\Member;
 use App\Support\PhaseDocumentType;
+use App\Models\Member;
 
 
 class LoanPhaseService
@@ -533,7 +533,10 @@ class LoanPhaseService
         ]);
 
         $phase->has_minutes = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::MINUTES);
-        $phase->has_bank_reconciliation = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::BANK_RECONCILIATION);
+        $bankReconService = app(BankReconciliationService::class);
+        $phase->has_bank_reconciliation_main = $bankReconService->hasMainAccountReconciliation($phase);
+        $phase->has_bank_reconciliation_repayment = $bankReconService->hasLoanRepaymentReconciliation($phase);
+        $phase->has_bank_reconciliation = $bankReconService->hasAllRequiredReconciliations($phase);
         $phase->has_request_for_transfer_letter = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::REQUEST_FOR_TRANSFER_LETTER);
         $phase->has_processed_code_list = $phase->phaseApplicationDocuments
             ->pluck('document_type')
@@ -797,11 +800,25 @@ class LoanPhaseService
         }
 
         $directory = "phases/{$phase->slug}";
-        $extension = $uploadDocumentFile->getClientOriginalExtension();
-        $filename = $filePayload['fileName'] ?? 'title-' . time();
+        $extension = strtolower($uploadDocumentFile->getClientOriginalExtension() ?: '');
+        if ($extension === '') {
+            $extension = match ($uploadDocumentFile->getMimeType()) {
+                'application/pdf' => 'pdf',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+                'application/vnd.ms-excel' => 'xls',
+                'application/msword' => 'doc',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+                'image/jpeg' => 'jpg',
+                'image/png' => 'png',
+                'image/gif' => 'gif',
+                'image/webp' => 'webp',
+                default => 'bin',
+            };
+        }
 
-        if ($extension && !str_contains($filename, '.')) {
-            $filename = rtrim($filename, '-') . '.' . $extension;
+        $filename = $filePayload['fileName'] ?? 'document-' . time();
+        if (!str_contains($filename, '.')) {
+            $filename = rtrim($filename, '-_') . '-' . time() . '.' . $extension;
         }
 
         $path = $uploadDocumentFile->storeAs($directory, $filename, 'local');
@@ -827,6 +844,7 @@ class LoanPhaseService
                 'path'              => $path,
                 'mime_type'         => $uploadDocumentFile->getMimeType(),
                 'size'              => $uploadDocumentFile->getSize(),
+                'statement_period'  => $filePayload['statementPeriod'] ?? null,
                 'uploaded_by'       => auth()->id(),
             ]);
 
@@ -835,6 +853,54 @@ class LoanPhaseService
         } catch (\Throwable $th) {
             DB::rollBack();
             Log::error("Failed to upload phase minutes: " . $th->getMessage());
+
+            if (Storage::disk('local')->exists($path)) {
+                Storage::disk('local')->delete($path);
+            }
+
+            throw $th;
+        }
+    }
+
+    public function storeProcessedCodeListDocument(LoanPhase $phase, string $binary, string $originalFilename): void
+    {
+        $phase->loadMissing('phaseApplicationDocuments');
+
+        $directory = "phases/{$phase->slug}";
+        $filename = 'processed-code-list-' . time() . '.xlsx';
+        $path = "{$directory}/{$filename}";
+
+        Storage::disk('local')->put($path, $binary);
+        $this->ensurePhaseDocumentPermissions($path);
+
+        try {
+            DB::beginTransaction();
+
+            $existing = $phase->phaseApplicationDocuments()
+                ->whereIn('document_type', PhaseDocumentType::processedCodeListTypes())
+                ->first();
+
+            if ($existing) {
+                Storage::disk('local')->delete($existing->path);
+                $existing->delete();
+            }
+
+            $phase->phaseApplicationDocuments()->create([
+                'loan_phase_id' => $phase->id,
+                'title' => 'Processed Code List',
+                'document_type' => PhaseDocumentType::PROCESSED_CODE_LIST,
+                'original_filename' => $originalFilename,
+                'filename' => $filename,
+                'path' => $path,
+                'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'size' => strlen($binary),
+                'uploaded_by' => auth()->id(),
+            ]);
+
+            DB::commit();
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            Log::error('Failed to store generated processed code list: ' . $th->getMessage());
 
             if (Storage::disk('local')->exists($path)) {
                 Storage::disk('local')->delete($path);
@@ -933,7 +999,7 @@ class LoanPhaseService
     {
         if (!$phase->has_minutes || !$phase->has_bank_reconciliation) {
             throw ValidationException::withMessages([
-                'phase' => 'Signed committee minutes and bank reconciliation document are required before submitting to HQ.',
+                'phase' => 'Signed committee minutes and both current bank reconciliations (main account and loan repayment) are required before submitting to HQ.',
             ]);
         }
 

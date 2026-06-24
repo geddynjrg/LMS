@@ -20,6 +20,7 @@ class PhaseApplicationDocument extends Model
         'mime_type',
         'size',
         'description',
+        'statement_period',
         'uploaded_by',
     ];
 
@@ -30,6 +31,11 @@ class PhaseApplicationDocument extends Model
     public function phaseApplication(): BelongsTo
     {
         return $this->belongsTo(PhaseApplication::class);
+    }
+
+    public function loanPhase(): BelongsTo
+    {
+        return $this->belongsTo(LoanPhase::class, 'loan_phase_id');
     }
 
     public function uploadedByUser(): BelongsTo
@@ -80,6 +86,15 @@ class PhaseApplicationDocument extends Model
     public function getCanViewInlineAttribute()
     {
         $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
-        return in_array($extension, ['pdf', 'jpg', 'jpeg', 'png', 'gif']);
+        return in_array($extension, ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp']);
+    }
+
+    public function getStatementPeriodLabelAttribute(): ?string
+    {
+        if (!$this->statement_period || !preg_match('/^\d{4}-\d{2}$/', $this->statement_period)) {
+            return null;
+        }
+
+        return \Carbon\Carbon::createFromFormat('Y-m', $this->statement_period)->format('F Y');
     }
 }
