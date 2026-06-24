@@ -207,7 +207,7 @@ class ApplicationView extends Component
         $phaseApplication->loadMissing('loanPhase');
 
         return app(TrainingCertificateService::class)
-            ->certificateAvailabilityMessage($phaseApplication->loanPhase);
+            ->certificateAvailabilityMessage($phaseApplication->loanPhase, $phaseApplication);
     }
 
     public function canShowDisbursementActions(): bool

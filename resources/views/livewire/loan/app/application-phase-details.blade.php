@@ -428,6 +428,27 @@
                                                             </div>
                                                         @endif
 
+                                                        @if($this->canScheduleGroupTraining($app))
+                                                            <button type="button"
+                                                                    wire:click="scheduleGroupTraining({{ $app->id }})"
+                                                                    class="btn btn-primary btn-sm shadow-sm">
+                                                                <i class="fas fa-calendar-alt mr-1"></i> Schedule Training
+                                                            </button>
+                                                        @endif
+
+                                                        @if($app->status === 'in_training' && $app->training_start_date)
+                                                            <small class="text-muted text-xs text-left px-1">
+                                                                <strong>Training:</strong>
+                                                                {{ $app->training_start_date->format('d M Y') }}
+                                                                @if($app->training_end_date)
+                                                                    – {{ $app->training_end_date->format('d M Y') }}
+                                                                @endif
+                                                                @if($app->training_venue)
+                                                                    <br><strong>Venue:</strong> {{ $app->training_venue }}
+                                                                @endif
+                                                            </small>
+                                                        @endif
+
                                                         @if($this->canMarkTrainingComplete($app))
                                                             <button type="button"
                                                                     wire:click="toggleAttendance({{ $app->id }})"
@@ -466,7 +487,7 @@
                                                             <i class="fas fa-folder-open text-primary mr-1"></i> Manage
                                                         </a>
 
-                                                        @if(in_array($app->status, ['in_training', 'pending_disbursement'], true))
+                                                        @if(in_array($app->status, ['approved', 'in_training', 'pending_disbursement'], true))
                                                             <button type="button"
                                                                     x-ref="trigger"
                                                                     @click="open = !open"
@@ -482,6 +503,13 @@
                                                                     style="z-index: 9999; min-width: 200px; position: fixed;">
 
                                                                     <h6 class="dropdown-header text-uppercase text-xs">Group Actions</h6>
+
+                                                                    @if($this->canScheduleGroupTraining($app))
+                                                                    <button class="dropdown-item" wire:click="scheduleGroupTraining({{ $app->id }})" @click="open = false">
+                                                                        <i class="fas fa-calendar-alt text-primary mr-2"></i>
+                                                                        Schedule Training
+                                                                    </button>
+                                                                    @endif
 
                                                                     @if($this->canMarkTrainingComplete($app))
                                                                     <button class="dropdown-item" wire:click="toggleAttendance({{ $app->id }})" @click="open = false">
@@ -773,7 +801,10 @@
                             <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                                 <div class="card-body">
                                     @if($this->canScheduleTraining())
-                                        <p class="text-xs text-gray-600">Secretariat has authorized training. Schedule mandatory training for the approved groups.</p>
+                                        <p class="text-xs text-gray-600 mb-2">
+                                            Secretariat has authorized training. Use <strong>Schedule Training</strong> in the
+                                            <strong>Action</strong> column for each approved group. Different groups may have different dates and venues.
+                                        </p>
                                     @else
                                         <p class="text-xs text-gray-600">HQ has approved this phase. Awaiting Head of Secretariat sign-off before training can be scheduled.</p>
                                     @endif
@@ -787,14 +818,16 @@
                                     @endif
 
                                     @if($this->canScheduleTraining())
-                                        <div class="d-flex justify-content-center mt-2">
-                                            <x-modal-trigger
-                                                target="scheduleTraining"
-                                                class="shadow-sm btn-refresh-premium"
-                                                icon="fas fa-clock"
-                                                size="lg"
-                                                label="Schedule Training"
-                                            />
+                                        <div class="d-flex flex-column gap-2 justify-content-center mt-2">
+                                            @if($this->approvedGroupsAwaitingTrainingCount() > 1)
+                                                <x-modal-trigger
+                                                    target="scheduleTraining"
+                                                    class="shadow-sm btn btn-outline-primary btn-sm"
+                                                    icon="fas fa-users"
+                                                    size="lg"
+                                                    label="Schedule all remaining groups (same dates)"
+                                                />
+                                            @endif
                                         </div>
                                     @endif
                                 </div>
@@ -807,6 +840,23 @@
                                             This phase was closed early. Complete training and disbursement for each group below,
                                             then close the phase again when all groups are processed.
                                         </p>
+                                    @endif
+
+                                    @if($this->approvedGroupsAwaitingTrainingCount() > 0)
+                                        <p class="text-xs text-warning mb-2">
+                                            <strong>{{ $this->approvedGroupsAwaitingTrainingCount() }}</strong>
+                                            approved group(s) still need training scheduled. Use
+                                            <strong>Schedule Training</strong> in the Action column for each group.
+                                        </p>
+                                        @if($this->canScheduleTraining() && $this->approvedGroupsAwaitingTrainingCount() > 1)
+                                            <x-modal-trigger
+                                                target="scheduleTraining"
+                                                class="shadow-sm btn btn-outline-primary btn-sm mb-2"
+                                                icon="fas fa-users"
+                                                size="sm"
+                                                label="Schedule all remaining groups (same dates)"
+                                            />
+                                        @endif
                                     @endif
 
                                     @if($this->detailedPhase->training_start_date)
@@ -1281,7 +1331,7 @@
     {{-- training --}}
     <x-action-modal
         id="set-training-schedule-modal"
-        title="Schedule Training Phase"
+        title="Schedule Training for All Remaining Groups"
         type="success"
         icon="fas fa-calendar-alt"
         size="modal-lg"
@@ -1292,8 +1342,8 @@
             <div class="d-flex align-items-center">
                 <i class="fas fa-info-circle fa-2x mr-3 text-primary"></i>
                 <div>
-                    <strong>Next Step: Training</strong><br>
-                    <span class="text-xs">Set the proposed dates and venue for the approved groups. Training certificates become downloadable four days after the scheduled start date (not the end date).</span>
+                    <strong>Bulk schedule (optional)</strong><br>
+                    <span class="text-xs">Apply the same dates and venue to every approved group that has not been scheduled yet. To set different dates per group, use <strong>Schedule Training</strong> on each row instead.</span>
                 </div>
             </div>
         </div>
@@ -1369,8 +1419,104 @@
                 />
 
                 <x-pill-button
-                    label="Save Schedule & Notify Groups"
+                    label="Schedule All & Notify Groups"
                     target="saveTrainingSchedule"
+                    color="primary"
+                    icon="fas fa-calendar-check"
+                    class="mx-1 shadow-sm btn-refresh-premium"
+                />
+            </div>
+        </x-slot>
+    </x-action-modal>
+
+    <x-action-modal
+        id="set-group-training-schedule-modal"
+        title="Schedule Training for This Group"
+        type="success"
+        icon="fas fa-calendar-alt"
+        size="modal-lg"
+        x-on:open-modal.window="if($event.detail.name === 'set-group-training-schedule-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'set-group-training-schedule-modal') $($el).modal('hide')"
+    >
+        <div class="alert alert-default-info shadow-sm mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-info-circle fa-2x mr-3 text-primary"></i>
+                <div>
+                    <strong>Schedule training for one group</strong><br>
+                    <span class="text-xs">Set dates and venue for this group only. Members will be notified by SMS. Training certificates become downloadable four days after the scheduled start date.</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <label class="font-weight-bold text-gray-600 text-uppercase">Training Start Date</label>
+                <div class="position-relative">
+                    <div class="position-absolute d-flex align-items-center justify-content-center"
+                        style="left: 12px; top: 0; bottom: 0; width: 25px; z-index: 5; pointer-events: none;">
+                        <i class="fas fa-calendar-alt icon-premium" style="font-size: 0.9rem;"></i>
+                    </div>
+                    <input type="date"
+                        wire:model.live="trainingStartDate"
+                        min="{{ now()->format('Y-m-d') }}"
+                        onclick="this.showPicker()"
+                        class="form-control shadow-none border-light-subtle custom-date-input"
+                        style="height: 48px; border-radius: 12px; padding-left: 45px; cursor: pointer; transition: 0.2s;">
+                </div>
+                @error('trainingStartDate') <small class="text-success font-weight-bold">{{ $message }}</small> @enderror
+            </div>
+
+            <div class="col-md-6">
+                <label class="font-bold text-gray-600 text-uppercase">Training End Date</label>
+                <div class="position-relative">
+                    <div class="position-absolute d-flex align-items-center justify-content-center"
+                        style="left: 12px; top: 0; bottom: 0; width: 25px; z-index: 5; pointer-events: none;">
+                        <i class="fas fa-calendar-alt icon-premium" style="font-size: 0.9rem;"></i>
+                    </div>
+                    <input type="date"
+                        wire:model.live="trainingEndDate"
+                        min="{{ $trainingStartDate ?? now()->format('Y-m-d') }}"
+                        onclick="this.showPicker()"
+                        class="form-control shadow-none border-light-subtle custom-date-input"
+                        style="height: 48px; border-radius: 12px; padding-left: 45px; cursor: pointer; transition: 0.2s;">
+                </div>
+                @error('trainingEndDate') <small class="text-success font-weight-bold">{{ $message }}</small> @enderror
+            </div>
+        </div>
+
+        <div class="form-group mt-3">
+            <label class="text-uppercase font-bold text-gray-600 mb-2">Training Venue</label>
+            <div class="input-group premium-input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text"><i class="fas fa-map-marker-alt text-info"></i></span>
+                </div>
+                <input type="text" wire:model="trainingVenue"
+                    class="form-control"
+                    placeholder="e.g., Constituency Office Hall">
+            </div>
+            @error('trainingVenue') <small class="text-success font-weight-bold">{{ $message }}</small> @enderror
+        </div>
+
+        <div class="form-group mt-3">
+            <label class="text-uppercase font-bold text-gray-600 mb-2">Additional Instructions (Optional)</label>
+            <textarea wire:model.blur="trainingNotes" class="form-control" rows="2" placeholder="e.g. Groups should bring their original registration certificates..."></textarea>
+        </div>
+
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button
+                    target="saveGroupTrainingSchedule"
+                    label="Close"
+                    variant="outline"
+                    color="info"
+                    data-dismiss="modal"
+                    icon="fas fa-times"
+                    class="mx-1 shadow-sm btn-refresh-premium"
+                />
+
+                <x-pill-button
+                    label="Save Schedule & Notify Group"
+                    target="saveGroupTrainingSchedule"
                     color="primary"
                     icon="fas fa-calendar-check"
                     class="mx-1 shadow-sm btn-refresh-premium"

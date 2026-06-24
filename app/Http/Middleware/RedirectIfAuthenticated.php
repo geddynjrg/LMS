@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Providers\RouteServiceProvider;
+use App\Support\ReturnPath;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,6 +22,12 @@ class RedirectIfAuthenticated
 
         foreach ($guards as $guard) {
             if (Auth::guard($guard)->check()) {
+                $returnTo = $request->cookie(ReturnPath::COOKIE_NAME);
+
+                if (ReturnPath::isValid($returnTo)) {
+                    return redirect($returnTo);
+                }
+
                 return redirect(RouteServiceProvider::HOME);
             }
         }

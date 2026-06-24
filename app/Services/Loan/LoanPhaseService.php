@@ -1433,6 +1433,76 @@ class LoanPhaseService
         }
     }
 
+    public function saveGroupTrainingSchedule(PhaseApplication $application, string $idempotencyKey, array $payload): void
+    {
+        if ($application->status !== 'approved') {
+            throw ValidationException::withMessages([
+                'application' => 'Only approved groups can be scheduled for training.',
+            ]);
+        }
+
+        $application->loadMissing(['tempApplication', 'loanPhase']);
+        $phase = $application->loanPhase;
+
+        if (!$phase || !in_array($phase->status, ['approved', 'in_training'], true)) {
+            throw ValidationException::withMessages([
+                'phase' => 'Training cannot be scheduled for this phase in its current state.',
+            ]);
+        }
+
+        DB::transaction(function () use ($application, $phase, $idempotencyKey, $payload) {
+            if ($application->tempApplication) {
+                $application->tempApplication->update([
+                    'status' => 'under_hq_review',
+                    'lms_to_loan_app_sync_status' => 'pending',
+                    'updated_at' => now(),
+                ]);
+            }
+
+            $application->update([
+                'status' => 'in_training',
+                'level' => 'constituency',
+                'action' => 'set_for_traning',
+                'training_start_date' => $payload['trainingStartDate'],
+                'training_end_date' => $payload['trainingEndDate'],
+                'training_venue' => $payload['trainingVenue'],
+                'training_notes' => $payload['trainingNotes'] ?? null,
+                'updated_at' => now(),
+            ]);
+
+            if ($phase->status === 'approved') {
+                $phase->update(['status' => 'in_training']);
+            }
+
+            $tempApp = $application->tempApplication;
+            if ($tempApp) {
+                activity()
+                    ->performedOn($application)
+                    ->causedBy(auth()->user())
+                    ->withProperties([
+                        'application_id' => $tempApp->application_id,
+                        'group_name' => $tempApp->group_name,
+                        'previous_status' => 'approved',
+                        'new_status' => 'in_training',
+                        'training_start_date' => $payload['trainingStartDate'],
+                        'training_end_date' => $payload['trainingEndDate'],
+                        'training_venue' => $payload['trainingVenue'],
+                        'constituency_code' => $phase->constituency_code,
+                    ])
+                    ->log("Application #{$tempApp->application_id} for {$tempApp->group_name} was set for training.");
+
+                SyncApplicationStatusToDrupal::pushAfterCommit($application->temp_application_id);
+            }
+
+            $this->idempotencyService->release($idempotencyKey);
+        });
+
+        app(WorkflowNotificationService::class)->notifyGroupMembersTrainingScheduled(
+            $application->fresh(['tempApplication.groupMembers']),
+            $phase->fresh()
+        );
+    }
+
     public function saveTrainingSchedule($phase, $idempotencyKey, array $payload)
     {
         $pendingApplications = $phase->phaseApplications()
@@ -1470,6 +1540,10 @@ class LoanPhaseService
                     'status' => 'in_training',
                     'level' => 'constituency',
                     'action' => 'set_for_traning',
+                    'training_start_date' => $payload['trainingStartDate'],
+                    'training_end_date' => $payload['trainingEndDate'],
+                    'training_venue' => $payload['trainingVenue'],
+                    'training_notes' => $payload['trainingNotes'] ?? null,
                     'updated_at' => now()
                 ]);
 
@@ -1508,7 +1582,7 @@ class LoanPhaseService
                     'ip_address' => request()->ip(),
                     'user_agent' => request()->userAgent()
                 ])
-                ->log("Training scheduled at {$payload['trainingVenue']} from {$payload['trainingStartDate']} to {$payload['trainingEndDate']}");
+                ->log("Training scheduled for {$apps_count} group(s) at {$payload['trainingVenue']} from {$payload['trainingStartDate']} to {$payload['trainingEndDate']}");
 
             $this->idempotencyService->release($idempotencyKey);
         });

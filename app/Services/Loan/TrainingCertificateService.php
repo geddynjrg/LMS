@@ -14,18 +14,20 @@ class TrainingCertificateService
 {
     public const CERTIFICATE_WAIT_DAYS = 4;
 
-    public function certificateEligibleFrom(?LoanPhase $phase): ?Carbon
+    public function certificateEligibleFrom(?LoanPhase $phase, ?PhaseApplication $application = null): ?Carbon
     {
-        if (!$phase?->training_start_date) {
+        $startDate = $application?->training_start_date ?? $phase?->training_start_date;
+
+        if (!$startDate) {
             return null;
         }
 
-        return $phase->training_start_date->copy()->startOfDay()->addDays(self::CERTIFICATE_WAIT_DAYS);
+        return $startDate->copy()->startOfDay()->addDays(self::CERTIFICATE_WAIT_DAYS);
     }
 
-    public function isCertificateDownloadAvailable(?LoanPhase $phase): bool
+    public function isCertificateDownloadAvailable(?LoanPhase $phase, ?PhaseApplication $application = null): bool
     {
-        $eligibleFrom = $this->certificateEligibleFrom($phase);
+        $eligibleFrom = $this->certificateEligibleFrom($phase, $application);
 
         if (!$eligibleFrom) {
             return false;
@@ -48,7 +50,9 @@ class TrainingCertificateService
             return false;
         }
 
-        return $this->isCertificateDownloadAvailable($application->loanPhase);
+        $application->loadMissing('loanPhase');
+
+        return $this->isCertificateDownloadAvailable($application->loanPhase, $application);
     }
 
     public function isDisbursementCertificateAvailable(PhaseApplication $application): bool
@@ -56,15 +60,15 @@ class TrainingCertificateService
         return $application->status === 'disbursed';
     }
 
-    public function certificateAvailabilityMessage(?LoanPhase $phase): ?string
+    public function certificateAvailabilityMessage(?LoanPhase $phase, ?PhaseApplication $application = null): ?string
     {
-        $eligibleFrom = $this->certificateEligibleFrom($phase);
+        $eligibleFrom = $this->certificateEligibleFrom($phase, $application);
 
         if (!$eligibleFrom) {
             return null;
         }
 
-        if ($this->isCertificateDownloadAvailable($phase)) {
+        if ($this->isCertificateDownloadAvailable($phase, $application)) {
             return null;
         }
 
@@ -108,7 +112,7 @@ class TrainingCertificateService
 
         $application->loadMissing('loanPhase');
 
-        return $this->isCertificateDownloadAvailable($application->loanPhase);
+        return $this->isCertificateDownloadAvailable($application->loanPhase, $application);
     }
 
     protected function ensureStored(PhaseApplication $application, bool $enforceWaitPeriod): ?string
@@ -133,10 +137,10 @@ class TrainingCertificateService
         if (
             $enforceWaitPeriod
             && !$this->isDisbursementCertificateAvailable($application)
-            && !$this->isCertificateDownloadAvailable($application->loanPhase)
+            && !$this->isCertificateDownloadAvailable($application->loanPhase, $application)
         ) {
             throw ValidationException::withMessages([
-                'training' => $this->certificateAvailabilityMessage($application->loanPhase)
+                'training' => $this->certificateAvailabilityMessage($application->loanPhase, $application)
                     ?? 'Training certificate is not available yet.',
             ]);
         }
@@ -144,9 +148,9 @@ class TrainingCertificateService
         $groupName = $application->tempApplication?->group_name ?? 'Group';
         $appId = $application->tempApplication?->application_id ?? 'N/A';
         $phase = $application->loanPhase;
-        $venue = $phase?->training_venue ?? 'N/A';
-        $start = $phase?->training_start_date?->format('d M Y') ?? 'N/A';
-        $end = $phase?->training_end_date?->format('d M Y') ?? 'N/A';
+        $venue = $application->training_venue ?: ($phase?->training_venue ?? 'N/A');
+        $start = ($application->training_start_date ?? $phase?->training_start_date)?->format('d M Y') ?? 'N/A';
+        $end = ($application->training_end_date ?? $phase?->training_end_date)?->format('d M Y') ?? 'N/A';
 
         $html = view('pdf.training-certificate', compact('groupName', 'appId', 'venue', 'start', 'end'))->render();
 

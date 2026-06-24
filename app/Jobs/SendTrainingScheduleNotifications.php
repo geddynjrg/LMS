@@ -28,12 +28,21 @@ class SendTrainingScheduleNotifications implements ShouldQueue
             ])
             ->find($this->loanPhaseId);
 
-        if (!$phase || !$phase->training_start_date) {
+        if (!$phase) {
             return;
         }
 
         foreach ($phase->phaseApplications as $application) {
+            if (!$this->hasTrainingSchedule($application, $phase)) {
+                continue;
+            }
+
             $notifications->notifyGroupMembersTrainingScheduled($application, $phase);
         }
+    }
+
+    protected function hasTrainingSchedule($application, LoanPhase $phase): bool
+    {
+        return $application->training_start_date || $phase->training_start_date;
     }
 }

@@ -127,7 +127,11 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
                     'phase_applications.amount_issued',
                     'phase_applications.amount_approved',
                     'phase_applications.disbursement_failure_reason',
-                    'phase_applications.disbursement_failure_notes'
+                    'phase_applications.disbursement_failure_notes',
+                    'phase_applications.training_start_date',
+                    'phase_applications.training_end_date',
+                    'phase_applications.training_venue',
+                    'phase_applications.training_notes'
                 )->with(['loanPhase:id,training_start_date,training_end_date,training_venue,training_notes']);
             }])
             ->findOrFail($this->tempApplicationId);
@@ -361,18 +365,24 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
         }
 
         if ($drupalStatus === 'training') {
-            $phase = $app->phaseApplication?->loanPhase;
-            if ($phase?->training_start_date) {
-                $payload['training_start_date'] = $phase->training_start_date->format('Y-m-d');
+            $phaseApplication = $app->phaseApplication;
+            $phase = $phaseApplication?->loanPhase;
+            $trainingStart = $phaseApplication?->training_start_date ?? $phase?->training_start_date;
+            $trainingEnd = $phaseApplication?->training_end_date ?? $phase?->training_end_date;
+            $trainingVenue = $phaseApplication?->training_venue ?? $phase?->training_venue;
+            $trainingNotes = $phaseApplication?->training_notes ?? $phase?->training_notes;
+
+            if ($trainingStart) {
+                $payload['training_start_date'] = $trainingStart->format('Y-m-d');
             }
-            if ($phase?->training_end_date) {
-                $payload['training_end_date'] = $phase->training_end_date->format('Y-m-d');
+            if ($trainingEnd) {
+                $payload['training_end_date'] = $trainingEnd->format('Y-m-d');
             }
-            if ($phase?->training_venue) {
-                $payload['training_venue'] = $phase->training_venue;
+            if ($trainingVenue) {
+                $payload['training_venue'] = $trainingVenue;
             }
-            if ($phase?->training_notes) {
-                $payload['training_notes'] = $phase->training_notes;
+            if ($trainingNotes) {
+                $payload['training_notes'] = $trainingNotes;
             }
         }
 

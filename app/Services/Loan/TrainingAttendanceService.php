@@ -17,16 +17,26 @@ class TrainingAttendanceService
             ->where('status', 'in_training')
             ->where('is_trained', false)
             ->whereNull('auto_rejection_reviewed_at')
-            ->whereHas('loanPhase', function ($q) use ($deadlinePassedOnly) {
-                $q->where('status', 'in_training')
-                    ->whereNotNull('training_end_date');
-
-                if ($deadlinePassedOnly) {
-                    $q->whereDate('training_end_date', '<', now()->toDateString());
-                }
+            ->whereHas('loanPhase', function ($q) {
+                $q->whereIn('status', ['in_training', 'disbursed']);
             });
 
-        $applications = $query->with(['tempApplication:id,application_id', 'loanPhase:id,phase'])->get();
+        $applications = $query
+            ->with(['tempApplication:id,application_id', 'loanPhase:id,phase,training_end_date'])
+            ->get()
+            ->filter(function (PhaseApplication $application) use ($deadlinePassedOnly) {
+                $endDate = $application->training_end_date ?? $application->loanPhase?->training_end_date;
+
+                if (!$endDate) {
+                    return false;
+                }
+
+                if ($deadlinePassedOnly && $endDate->toDateString() >= now()->toDateString()) {
+                    return false;
+                }
+
+                return true;
+            });
         $count = 0;
 
         foreach ($applications as $application) {

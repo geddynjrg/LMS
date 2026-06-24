@@ -25,6 +25,10 @@ class PhaseApplication extends Model
         'status',
         'is_trained',
         'training_completed_at',
+        'training_start_date',
+        'training_end_date',
+        'training_venue',
+        'training_notes',
         'training_certificate_path',
         'cheque_number',
         'disbursement_date',
@@ -48,6 +52,8 @@ class PhaseApplication extends Model
         'is_priority' => 'boolean',
         'is_trained' => 'boolean',
         'training_completed_at' => 'datetime',
+        'training_start_date' => 'date',
+        'training_end_date' => 'date',
         'disbursement_date' => 'datetime',
     ];
 

@@ -486,13 +486,13 @@ class WorkflowNotificationService
         $appId = $tempApp->application_id;
         $groupName = $tempApp->group_name;
         $phaseName = $phase->phase ?? 'batch';
-        $startDate = $phase->training_start_date
-            ? \Carbon\Carbon::parse($phase->training_start_date)->format('d M Y')
+        $startDate = ($application->training_start_date ?? $phase->training_start_date)
+            ? \Carbon\Carbon::parse($application->training_start_date ?? $phase->training_start_date)->format('d M Y')
             : 'TBA';
-        $endDate = $phase->training_end_date
-            ? \Carbon\Carbon::parse($phase->training_end_date)->format('d M Y')
+        $endDate = ($application->training_end_date ?? $phase->training_end_date)
+            ? \Carbon\Carbon::parse($application->training_end_date ?? $phase->training_end_date)->format('d M Y')
             : 'TBA';
-        $venue = $phase->training_venue ?: 'TBA';
+        $venue = $application->training_venue ?: ($phase->training_venue ?: 'TBA');
 
         foreach ($tempApp->groupMembers as $member) {
             if (empty($member->phone_number)) {

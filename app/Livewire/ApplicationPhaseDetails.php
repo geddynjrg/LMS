@@ -70,6 +70,7 @@ class ApplicationPhaseDetails extends Component
     ];
 
     public $trainingStartDate, $trainingEndDate, $trainingVenue, $trainingNotes;
+    public $schedulingTrainingAppId;
 
     public $approvedStatuses = ['pending_submission_to_hq', 'pending_hq_approval', 'in_training', 'approved'];
 
@@ -776,9 +777,29 @@ class ApplicationPhaseDetails extends Component
 
     public function canScheduleTraining(): bool
     {
+        return $this->approvedGroupsAwaitingTrainingCount() > 0
+            && $this->trainingSchedulingAllowed();
+    }
+
+    public function canScheduleGroupTraining(PhaseApplication $application): bool
+    {
+        return $application->status === 'approved' && $this->trainingSchedulingAllowed();
+    }
+
+    public function approvedGroupsAwaitingTrainingCount(): int
+    {
+        return $this->detailedPhase->phaseApplications()->where('status', 'approved')->count();
+    }
+
+    protected function trainingSchedulingAllowed(): bool
+    {
         $phase = $this->detailedPhase;
 
-        if ($phase->status !== 'approved' || !$phase->canBeEditedBy(auth()->user())) {
+        if (!$phase->canBeEditedBy(auth()->user())) {
+            return false;
+        }
+
+        if (!in_array($phase->status, ['approved', 'in_training'], true)) {
             return false;
         }
 
@@ -790,7 +811,7 @@ class ApplicationPhaseDetails extends Component
      */
     public function trainingScheduleBlockers(): array
     {
-        if ($this->detailedPhase->status !== 'approved') {
+        if (!in_array($this->detailedPhase->status, ['approved', 'in_training'], true)) {
             return [];
         }
 
@@ -906,7 +927,8 @@ class ApplicationPhaseDetails extends Component
         $application->loadMissing('loanPhase');
 
         return $this->trainingCertificateService()->certificateAvailabilityMessage(
-            $application->loanPhase ?? $this->detailedPhase
+            $application->loanPhase ?? $this->detailedPhase,
+            $application,
         );
     }
 
@@ -1065,9 +1087,117 @@ class ApplicationPhaseDetails extends Component
             return;
         }
 
+        $this->schedulingTrainingAppId = null;
         $this->resetErrorBag(['trainingStartDate', 'trainingEndDate', 'trainingVenue']);
+        $this->reset('trainingStartDate', 'trainingEndDate', 'trainingVenue', 'trainingNotes');
 
         $this->dispatch('open-modal', name: 'set-training-schedule-modal');
+    }
+
+    public function scheduleGroupTraining(int $phaseApplicationId): void
+    {
+        if (!$this->phase->canBeEditedBy(auth()->user())) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied 😕',
+                message: 'You Dont have permissions to overwite this phase',
+                type: 'error'
+            );
+            return;
+        }
+
+        $application = PhaseApplication::query()
+            ->where('loan_phase_id', $this->phase->id)
+            ->findOrFail($phaseApplicationId);
+
+        if (!$this->canScheduleGroupTraining($application)) {
+            $this->dispatch('swal:toast',
+                title: 'Cannot schedule training',
+                message: 'This group is not eligible for training scheduling.',
+                type: 'error'
+            );
+            return;
+        }
+
+        $this->schedulingTrainingAppId = $phaseApplicationId;
+        $this->resetErrorBag(['trainingStartDate', 'trainingEndDate', 'trainingVenue']);
+        $this->reset('trainingStartDate', 'trainingEndDate', 'trainingVenue', 'trainingNotes');
+
+        $this->dispatch('open-modal', name: 'set-group-training-schedule-modal');
+    }
+
+    public function saveGroupTrainingSchedule(): void
+    {
+        if (!$this->phase->canBeEditedBy(auth()->user())) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied 😕',
+                message: 'You Dont have permissions to overwite this phase',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'set-group-training-schedule-modal');
+            return;
+        }
+
+        $application = PhaseApplication::query()
+            ->where('loan_phase_id', $this->phase->id)
+            ->findOrFail($this->schedulingTrainingAppId);
+
+        if (!$this->canScheduleGroupTraining($application)) {
+            $this->dispatch('swal:toast',
+                title: 'Cannot schedule training',
+                message: 'This group is not eligible for training scheduling.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'set-group-training-schedule-modal');
+            return;
+        }
+
+        $this->validate([
+            'trainingStartDate' => 'required|date|after_or_equal:today',
+            'trainingEndDate'   => 'required|date|after_or_equal:trainingStartDate',
+            'trainingVenue'     => 'required|string|max:255',
+            'trainingNotes'     => 'nullable|string|max:1000',
+        ]);
+
+        $idempotencyKey = "phase_app_training_{$application->id}";
+
+        if (!$this->idempotencyService->acquire($idempotencyKey, ['phase_application_id' => $application->id])) {
+            $this->dispatch('swal:toast',
+                title: 'Action in progress: 😕',
+                message: 'This group is already being processed.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'set-group-training-schedule-modal');
+            return;
+        }
+
+        try {
+            $data = [
+                'trainingStartDate' => $this->trainingStartDate,
+                'trainingEndDate' => $this->trainingEndDate,
+                'trainingVenue' => $this->trainingVenue,
+                'trainingNotes' => $this->trainingNotes,
+            ];
+
+            $this->phaseService->saveGroupTrainingSchedule($application, $idempotencyKey, $data);
+
+            $this->refreshData();
+            $this->dispatch('close-modal', name: 'set-group-training-schedule-modal');
+            $this->dispatch('swal:toast',
+                title: 'Training scheduled',
+                message: 'Group members will be notified by SMS with dates and venue.',
+                type: 'success'
+            );
+            $this->reset('trainingStartDate', 'trainingEndDate', 'trainingVenue', 'trainingNotes', 'schedulingTrainingAppId');
+        } catch (\Exception $th) {
+            $this->dispatch('swal:toast',
+                title: 'System Error 😕',
+                message: 'Could not set the training schedule. Please try again or contact support.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'set-group-training-schedule-modal');
+            $this->reset('trainingStartDate', 'trainingEndDate', 'trainingVenue', 'trainingNotes', 'schedulingTrainingAppId');
+            $this->idempotencyService->release($idempotencyKey);
+        }
     }
 
     public function saveTrainingSchedule()
@@ -1088,6 +1218,7 @@ class ApplicationPhaseDetails extends Component
             'trainingStartDate' => 'required|date|after_or_equal:today',
             'trainingEndDate'   => 'required|date|after_or_equal:trainingStartDate',
             'trainingVenue'     => 'required|string|max:255',
+            'trainingNotes'     => 'nullable|string|max:1000',
         ]);
 
         $idempotencyKey = "phase_in_training_{$this->phase->id}";
@@ -1114,7 +1245,10 @@ class ApplicationPhaseDetails extends Component
                 'trainingStartDate' => $this->trainingStartDate,
                 'trainingEndDate' => $this->trainingEndDate,
                 'trainingVenue' => $this->trainingVenue,
+                'trainingNotes' => $this->trainingNotes,
             ];
+
+            $scheduledCount = $this->approvedGroupsAwaitingTrainingCount();
 
             $this->phaseService->saveTrainingSchedule($this->detailedPhase, $idempotencyKey, $data);
 
@@ -1124,7 +1258,7 @@ class ApplicationPhaseDetails extends Component
 
             $this->dispatch('swal:toast',
                 title: 'Training Set Successfully 😊',
-                message: 'Phase has moved to Training. Group members will be notified by SMS with application numbers, dates, and venue.',
+                message: "{$scheduledCount} group(s) scheduled with the same dates and venue. Group members will be notified by SMS.",
                 type: 'success'
             );
 
