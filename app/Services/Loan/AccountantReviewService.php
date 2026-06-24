@@ -3,6 +3,7 @@
 namespace App\Services\Loan;
 
 use App\Models\LoanPhase;
+use App\Services\WorkflowNotificationService;
 use App\Support\AccountantReviewStatus;
 use App\Support\PhaseDocumentType;
 use Illuminate\Validation\ValidationException;
@@ -49,9 +50,24 @@ class AccountantReviewService
             return;
         }
 
+        $alreadyPending = $phase->accountant_review_status === AccountantReviewStatus::PENDING;
+
         $phase->update([
             'accountant_review_status' => AccountantReviewStatus::PENDING,
         ]);
+
+        if ($alreadyPending) {
+            return;
+        }
+
+        try {
+            app(WorkflowNotificationService::class)->notifyAccountantPhaseQueued($phase->fresh());
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to notify accountant of queued phase', [
+                'phase_id' => $phase->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

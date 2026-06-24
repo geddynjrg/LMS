@@ -57,4 +57,17 @@ final class PhaseDocumentType
     {
         return self::labels()[$type] ?? ucwords(str_replace('_', ' ', $type));
     }
+
+    /**
+     * Documents a constituency must upload before submitting a phase to HQ.
+     *
+     * @return list<string>
+     */
+    public static function requiredForConstituencyHqSubmission(): array
+    {
+        return [
+            self::MINUTES,
+            self::BANK_RECONCILIATION,
+        ];
+    }
 }

@@ -546,7 +546,33 @@
             <div class="col-md-3 order-first order-md-last d-flex flex-column" style="max-height: 115vh;">
                 <div class="sidebar-upload-zone scrollable-sidebar-content flex-grow-1 pr-1" style="overflow-y: auto; overflow-x: hidden; min-height: 0;">
                     @if($this->canSubmitApplication())
-                        @if(!$this->detailedPhase->has_minutes && $this->detailedPhase->status === 'draft')
+                        @if($this->detailedPhase->status === 'draft')
+                            <div class="card shadow-sm mb-4 border-0">
+                                <div class="card-header bg-amber-50 border-0 py-2">
+                                    <span class="text-xs font-weight-bold text-uppercase text-navy">
+                                        <i class="fas fa-clipboard-check mr-1"></i> Mandatory documents for HQ submission
+                                    </span>
+                                </div>
+                                <div class="card-body py-2">
+                                    <p class="text-xs text-gray-500 mb-2">
+                                        Both documents below are required before you can submit this phase to HQ.
+                                    </p>
+                                    <ul class="list-unstyled mb-0">
+                                        @foreach($this->mandatoryHqSubmissionDocuments as $mandatoryDoc)
+                                            <li class="d-flex align-items-center justify-content-between py-1 border-bottom">
+                                                <span class="text-xs text-dark">{{ $mandatoryDoc['label'] }}</span>
+                                                @if($mandatoryDoc['uploaded'])
+                                                    <span class="badge badge-success">On file</span>
+                                                @else
+                                                    <span class="badge badge-danger">Required</span>
+                                                @endif
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+
+                        @if(!$this->detailedPhase->has_minutes)
                             <div class="card shadow-sm mb-4 border-0">
                                 <div class="card-header bg-amber-50 border-0 py-2">
                                     <span class="text-xs font-weight-bold text-uppercase text-navy">
@@ -631,7 +657,9 @@
                                     </div>
                                 </div>
                             </div>
-                        @elseif($this->detailedPhase->has_minutes && !$this->detailedPhase->has_bank_reconciliation && $this->detailedPhase->status === 'draft')
+                        @endif
+
+                        @if(!$this->detailedPhase->has_bank_reconciliation)
                             <div class="card shadow-sm mb-4 border-0">
                                 <div class="card-header bg-amber-50 border-0 py-2">
                                     <span class="text-xs font-weight-bold text-uppercase text-navy">
@@ -639,7 +667,7 @@
                                     </span>
                                 </div>
                                 <div class="card-body pt-1 pb-3">
-                                    <p class="text-xs text-gray-500">You must upload the bank reconciliation document before submitting this batch to HQ.</p>
+                                    <p class="text-xs text-gray-500">Upload the bank reconciliation document from your constituency accounts team. This is mandatory for HQ submission.</p>
 
                                     <div class="form-group my-3 premium-file-container">
                                         <label class="small font-weight-bold text-uppercase text-muted mb-2">Bank Reconciliation (PDF or Image)</label>
@@ -657,7 +685,7 @@
                                                 class="btn btn-refresh-premium btn-sm shadow-sm"
                                                 style="min-width: 200px; border-radius: 10px; height: 40px;">
                                             <span wire:loading.remove wire:target="uploadBankReconciliation">
-                                                <i class="fas fa-cloud-upload-alt mr-2"></i> Upload & Unlock
+                                                <i class="fas fa-cloud-upload-alt mr-2"></i> Upload bank reconciliation
                                             </span>
                                             <span wire:loading wire:target="uploadBankReconciliation">
                                                 <i class="fas fa-spinner fa-spin mr-2"></i> Uploading...
@@ -666,8 +694,9 @@
                                     </div>
                                 </div>
                             </div>
-                        @else
-                            @if($this->canUploadRequestForTransferLetter() && !$this->detailedPhase->has_request_for_transfer_letter && ($this->detailedPhase->has_minutes || $this->detailedPhase->status === 'submitted_to_hq'))
+                        @endif
+
+                        @if($this->canUploadRequestForTransferLetter() && !$this->detailedPhase->has_request_for_transfer_letter)
                                 <div class="card shadow-sm mb-4 border-0">
                                     <div class="card-header bg-light border-0 py-2">
                                         <span class="text-xs font-weight-bold text-uppercase text-navy">
@@ -705,29 +734,72 @@
                                 </div>
                             @endif
 
-                            @if($this->detailedPhase->status ==='draft')
-                                <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
-                                    @if ($this->detailedPhase->has_minutes && $this->detailedPhase->has_bank_reconciliation && $detailedPhase->pending_count == 0)
-                                        <div class="card-body">
-                                            <p class="text-xs text-gray-600">By submitting, you confirm that committee minutes and bank reconciliation are uploaded and amounts match the Excel sheets.</p>
+                            <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
+                                @if ($this->hasAllMandatoryHqDocuments() && $detailedPhase->pending_count == 0)
+                                    <div class="card-body">
+                                        <p class="text-xs text-gray-600">By submitting, you confirm that committee minutes and bank reconciliation are uploaded and amounts match the Excel sheets.</p>
 
-                                            <div class="d-flex justify-content-center mt-2">
-                                                <x-modal-trigger
-                                                    target="submitToHq"
-                                                    class="shadow-sm btn-refresh-premium"
-                                                    icon="fas fa-paper-plane"
-                                                    size="lg"
-                                                    label="Submit to HQ"
-                                                />
-                                            </div>
+                                        <div class="d-flex justify-content-center mt-2">
+                                            <x-modal-trigger
+                                                target="submitToHq"
+                                                class="shadow-sm btn-refresh-premium"
+                                                icon="fas fa-paper-plane"
+                                                size="lg"
+                                                label="Submit to HQ"
+                                            />
                                         </div>
-                                    @else
-                                        <div class="card-body">
-                                            <p class="text-xs text-gray-600">To submit the phase to HQ, complete reviewing all applications, upload signed committee minutes and bank reconciliation, and ensure at least one application is approved.</p>
+                                    </div>
+                                @else
+                                    <div class="card-body">
+                                        <p class="text-xs text-gray-600">To submit the phase to HQ, complete reviewing all applications, upload signed committee minutes and bank reconciliation, and ensure at least one application is approved.</p>
+                                        @if($missing = $this->missingMandatoryHqDocuments())
+                                            <p class="text-xs text-danger mb-0 mt-2">
+                                                <i class="fas fa-exclamation-circle mr-1"></i>
+                                                Still required: {{ implode(', ', $missing) }}.
+                                            </p>
+                                        @endif
+                                    </div>
+                                @endif
+                            </div>
+                        @elseif($this->detailedPhase->status === 'submitted_to_hq')
+                            @if($this->canUploadRequestForTransferLetter() && !$this->detailedPhase->has_request_for_transfer_letter)
+                                <div class="card shadow-sm mb-4 border-0">
+                                    <div class="card-header bg-light border-0 py-2">
+                                        <span class="text-xs font-weight-bold text-uppercase text-navy">
+                                            <i class="fas fa-file-signature mr-1 text-info"></i> Optional Document
+                                        </span>
+                                    </div>
+                                    <div class="card-body pt-1 pb-3">
+                                        <p class="text-xs text-gray-500 mb-2">
+                                            Upload the request for transfer letter if available. This is optional but visible to accounts when uploaded.
+                                        </p>
+                                        <div class="form-group my-3 premium-file-container">
+                                            <label class="small font-weight-bold text-uppercase text-muted mb-2">Request for Transfer Letter (PDF/Word)</label>
+                                            <x-file-upload model="transferLetterFile" height="48px" accept=".pdf,.doc,.docx" />
+                                            @error('transferLetterFile')
+                                                <small class="text-danger d-block mt-2" style="font-size: 0.75rem;">
+                                                    <i class="fas fa-exclamation-triangle mr-1"></i> {{ $message }}
+                                                </small>
+                                            @enderror
                                         </div>
-                                    @endif
+                                        <div class="d-flex justify-content-center mt-2">
+                                            <button wire:click="uploadRequestForTransferLetter"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="transferLetterFile, uploadRequestForTransferLetter"
+                                                    class="btn btn-outline-info btn-sm shadow-sm"
+                                                    style="min-width: 200px; border-radius: 10px; height: 40px;">
+                                                <span wire:loading.remove wire:target="uploadRequestForTransferLetter">
+                                                    <i class="fas fa-cloud-upload-alt mr-2"></i> Upload transfer letter
+                                                </span>
+                                                <span wire:loading wire:target="uploadRequestForTransferLetter">
+                                                    <i class="fas fa-spinner fa-spin mr-2"></i> Uploading...
+                                                </span>
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            @elseif($this->detailedPhase->status ==='approved')
+                            @endif
+                        @elseif($this->detailedPhase->status ==='approved')
                             <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                                 <div class="card-body">
                                     @if($this->canScheduleTraining())
@@ -851,8 +923,6 @@
                                 </div>
                             </div>
                             @endif
-                        @endif
-
 
                         @if($this->detailedPhase->status !== 'disbursed')
                         <div class="card card-outline premium-summary-card shadow-sm border-0 mt-2">
@@ -962,6 +1032,33 @@
                             </h3>
                         </div>
                         <div class="card-body p-0">
+                            <div class="bg-light px-3 py-2 border-bottom">
+                                <small class="text-uppercase font-weight-bold text-muted" style="letter-spacing: 1px;">Mandatory for HQ submission</small>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0" style="table-layout: fixed; width: 100%;">
+                                    <tbody>
+                                        @foreach($this->mandatoryHqSubmissionDocuments as $mandatoryDoc)
+                                            <tr wire:key="mandatory-doc-{{ $mandatoryDoc['type'] }}">
+                                                <td class="pl-3 py-2" style="width: 75%;">
+                                                    <div class="text-xs font-weight-bold text-dark">{{ $mandatoryDoc['label'] }}</div>
+                                                    <div class="x-small text-muted">Required before submit to HQ</div>
+                                                </td>
+                                                <td class="text-right align-middle pr-3" style="width: 25%;">
+                                                    @if($mandatoryDoc['uploaded'])
+                                                        <span class="badge badge-success">On file</span>
+                                                    @else
+                                                        <span class="badge badge-danger">Missing</span>
+                                                    @endif
+                                                </td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="bg-light px-3 py-2 border-top border-bottom">
+                                <small class="text-uppercase font-weight-bold text-muted" style="letter-spacing: 1px;">Uploaded files</small>
+                            </div>
                             <div class="table-responsive">
                                 <table id="table-data" class="table table-sm mb-0" style="table-layout: fixed; width: 100%;">
                                     <tbody>
@@ -1059,25 +1156,51 @@
                                     </tbody>
                                 </table>
                             </div>
-                            @if($this->canDownloadSignedCodeList() || $this->canDownloadLetterOfAuthority())
+                            @if($this->showsApprovedCodeListDownload() || $this->canDownloadProcessedCodeList() || $this->canDownloadLetterOfAuthority())
                                 <div class="bg-light px-3 py-2 border-top border-bottom">
-                                    <small class="text-uppercase font-weight-bold text-muted" style="letter-spacing: 1px;">Signed Secretariat Documents</small>
+                                    <small class="text-uppercase font-weight-bold text-muted" style="letter-spacing: 1px;">HQ &amp; Secretariat Documents</small>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table table-sm mb-0" style="table-layout: fixed; width: 100%;">
                                         <tbody>
-                                            @if($this->canDownloadSignedCodeList())
+                                            @if($this->canDownloadProcessedCodeList())
+                                                <tr>
+                                                    <td class="pl-3 py-2" style="width: 75%;">
+                                                        <div class="text-xs font-weight-bold text-dark">Processed Codelist (Excel)</div>
+                                                        <div class="x-small text-muted">Same layout as HQ processed codelist, including financial summary</div>
+                                                    </td>
+                                                    <td class="text-right align-middle pr-3" style="width: 25%;">
+                                                        <a href="{{ route('const.app.app_phase_processed_code_list', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
+                                                           class="btn btn-outline-success btn-sm"
+                                                           title="Download processed codelist">
+                                                            <i class="fas fa-file-excel"></i>
+                                                        </a>
+                                                    </td>
+                                                </tr>
+                                            @endif
+                                            @if($this->showsApprovedCodeListDownload())
                                                 <tr>
                                                     <td class="pl-3 py-2" style="width: 75%;">
                                                         <div class="text-xs font-weight-bold text-dark">Approved Codelist (PDF)</div>
-                                                        <div class="x-small text-muted">Processed codelist with Head of Secretariat signature</div>
+                                                        <div class="x-small text-muted">Signed PDF with Uwezo Fund logo and Head of Secretariat signature</div>
                                                     </td>
                                                     <td class="text-right align-middle pr-3" style="width: 25%;">
-                                                        <a href="{{ route('const.app.app_phase_signed_code_list', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
-                                                           class="btn btn-outline-danger btn-sm"
-                                                           title="Download signed approved code list">
-                                                            <i class="fas fa-file-pdf"></i>
-                                                        </a>
+                                                        @if($this->canDownloadSignedCodeList())
+                                                            <a href="{{ route('const.app.app_phase_signed_code_list', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
+                                                               class="btn btn-outline-danger btn-sm"
+                                                               title="Download approved codelist">
+                                                                <i class="fas fa-file-pdf"></i>
+                                                            </a>
+                                                        @else
+                                                            @php $approvedDoc = $this->detailedPhase->phaseApplicationDocuments->firstWhere('document_type', \App\Support\PhaseDocumentType::SIGNED_APPROVED_CODE_LIST); @endphp
+                                                            @if($approvedDoc)
+                                                                <a href="{{ route('phase.doc.serve', ['id' => $approvedDoc->id, 'action' => 'download']) }}"
+                                                                   class="btn btn-outline-danger btn-sm"
+                                                                   title="Download approved codelist">
+                                                                    <i class="fas fa-file-pdf"></i>
+                                                                </a>
+                                                            @endif
+                                                        @endif
                                                     </td>
                                                 </tr>
                                             @endif

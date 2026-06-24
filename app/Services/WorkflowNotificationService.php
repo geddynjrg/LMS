@@ -198,6 +198,83 @@ class WorkflowNotificationService
         return route('const.app.app_phase_details', [$countySlug, $constituencySlug, $phase->slug]);
     }
 
+    public function notifyHqOfficersPhaseSubmitted(LoanPhase $phase, bool $queue = true): void
+    {
+        $phase->loadMissing(['constituency.county']);
+
+        $officers = User::role('hq_officer')->active()->get();
+        if ($officers->isEmpty()) {
+            Log::warning('No HQ officers found for phase submission notification', ['phase_id' => $phase->id]);
+
+            return;
+        }
+
+        $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
+        $batchCount = $phase->phaseApplications()->where('status', 'pending_hq_approval')->count();
+        $totalApproved = number_format((float) ($phase->total_amount_approved ?? 0));
+        $reviewUrl = route('hq.submissions.phase.review', $phase->slug);
+
+        foreach ($officers as $officer) {
+            if ($officer->email) {
+                $mail = new ConstituencyOfficerNotificationMail(
+                    "{$phase->phase} submitted for HQ review",
+                    [
+                        "{$constituencyName} has submitted {$phase->phase} for headquarters review.",
+                        "Reference: {$phase->phase_ref}",
+                        "Applications in batch: {$batchCount}",
+                        "Total approved amount: KES {$totalApproved}",
+                        'Please review the phase and process the code list when ready.',
+                    ],
+                    $reviewUrl,
+                    'Review phase',
+                );
+                $queue ? Mail::to($officer->email)->queue($mail) : Mail::to($officer->email)->send($mail);
+            }
+
+            if ($officer->phone_number) {
+                $this->smsService->send(
+                    $officer->phone_number,
+                    "Uwezo Fund: {$phase->phase} ({$constituencyName}) submitted to HQ — {$batchCount} application(s), KES {$totalApproved}. Review in LMS."
+                );
+            }
+        }
+    }
+
+    public function notifyAccountantPhaseQueued(LoanPhase $phase, bool $queue = true): void
+    {
+        $phase->loadMissing(['constituency']);
+
+        $accountant = SystemRoles::accountantUser();
+        if (!$accountant || !$accountant->isActive()) {
+            Log::warning('No active accountant found for phase review notification', ['phase_id' => $phase->id]);
+
+            return;
+        }
+
+        $constituencyName = $phase->constituency?->constituency_name ?? $phase->constituency_code;
+        $reviewUrl = route('accountant.phases.review', $phase);
+
+        if ($accountant->email) {
+            $mail = new ConstituencyOfficerNotificationMail(
+                "{$phase->phase} ready for accounts review",
+                [
+                    "HQ has uploaded a processed code list for {$phase->phase} in {$constituencyName}.",
+                    'Please reconcile the processed code list against the constituency bank reconciliation and forward to HQ management when correct.',
+                ],
+                $reviewUrl,
+                'Review phase',
+            );
+            $queue ? Mail::to($accountant->email)->queue($mail) : Mail::to($accountant->email)->send($mail);
+        }
+
+        if ($accountant->phone_number) {
+            $this->smsService->send(
+                $accountant->phone_number,
+                "Uwezo Fund: {$phase->phase} ({$constituencyName}) is ready for accounts review. Processed code list uploaded by HQ. Review in LMS."
+            );
+        }
+    }
+
     public function notifyHqOfficerPhaseReturnedFromSecretariat(LoanPhase $phase, string $reason, bool $queue = true): void
     {
         $phase->loadMissing(['constituency.county', 'assignedHqOfficer', 'hqOfficer']);

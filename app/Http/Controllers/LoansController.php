@@ -137,6 +137,13 @@ class LoansController extends Controller
         return app(SignedCodeListPdfService::class)->downloadResponse($phase);
     }
 
+    public function downloadProcessedCodeList(Request $request, County $county, Constituency $constituency, LoanPhase $phase)
+    {
+        abort_unless($phase->constituency_code === $constituency->constituency_code, 404);
+
+        return app(\App\Http\Controllers\ProcessedCodeListController::class)->download($phase);
+    }
+
     public function downloadLetterOfAuthority(Request $request, County $county, Constituency $constituency, LoanPhase $phase)
     {
         abort_unless($phase->constituency_code === $constituency->constituency_code, 404);

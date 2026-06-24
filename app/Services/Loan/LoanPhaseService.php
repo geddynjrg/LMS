@@ -797,9 +797,15 @@ class LoanPhaseService
         }
 
         $directory = "phases/{$phase->slug}";
-        $filename = $filePayload['fileName'] ?? 'title'. time() . "." . $uploadDocumentFile->getClientOriginalExtension();
+        $extension = $uploadDocumentFile->getClientOriginalExtension();
+        $filename = $filePayload['fileName'] ?? 'title-' . time();
+
+        if ($extension && !str_contains($filename, '.')) {
+            $filename = rtrim($filename, '-') . '.' . $extension;
+        }
 
         $path = $uploadDocumentFile->storeAs($directory, $filename, 'local');
+        $this->ensurePhaseDocumentPermissions($path);
 
         try {
             DB::beginTransaction();
@@ -854,6 +860,7 @@ class LoanPhaseService
         $filename = Str::slug($title) . '-' . time() . '.' . $file->getClientOriginalExtension();
 
         $path = $file->storeAs($directory, $filename, 'local');
+        $this->ensurePhaseDocumentPermissions($path);
 
         DB::beginTransaction();
 
@@ -1033,6 +1040,15 @@ class LoanPhaseService
 
             $this->idempotencyService->release($idempotencyKey);
         });
+
+        try {
+            app(WorkflowNotificationService::class)->notifyHqOfficersPhaseSubmitted($phase->fresh());
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify HQ officers of phase submission', [
+                'phase_id' => $phase->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function returnPhaseToConstituency(LoanPhase $phase, string $remarks, string $idempotencyKey): void
@@ -1506,5 +1522,19 @@ class LoanPhaseService
             'name' => $name,
             'icon' => $icons[$ext] ?? 'fa-file-alt text-muted',
         ];
+    }
+
+    private function ensurePhaseDocumentPermissions(string $path): void
+    {
+        $fullPath = Storage::disk('local')->path($path);
+        $directory = dirname($fullPath);
+
+        if (is_dir($directory)) {
+            @chmod($directory, 0775);
+        }
+
+        if (is_file($fullPath)) {
+            @chmod($fullPath, 0664);
+        }
     }
 }

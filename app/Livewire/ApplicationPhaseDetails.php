@@ -8,6 +8,7 @@ use Livewire\WithFileUploads;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use App\Exports\CodeListExport;
+use App\Exports\ConstituencyCodeListExport;
 use App\Exports\StandardVettedExport;
 use App\Exports\DisaggregatedDataExport;
 use App\Exports\DisbursementDataExport;
@@ -61,7 +62,7 @@ class ApplicationPhaseDetails extends Component
     public $hasExistingIdentifier = false;
 
     public $generatedReports = [
-        ['id' => 'code_list', 'name' => 'Processed Codelist', 'meta' => 'GFS codes, loan levels, financial summary & board remarks'],
+        ['id' => 'code_list', 'name' => 'Processed Codelist', 'meta' => 'Approved groups with GFS codes, loan levels & financial summary'],
         ['id' => 'standard_vetted', 'name' => 'Standard Vetted Form', 'meta' => 'Full demographics, Bank info, & Sectors'],
         ['id' => 'disaggregated', 'name' => 'Disaggregated Data', 'meta' => 'Gender & PWD breakdown by Ward'],
         ['id' => 'disbursement', 'name' => 'Disbursement Report', 'meta' => 'Bank Accounts & Final Amounts'],
@@ -451,15 +452,9 @@ class ApplicationPhaseDetails extends Component
 
     public function submitToHq()
     {
-        if (!($this->phase->has_minutes && $this->phase->has_bank_reconciliation && $this->detailedPhase->pending_count == 0))
+        if (!$this->hasAllMandatoryHqDocuments() || $this->detailedPhase->pending_count > 0)
         {
-            $missing = [];
-            if (!$this->phase->has_minutes) {
-                $missing[] = 'signed committee minutes';
-            }
-            if (!$this->phase->has_bank_reconciliation) {
-                $missing[] = 'bank reconciliation document';
-            }
+            $missing = $this->missingMandatoryHqDocuments();
             if ($this->detailedPhase->pending_count > 0) {
                 $missing[] = 'completion of all application reviews';
             }
@@ -487,6 +482,28 @@ class ApplicationPhaseDetails extends Component
 
     public function executeHqSubmission()
     {
+        if ($missing = $this->missingMandatoryHqDocuments()) {
+            $this->dispatch('swal:toast',
+                title: 'Cannot submit to HQ',
+                message: 'Required before submission: ' . implode(', ', $missing) . '.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'phase-submission-modal');
+
+            return;
+        }
+
+        if ($this->detailedPhase->pending_count > 0) {
+            $this->dispatch('swal:toast',
+                title: 'Cannot submit to HQ',
+                message: 'Complete reviewing all applications before submitting this phase.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'phase-submission-modal');
+
+            return;
+        }
+
         if (!$this->canSubmitApplication()) {
             $this->dispatch('swal:toast',
                 title: 'Permission Denied 😕',
@@ -571,6 +588,45 @@ class ApplicationPhaseDetails extends Component
         return $user->hasPermissionTo('submit application');
     }
 
+    /**
+     * @return list<array{type: string, label: string, uploaded: bool}>
+     */
+    #[Computed]
+    public function mandatoryHqSubmissionDocuments(): array
+    {
+        $phase = $this->detailedPhase;
+
+        return collect(PhaseDocumentType::requiredForConstituencyHqSubmission())
+            ->map(fn (string $type) => [
+                'type' => $type,
+                'label' => PhaseDocumentType::label($type),
+                'uploaded' => match ($type) {
+                    PhaseDocumentType::MINUTES => (bool) $phase->has_minutes,
+                    PhaseDocumentType::BANK_RECONCILIATION => (bool) $phase->has_bank_reconciliation,
+                    default => false,
+                },
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function missingMandatoryHqDocuments(): array
+    {
+        return collect($this->mandatoryHqSubmissionDocuments)
+            ->reject(fn (array $document) => $document['uploaded'])
+            ->pluck('label')
+            ->values()
+            ->all();
+    }
+
+    public function hasAllMandatoryHqDocuments(): bool
+    {
+        return $this->missingMandatoryHqDocuments() === [];
+    }
+
     protected function trainingCertificateService(): TrainingCertificateService
     {
         return app(TrainingCertificateService::class);
@@ -597,6 +653,28 @@ class ApplicationPhaseDetails extends Component
     public function canDownloadSignedCodeList(): bool
     {
         return app(SignedCodeListPdfService::class)->canDownload($this->detailedPhase);
+    }
+
+    public function showsApprovedCodeListDownload(): bool
+    {
+        return $this->canDownloadSignedCodeList()
+            || $this->detailedPhase->phaseApplicationDocuments
+                ->contains('document_type', PhaseDocumentType::SIGNED_APPROVED_CODE_LIST);
+    }
+
+    public function canDownloadProcessedCodeList(): bool
+    {
+        $phase = $this->detailedPhase;
+
+        return $phase->phaseApplications()->where('status', 'approved')->exists()
+            && in_array($phase->status, [
+                'submitted_to_hq',
+                'pending_hq_approval',
+                'hq_review',
+                'approved',
+                'in_training',
+                'disbursed',
+            ], true);
     }
 
     public function canDownloadLetterOfAuthority(): bool
@@ -1499,7 +1577,7 @@ class ApplicationPhaseDetails extends Component
             case 'code_list':
                 $query  = $this->exportService->exportCodeList($this->phase->id);
                 try {
-                    $fileName = "Code_List_{$this->constituency->constituency_name}_" . now()->format('Ymd_His') . ".xlsx";
+                    $fileName = "Processed_Codelist_{$this->constituency->constituency_name}_" . now()->format('Ymd_His') . ".xlsx";
 
                     return Excel::download(
                         new CodeListExport(

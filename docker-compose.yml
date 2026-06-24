@@ -9,12 +9,12 @@ services:
     image: uwezo-lms-app
     container_name: uwezo-lms-app
     restart: unless-stopped
+    command: ["apache2-foreground"]
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
     ports:
       - "8082:80"
-      - "5173:5173"
     depends_on:
       redis:
         condition: service_started

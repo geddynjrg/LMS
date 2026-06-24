@@ -36,7 +36,8 @@ class ExportService
                         'id',
                         'group_name',
                         'business_type',
-                        'nature_of_business'
+                        'nature_of_business',
+                        'loan_amount',
                     ]);
                 },
                 'linkedGroup' => function($q) {

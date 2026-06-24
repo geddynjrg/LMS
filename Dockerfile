@@ -62,8 +62,8 @@ RUN git config --global --add safe.directory /var/www/html
 # Increase memory limit
 RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/memory-limit.ini
 
-# Copy custom vhost if you have one (uncomment if needed)
-# COPY .docker/vhost.conf /etc/apache2/sites-available/000-default.conf
+# Copy custom vhost (Laravel public directory)
+COPY .docker/vhost.conf /etc/apache2/sites-available/000-default.conf
 
 EXPOSE 80
 

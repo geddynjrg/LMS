@@ -209,6 +209,7 @@ Route::middleware(['auth'])->group(function () {
                 // Phase Details View
                 Route::get('/phases/{phase}', [LoansController::class, 'app_phase_details'])->name('app_phase_details');
                 Route::get('/phases/{phase}/signed-code-list', [LoansController::class, 'downloadSignedCodeList'])->name('app_phase_signed_code_list');
+                Route::get('/phases/{phase}/processed-code-list', [LoansController::class, 'downloadProcessedCodeList'])->name('app_phase_processed_code_list');
                 Route::get('/phases/{phase}/letter-of-authority', [LoansController::class, 'downloadLetterOfAuthority'])->name('app_phase_letter_of_authority');
 
                 // Existing routes for application viewing

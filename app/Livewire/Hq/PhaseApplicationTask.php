@@ -251,7 +251,7 @@ class PhaseApplicationTask extends Component
 
         try {
             $filePayload = [
-                'fileName'      => 'processed-code-list-',
+                'fileName'      => 'processed-code-list-' . time() . '.' . $this->codeListFile->getClientOriginalExtension(),
                 'modal'         => 'codeListFile',
                 'documentType'  => PhaseDocumentType::PROCESSED_CODE_LIST,
                 'title'         => 'Processed Code List',

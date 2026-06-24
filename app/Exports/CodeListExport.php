@@ -56,6 +56,20 @@ class CodeListExport extends DefaultValueBinder implements
         $this->query = $query;
     }
 
+    /**
+     * @return array{applied: float, previous: float, recommended: float}
+     */
+    private function calculateColumnTotals(): array
+    {
+        $apps = (clone $this->query)->get();
+
+        return [
+            'applied' => round($apps->sum(fn ($app) => (float) ($app->amount_applied ?? $app->tempApplication?->loan_amount ?? 0)), 2),
+            'previous' => round($apps->sum(fn ($app) => (float) ($app->linkedGroup?->currentLoan?->amount_issued ?? 0)), 2),
+            'recommended' => round($apps->sum(fn ($app) => (float) ($app->amount_approved ?? 0)), 2),
+        ];
+    }
+
     public function startCell(): string
     {
         return 'A' . self::HEADER_ROW;
@@ -102,6 +116,12 @@ class CodeListExport extends DefaultValueBinder implements
 
     public function bindValue(Cell $cell, $value)
     {
+        if (is_numeric($value)) {
+            $cell->setValueExplicit((float) $value, DataType::TYPE_NUMERIC);
+
+            return true;
+        }
+
         if ($value === 0 || $value === 0.0 || $value === '0') {
             $cell->setValueExplicit(0, DataType::TYPE_NUMERIC);
 
@@ -134,7 +154,7 @@ class CodeListExport extends DefaultValueBinder implements
             $app->group_code,
             Str::upper($app->tempApplication->group_name ?? 'N/A'),
             $app->gfs_code ?? 'N/A',
-            (float) ($app->amount_applied ?? 0),
+            (float) ($app->amount_applied ?? $app->tempApplication?->loan_amount ?? 0),
             Str::upper((string) $currentActivity),
             (float) $prevAmount,
             $loanLevel,
@@ -170,10 +190,11 @@ class CodeListExport extends DefaultValueBinder implements
 
                 $this->writeDocumentHeader($sheet, $phaseLabel, $constituencyName, $constCode, $countyName);
                 $this->addLogo($sheet);
+                $totals = $this->calculateColumnTotals();
                 $this->writeTotalsRow($sheet, $highestRow, $totalRow);
                 $this->styleMainTable($sheet, $highestRow, $totalRow);
 
-                $phaseRecommendedTotal = "=I{$totalRow}";
+                $phaseRecommendedTotal = $totals['recommended'];
                 $summaryEndRow = $this->writeFinancialSummary(
                     $sheet,
                     $constCode,
@@ -221,12 +242,12 @@ class CodeListExport extends DefaultValueBinder implements
 
     private function writeTotalsRow(Worksheet $sheet, int $highestRow, int $totalRow): void
     {
-        $dataRangeStart = self::DATA_START_ROW;
+        $totals = $this->calculateColumnTotals();
 
         $sheet->setCellValue("C{$totalRow}", 'TOTAL');
-        $sheet->setCellValue("E{$totalRow}", "=SUM(E{$dataRangeStart}:E{$highestRow})");
-        $sheet->setCellValue("G{$totalRow}", "=SUM(G{$dataRangeStart}:G{$highestRow})");
-        $sheet->setCellValue("I{$totalRow}", "=SUM(I{$dataRangeStart}:I{$highestRow})");
+        $sheet->setCellValue("E{$totalRow}", $totals['applied']);
+        $sheet->setCellValue("G{$totalRow}", $totals['previous']);
+        $sheet->setCellValue("I{$totalRow}", $totals['recommended']);
 
         $sheet->getStyle("C{$totalRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
         $sheet->getStyle("C{$totalRow}:I{$totalRow}")->getFont()->setBold(true);
@@ -279,7 +300,7 @@ class CodeListExport extends DefaultValueBinder implements
         string $constituencyCode,
         int $totalRow,
         string $phaseLabel,
-        string $phaseRecommendedCellReference,
+        float $phaseRecommendedTotal,
         LoanPhase $phase,
     ): int {
         app(\App\Services\Constituency\ConstituencyAllocationService::class)
@@ -331,16 +352,7 @@ class CodeListExport extends DefaultValueBinder implements
             }
 
             $sheet->setCellValue("{$labelCol}{$row}", 'TOTAL APPROVALS');
-            if ($phaseAmountRows === []) {
-                $sheet->setCellValue("{$valueCol}{$row}", $profile->totalApprovals());
-            } else {
-                $firstPhaseRow = min($phaseAmountRows);
-                $lastPhaseRow = max($phaseAmountRows);
-                $sheet->setCellValue(
-                    "{$valueCol}{$row}",
-                    "=SUM({$valueCol}{$firstPhaseRow}:{$valueCol}{$lastPhaseRow})"
-                );
-            }
+            $sheet->setCellValue("{$valueCol}{$row}", $profile->totalApprovals());
             $approvalsRow = $row;
             $sheet->getStyle("{$labelCol}{$row}:{$valueCol}{$row}")->getFont()->setBold(true);
             $row += 2;
@@ -371,7 +383,7 @@ class CodeListExport extends DefaultValueBinder implements
             }
         } else {
             $sheet->setCellValue("{$labelCol}{$row}", 'Actual Amount Issued in ' . $phaseLabel);
-            $sheet->setCellValue("{$valueCol}{$row}", $phaseRecommendedCellReference);
+            $sheet->setCellValue("{$valueCol}{$row}", $phaseRecommendedTotal);
             $sheet->getStyle("{$valueCol}{$row}")->getNumberFormat()->setFormatCode('#,##0');
         }
 

@@ -119,6 +119,12 @@ class SignedCodeListPdfService
         $pdfBytes = $pdf->output();
 
         Storage::disk('local')->put($path, $pdfBytes);
+        $fullPath = Storage::disk('local')->path($path);
+        $dirPath = dirname($fullPath);
+        if (is_dir($dirPath)) {
+            @chmod($dirPath, 0775);
+        }
+        @chmod($fullPath, 0664);
 
         $existing = $phase->phaseApplicationDocuments
             ->firstWhere('document_type', PhaseDocumentType::SIGNED_APPROVED_CODE_LIST);
@@ -171,6 +177,9 @@ class SignedCodeListPdfService
             ->where('constituency_code', $phase->constituency_code)
             ->first();
 
+        $logoPath = public_path('images/docs/doc_logo.png');
+        $logoData = file_exists($logoPath) ? base64_encode(file_get_contents($logoPath)) : null;
+
         return Pdf::loadView('pdf.signed-code-list', [
             'phase' => $phase,
             'rows' => $table['rows'],
@@ -179,6 +188,7 @@ class SignedCodeListPdfService
             'constituencyName' => $constituencyName,
             'countyName' => $countyName,
             'constCode' => $phase->constituency_code,
+            'logoData' => $logoData,
             'signatureData' => $signatureData,
             'signatureMime' => $signatureMime,
             'signedAt' => $approval->approved_at,
@@ -194,8 +204,8 @@ class SignedCodeListPdfService
             $rows[] = ['label' => $label, 'amount' => (float) $profile->{$key}];
         }
 
-        $rows[] = ['label' => 'Total Allocations', 'amount' => $profile->totalAllocations()];
-        $rows[] = ['label' => '', 'amount' => 0];
+        $rows[] = ['label' => 'Total Allocations', 'amount' => $profile->totalAllocations(), 'bold' => true];
+        $rows[] = ['spacer' => true];
 
         foreach ($profile->normalizedTransferLevels() as $transfer) {
             $rows[] = [
@@ -204,9 +214,9 @@ class SignedCodeListPdfService
             ];
         }
 
-        $rows[] = ['label' => 'Total Transfers', 'amount' => $profile->totalTransfers()];
-        $rows[] = ['label' => 'Total Loan Portfolio', 'amount' => $profile->totalLoanPortfolio()];
-        $rows[] = ['label' => '', 'amount' => 0];
+        $rows[] = ['label' => 'Total Transfers', 'amount' => $profile->totalTransfers(), 'bold' => true];
+        $rows[] = ['label' => 'Total Loan Portfolio', 'amount' => $profile->totalLoanPortfolio(), 'bold' => true];
+        $rows[] = ['spacer' => true];
 
         foreach ($profile->normalizedPhaseIssuedAmounts() as $phaseRow) {
             $rows[] = [
@@ -215,14 +225,20 @@ class SignedCodeListPdfService
             ];
         }
 
-        $rows[] = ['label' => 'TOTAL APPROVALS', 'amount' => $profile->totalApprovals()];
-        $rows[] = ['label' => 'BALANCE IN THE MAIN ACCOUNT', 'amount' => $profile->computedBalanceMainAccount()];
+        $rows[] = ['label' => 'TOTAL APPROVALS', 'amount' => $profile->totalApprovals(), 'bold' => true];
+        $rows[] = ['spacer' => true];
+        $rows[] = [
+            'label' => 'BALANCE IN THE MAIN ACCOUNT',
+            'amount' => $profile->computedBalanceMainAccount(),
+            'bold' => true,
+        ];
+        $rows[] = ['spacer' => true];
 
         if ($profile->computedBalanceMainAccount() < 0) {
-            $rows[] = ['label' => 'NB* REQUIRES TRANSFER', 'amount' => 0];
+            $rows[] = ['label' => 'NB* REQUIRES TRANSFER', 'center' => true];
         }
 
-        return ['rows' => array_values(array_filter($rows, fn (array $row) => $row['label'] !== '' || $row['amount'] != 0))];
+        return ['rows' => $rows];
     }
 
     protected function getSigningApproval(LoanPhase $phase): ?SecretariatApproval
