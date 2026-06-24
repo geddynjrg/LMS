@@ -94,6 +94,7 @@ final class PhaseDocumentType
         return array_merge(
             [self::MINUTES],
             self::requiredBankReconciliationTypes(),
+            [self::REQUEST_FOR_TRANSFER_LETTER],
         );
     }
 }

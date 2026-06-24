@@ -997,9 +997,9 @@ class LoanPhaseService
 
     public function submitToHq($phase, $remarks, $idempotencyKey)
     {
-        if (!$phase->has_minutes || !$phase->has_bank_reconciliation) {
+        if (!$phase->has_minutes || !$phase->has_bank_reconciliation || !($phase->has_request_for_transfer_letter ?? false)) {
             throw ValidationException::withMessages([
-                'phase' => 'Signed committee minutes and both current bank reconciliations (main account and loan repayment) are required before submitting to HQ.',
+                'phase' => 'Signed committee minutes, both current bank reconciliations (main account and loan repayment), and the request for transfer letter are required before submitting to HQ.',
             ]);
         }
 

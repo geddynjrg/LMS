@@ -694,6 +694,7 @@ class ApplicationPhaseDetails extends Component
                     PhaseDocumentType::MINUTES => (bool) $phase->has_minutes,
                     PhaseDocumentType::BANK_RECONCILIATION_MAIN_ACCOUNT => (bool) ($phase->has_bank_reconciliation_main ?? false),
                     PhaseDocumentType::BANK_RECONCILIATION_LOAN_REPAYMENT => (bool) ($phase->has_bank_reconciliation_repayment ?? false),
+                    PhaseDocumentType::REQUEST_FOR_TRANSFER_LETTER => (bool) ($phase->has_request_for_transfer_letter ?? false),
                     default => $phase->phaseApplicationDocuments->contains('document_type', $type),
                 },
             ])

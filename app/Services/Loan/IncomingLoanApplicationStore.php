@@ -2,11 +2,19 @@
 
 namespace App\Services\Loan;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class IncomingLoanApplicationStore
 {
     private const DIRECTORY = 'incoming-loan-applications';
+
+    private function ensureDirectory(): void
+    {
+        if (!Storage::disk('local')->exists(self::DIRECTORY)) {
+            Storage::disk('local')->makeDirectory(self::DIRECTORY);
+        }
+    }
 
     public function pathFor(string $applicationId): string
     {
@@ -17,8 +25,24 @@ class IncomingLoanApplicationStore
 
     public function put(string $applicationId, array $payload): string
     {
+        $this->ensureDirectory();
+
         $path = $this->pathFor($applicationId);
-        Storage::disk('local')->put($path, json_encode($payload, JSON_UNESCAPED_UNICODE));
+        $written = Storage::disk('local')->put(
+            $path,
+            json_encode($payload, JSON_UNESCAPED_UNICODE),
+        );
+
+        if ($written === false || !Storage::disk('local')->exists($path)) {
+            Log::error('Failed to persist incoming loan application payload', [
+                'application_id' => $applicationId,
+                'path' => $path,
+            ]);
+
+            throw new \RuntimeException(
+                "Could not store loan application payload for {$applicationId}",
+            );
+        }
 
         return $path;
     }

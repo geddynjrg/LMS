@@ -6,7 +6,12 @@
     'optionValue' => '',
     'icon' => 'fa fa-layer-group',
     'size' => 48,
+    'teleport' => false,
 ])
+
+@php
+    $useTeleport = filter_var($teleport, FILTER_VALIDATE_BOOLEAN);
+@endphp
 
 <div x-data="{
         open: false,
@@ -30,7 +35,6 @@
         },
 
         init() {
-            // Watch for when the dropdown opens to focus the search
             this.$watch('open', value => {
                 if (value) {
                     this.$nextTick(() => {
@@ -39,7 +43,6 @@
                 }
             });
 
-            // Watch for options changes from Livewire
             this.$watch('options', (newOptions) => {
                 if (newOptions && Array.isArray(newOptions)) {
                     this.options = newOptions;
@@ -73,7 +76,8 @@
     class="position-relative w-100">
 
     {{-- Trigger Button --}}
-    <div @click="open = !open"
+    <div x-ref="trigger"
+         @click="open = !open"
          class="form-control d-flex align-items-center justify-content-between"
          :class="open ? 'border-primary shadow-sm' : ''"
          style='height: {{ $size }}px; border-radius: 12px; cursor: pointer; transition: all 0.2s; padding-right: 12px; position: relative;'>
@@ -92,7 +96,6 @@
                 </template>
             </div>
 
-            {{-- Use displayLabel getter here --}}
             <span x-text="displayLabel"
                 :class="!value ? 'text-muted' : 'text-dark font-weight-bold'"
                 class="text-truncate"
@@ -100,12 +103,10 @@
         </div>
 
         <div class="d-flex align-items-center">
-            {{-- Loading Spinner (Shows only when Livewire is updating) --}}
             <div wire:loading wire:target="{{ $model }}" class="mr-2">
                 <i class="fas fa-circle-notch fa-spin text-primary" style="font-size: 0.9rem;"></i>
             </div>
 
-            {{-- Clear Button (Hidden while loading) --}}
             <template x-if="value">
                 <button wire:loading.remove wire:target="{{ $model }}"
                         @click.stop="clear()"
@@ -116,7 +117,6 @@
                 </button>
             </template>
 
-            {{-- Chevron Icon (Hidden while loading) --}}
             <i wire:loading.remove wire:target="{{ $model }}"
                @click="open = !open"
                class="fas fa-chevron-down text-muted small"
@@ -125,59 +125,23 @@
         </div>
     </div>
 
-    {{-- Dropdown Panel --}}
-    <div x-show="open"
-         x-cloak
-         x-transition:enter="animate__animated animate__fadeIn animate__fastest"
-         @click.away="open = false"
-         class="position-absolute w-100 bg-white shadow-lg mt-2"
-         style="z-index: 1090; border-radius: 12px; border: 1px solid rgba(0,0,0,.12); overflow: hidden;">
-
-        <div class="p-2 border-bottom bg-white">
-            <div class="input-group input-group-sm bg-light rounded-pill px-2" style="border: 1px solid #eee;">
-                <div class="input-group-prepend border-0">
-                    <span class="input-group-text bg-transparent border-0 text-muted">
-                        <i class="fas fa-search"></i>
-                    </span>
-                </div>
-                <input type="text"
-                       x-model="search"
-                       x-ref="searchField"
-                       @click.stop
-                       class="form-control border-0 bg-transparent shadow-none py-2"
-                       placeholder="Filter options..."
-                       style="font-size: 0.9rem;">
-            </div>
-        </div>
-
-        <div style="max-height: 220px; overflow-y: auto;" class="py-1 custom-scrollbar">
-            <template x-for="(option, index) in filteredOptions" :key="index">
-                <div x-show="option" class="w-100">
-                    <button type="button"
-                            @click="select(option)"
-                            class="dropdown-item d-flex align-items-center justify-content-between py-2 px-3 mb-1 mx-1 rounded-lg"
-                            style="width: calc(100% - 10px); transition: 0.2s; border: none;">
-                       <span x-text="option ? option['{{ $optionLabel }}'] : ''" class="text-left" style="white-space: normal; line-height: 1.35;"></span>
-
-            {{-- Use x-if for the checkmark to avoid reference errors --}}
-            <template x-if="option && value == option['{{ $optionValue }}']">
-                <i class="fas fa-check-circle text-primary"></i>
-            </template>
-                    </button>
-                </div>
-            </template>
-
-            <div x-show="!filteredOptions || filteredOptions.length === 0" class="text-center py-4 text-muted">
-                <i class="fas fa-search d-block mb-2 opacity-25 fa-2x"></i>
-                <div class="small px-3">
-                    No results found
-                    <template x-if="search">
-                        <span>for "<span class="font-weight-bold text-dark" x-text="search"></span>"</span>
-                    </template>
-                </div>
-            </div>
-        </div>
-    </div>
+    @if($useTeleport)
+        <template x-teleport="body">
+            @include('components.partials.dropdown-search-panel', [
+                'model' => $model,
+                'optionLabel' => $optionLabel,
+                'optionValue' => $optionValue,
+                'teleport' => true,
+            ])
+        </template>
+    @else
+        @include('components.partials.dropdown-search-panel', [
+            'model' => $model,
+            'optionLabel' => $optionLabel,
+            'optionValue' => $optionValue,
+            'teleport' => false,
+        ])
+    @endif
 </div>
 
 <style>

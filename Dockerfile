@@ -53,6 +53,7 @@ RUN mkdir -p storage/framework/sessions \
     storage/framework/views \
     storage/framework/cache \
     storage/logs \
+    storage/app/incoming-loan-applications \
     bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
@@ -61,6 +62,9 @@ RUN git config --global --add safe.directory /var/www/html
 
 # Increase memory limit
 RUN echo "memory_limit=512M" > /usr/local/etc/php/conf.d/memory-limit.ini
+
+# Large JSON POST bodies from the loans portal (base64 file attachments)
+COPY .docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
 
 # Copy custom vhost (Laravel public directory)
 COPY .docker/vhost.conf /etc/apache2/sites-available/000-default.conf

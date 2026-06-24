@@ -308,7 +308,8 @@ class LoanPhase extends Model
     {
         return $this->status === 'draft'
             && $this->has_minutes
-            && $this->has_bank_reconciliation;
+            && $this->has_bank_reconciliation
+            && ($this->has_request_for_transfer_letter ?? false);
     }
 
 }

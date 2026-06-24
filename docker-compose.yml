@@ -30,6 +30,14 @@ services:
       - DB_DATABASE=uwezo_fund03
       - DB_USERNAME=uwezo_admin
       - DB_PASSWORD=ENj7uhXIxjG7BDHjCqM0bGDSN
+      - MAIL_MAILER=${MAIL_MAILER:-smtp}
+      - MAIL_HOST=${MAIL_HOST:-mail.govmail.ke}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-tls}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-loans@uwezo.go.ke}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Uwezo Fund}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:80"]
       interval: 30s
@@ -75,6 +83,14 @@ services:
     environment:
       - DB_HOST=uwezo-lms-db
       - DB_PORT=3306
+      - MAIL_MAILER=${MAIL_MAILER:-smtp}
+      - MAIL_HOST=${MAIL_HOST:-mail.govmail.ke}
+      - MAIL_PORT=${MAIL_PORT:-587}
+      - MAIL_USERNAME=${MAIL_USERNAME:-}
+      - MAIL_PASSWORD=${MAIL_PASSWORD:-}
+      - MAIL_ENCRYPTION=${MAIL_ENCRYPTION:-tls}
+      - MAIL_FROM_ADDRESS=${MAIL_FROM_ADDRESS:-loans@uwezo.go.ke}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-Uwezo Fund}
     networks:
       - uwezo-network
       - ddev_bridge

@@ -69,6 +69,10 @@
         background-color: #ffffff;
     }
 
+    .modal.custom-action-modal {
+        overflow: visible !important;
+    }
+
     .modal.custom-action-modal.fade .modal-dialog {
         transform: scale(0.85);
         transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);

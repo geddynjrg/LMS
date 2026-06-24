@@ -521,6 +521,7 @@
         <x-action-modal
             id="assign-to-phase-modal"
             title="Quick Phase Assignment"
+            :wire-ignore="false"
             x-on:open-modal.window="if($event.detail.name === 'assign-to-phase-modal') $($el).modal('show')"
             x-on:close-modal.window="if($event.detail.name === 'assign-to-phase-modal') $($el).modal('hide')"
          >
@@ -533,6 +534,7 @@
                     optionLabel="phase"
                     optionValue="id"
                     placeholder="Choose Phase"
+                    :teleport="true"
                 />
 
                 <div class="mt-2 d-flex align-items-start">

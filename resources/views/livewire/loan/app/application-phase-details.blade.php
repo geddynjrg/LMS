@@ -562,7 +562,7 @@
                                 </div>
                                 <div class="card-body py-2">
                                     <p class="text-xs text-gray-500 mb-2">
-                                        Both documents below are required before you can submit this phase to HQ.
+                                        All documents listed below are required before you can submit this phase to HQ.
                                     </p>
                                     <ul class="list-unstyled mb-0">
                                         @foreach($this->mandatoryHqSubmissionDocuments as $mandatoryDoc)
@@ -668,14 +668,14 @@
 
                         @if($this->canUploadRequestForTransferLetter())
                                 <div class="card shadow-sm mb-4 border-0">
-                                    <div class="card-header bg-light border-0 py-2">
+                                    <div class="card-header bg-amber-50 border-0 py-2">
                                         <span class="text-xs font-weight-bold text-uppercase text-navy">
-                                            <i class="fas fa-file-signature mr-1 text-info"></i> Optional Document
+                                            <i class="fas fa-exclamation-triangle mr-1"></i> Missing Mandatory Document
                                         </span>
                                     </div>
                                     <div class="card-body pt-1 pb-3">
                                         <p class="text-xs text-gray-500 mb-2">
-                                            Upload the request for transfer letter if available. This is <strong>not mandatory</strong> for HQ submission but will be visible to accounts when uploaded.
+                                            You must upload the request for transfer letter before submitting this phase to HQ. It will also be visible to accounts after upload.
                                         </p>
                                         <div class="form-group my-3 premium-file-container">
                                             <label class="small font-weight-bold text-uppercase text-muted mb-2">Request for Transfer Letter (PDF/Word)</label>
@@ -707,7 +707,7 @@
                             <div class="card shadow-sm border-0 border-top border-success mt-auto flex-shrink-0 animate__animated animate__fadeIn">
                                 @if ($this->hasAllMandatoryHqDocuments() && $detailedPhase->pending_count == 0)
                                     <div class="card-body">
-                                        <p class="text-xs text-gray-600">By submitting, you confirm that committee minutes and both current bank reconciliations are uploaded and amounts match the Excel sheets.</p>
+                                        <p class="text-xs text-gray-600">By submitting, you confirm that committee minutes, both current bank reconciliations, and the request for transfer letter are uploaded and amounts match the Excel sheets.</p>
 
                                         <div class="d-flex justify-content-center mt-2">
                                             <x-modal-trigger
@@ -721,7 +721,7 @@
                                     </div>
                                 @else
                                     <div class="card-body">
-                                        <p class="text-xs text-gray-600">To submit the phase to HQ, complete reviewing all applications, upload signed committee minutes, both current bank reconciliations (main account and loan repayment), and ensure at least one application is approved.</p>
+                                        <p class="text-xs text-gray-600">To submit the phase to HQ, complete reviewing all applications, upload signed committee minutes, both current bank reconciliations (main account and loan repayment), the request for transfer letter, and ensure at least one application is approved.</p>
                                         @if($missing = $this->missingMandatoryHqDocuments())
                                             <p class="text-xs text-danger mb-0 mt-2">
                                                 <i class="fas fa-exclamation-circle mr-1"></i>
@@ -734,14 +734,14 @@
                         @elseif($this->detailedPhase->status === 'submitted_to_hq')
                             @if($this->canUploadRequestForTransferLetter())
                                 <div class="card shadow-sm mb-4 border-0">
-                                    <div class="card-header bg-light border-0 py-2">
+                                    <div class="card-header bg-amber-50 border-0 py-2">
                                         <span class="text-xs font-weight-bold text-uppercase text-navy">
-                                            <i class="fas fa-file-signature mr-1 text-info"></i> Optional Document
+                                            <i class="fas fa-exclamation-triangle mr-1"></i> Missing Mandatory Document
                                         </span>
                                     </div>
                                     <div class="card-body pt-1 pb-3">
                                         <p class="text-xs text-gray-500 mb-2">
-                                            Upload the request for transfer letter if available. This is optional but visible to accounts when uploaded.
+                                            Upload the request for transfer letter. This is required for HQ submission and visible to accounts when uploaded.
                                         </p>
                                         <div class="form-group my-3 premium-file-container">
                                             <label class="small font-weight-bold text-uppercase text-muted mb-2">Request for Transfer Letter (PDF/Word)</label>
@@ -1247,9 +1247,9 @@
             </tr>
         </table>
 
-        <div class="form-group">
+        <div class="form-group" wire:key="phase-submission-remarks">
             <label class="text-xs font-weight-bold text-uppercase">Final Committee Remarks (Optional)</label>
-            <textarea class="form-control" wire:model.live="remarks" rows="3" placeholder="Enter any final notes for HQ..."></textarea>
+            <textarea class="form-control" wire:model.blur="remarks" rows="3" placeholder="Enter any final notes for HQ..."></textarea>
             @error('remarks') <small class="text-danger d-block mt-1 font-weight-bold">{{ $message }}</small> @enderror
         </div>
 
