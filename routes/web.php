@@ -132,6 +132,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('/phases', [SecretariatController::class, 'index'])->name('phases.index');
             Route::get('/phases/{phase}/review', [SecretariatController::class, 'review'])->name('phases.review');
             Route::get('/phases/{phase}/code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'download'])->name('phases.code-list');
+            Route::get('/phases/{phase}/processed-code-list/preview', [\App\Http\Controllers\ProcessedCodeListController::class, 'preview'])->name('phases.processed_code_list.preview');
             Route::get('/phases/{phase}/approved-code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'downloadSigned'])->name('phases.approved_code_list');
         });
 

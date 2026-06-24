@@ -20,6 +20,15 @@
                                     <a href="{{ route('accountant.phases.review', $phase) }}" class="text-teal">Phase review</a>
                                 </li>
                             @endif
+                        @elseif(auth()->user()?->hasRole('head_of_secretariat'))
+                            <li class="breadcrumb-item">
+                                <a href="{{ route('secretariat.phases.index') }}" style="color:#4f46e5;">Secretariat</a>
+                            </li>
+                            @if($phase)
+                                <li class="breadcrumb-item">
+                                    <a href="{{ route('secretariat.phases.review', $phase) }}" style="color:#4f46e5;">Phase review</a>
+                                </li>
+                            @endif
                         @endif
                         <li class="breadcrumb-item active" aria-current="page">Document preview</li>
                     </ol>

@@ -122,6 +122,79 @@
     overflow: visible;
 }
 
+/* Head of Secretariat phase review */
+.secretariat-review-page .secretariat-stepper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.secretariat-review-page .secretariat-step {
+    flex: 1 1 140px;
+    min-width: 120px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 0.85rem 1rem;
+    background: #fff;
+    position: relative;
+}
+
+.secretariat-review-page .secretariat-step.is-done {
+    border-color: #86efac;
+    background: #f0fdf4;
+}
+
+.secretariat-review-page .secretariat-step.is-current {
+    border-color: #6366f1;
+    background: #eef2ff;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+.secretariat-review-page .secretariat-step.is-waiting {
+    opacity: 0.72;
+}
+
+.secretariat-review-page .secretariat-step-index {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    background: #e5e7eb;
+    color: #374151;
+}
+
+.secretariat-review-page .secretariat-step.is-done .secretariat-step-index {
+    background: #059669;
+    color: #fff;
+}
+
+.secretariat-review-page .secretariat-step.is-current .secretariat-step-index {
+    background: #4f46e5;
+    color: #fff;
+}
+
+.secretariat-review-page .text-navy {
+    color: #1e293b;
+}
+
+.secretariat-review-page .btn-indigo {
+    background: #4f46e5;
+    border-color: #4f46e5;
+    color: #fff;
+}
+
+.secretariat-review-page .btn-indigo:hover {
+    background: #4338ca;
+    border-color: #4338ca;
+    color: #fff;
+}
+
 .hq-allocations-shell .hq-filter-card,
 .hq-allocations-shell .hq-filter-card .card-body {
     overflow: visible !important;

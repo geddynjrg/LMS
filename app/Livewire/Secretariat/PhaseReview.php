@@ -33,7 +33,7 @@ class PhaseReview extends Component
             'hqOfficer:id,name',
             'assignedHqOfficer:id,name',
             'phaseApplicationDocuments',
-            'constituency:constituency_code,constituency_name',
+            'constituency:constituency_code,constituency_name,constituency_bank_balance',
         ]);
 
         $next = $this->secretariatService->nextPendingApprovalType($this->phase);
@@ -176,6 +176,11 @@ class PhaseReview extends Component
             $progress['is_complete'] ? null : $this->phase->id
         );
 
+        $totalApproved = $this->secretariatService->phaseRequestedAmount($this->phase);
+        $applicationCount = $this->phase->phaseApplications()
+            ->whereNotIn('status', ['rejected', 'deferred'])
+            ->count();
+
         return view('livewire.secretariat.phase-review', [
             'approvals' => $this->phase->secretariatApprovals->keyBy('approval_type'),
             'approvalTypes' => $approvalTypes,
@@ -184,6 +189,9 @@ class PhaseReview extends Component
             'requiresFundTransfer' => $this->secretariatService->requiresFundTransferAuthorization($this->phase),
             'completionSummary' => $this->secretariatService->completionSummary($this->phase),
             'nextPendingPhase' => $nextPendingPhase,
+            'totalApproved' => $totalApproved,
+            'applicationCount' => $applicationCount,
+            'bankBalance' => $this->phase->constituency?->constituency_bank_balance,
         ]);
     }
 }

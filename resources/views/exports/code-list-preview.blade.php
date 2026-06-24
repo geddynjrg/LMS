@@ -17,6 +17,10 @@
                     <a href="{{ route('hq.submissions.phase.processed_code_list', $phase) }}" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-download mr-1"></i> Download Excel
                     </a>
+                @elseif(request()->routeIs('secretariat.*'))
+                    <a href="{{ route('secretariat.phases.code-list', $phase) }}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-download mr-1"></i> Download Excel
+                    </a>
                 @elseif(request()->routeIs('accountant.*'))
                     <a href="{{ route('accountant.phases.processed_code_list', $phase) }}" class="btn btn-outline-primary btn-sm">
                         <i class="fas fa-download mr-1"></i> Download Excel
