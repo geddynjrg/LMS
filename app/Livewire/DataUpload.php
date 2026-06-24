@@ -179,6 +179,7 @@ class DataUpload extends Component
             ];
 
             $this->loanPhasesData = null;
+            unset($this->getPhases);
 
             $this->dispatch('swal:toast',
                 title: 'Data Upload 😊',
@@ -227,7 +228,10 @@ class DataUpload extends Component
     #[Computed]
     public function getPhases()
     {
-        return $this->loanPhaseService->getPhasesForConstituencyByStatus($this->constituency->constituency_code, 'disbursed');
+        return $this->loanPhaseService
+            ->getAllPhasesForConstituency($this->constituency->constituency_code)
+            ->sortBy('phase', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
     }
 
     public function groupsForm()
