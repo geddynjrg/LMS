@@ -19,6 +19,7 @@ use App\Http\Controllers\Hq\HqReportController;
 use App\Http\Controllers\Secretariat\SecretariatController;
 use App\Http\Controllers\Accountant\AccountantController;
 use App\Http\Controllers\PhaseDocumentController;
+use App\Http\Controllers\HelpController;
 
 /*
 |--------------------------------------------------------------------------
@@ -67,6 +68,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/help', [HelpController::class, 'index'])->name('help.index');
 
     // --- HQ / National Administration Routes ---
     Route::middleware(['role:super-admin|hq_officer'])

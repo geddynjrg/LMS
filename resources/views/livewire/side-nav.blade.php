@@ -47,6 +47,57 @@
         <nav class="mt-2">
             <ul class="nav nav-pills nav-sidebar flex-column nav-flatt nav-child-indent nav-compact" data-widget="treeview" role="menu" data-accordion="false">
 
+            @auth
+            <li class="nav-header text-uppercase text-xs text-muted">Support</li>
+            <li class="nav-item {{ Route::is('help.*') ? 'menu-open' : '' }}">
+                <a href="#" class="nav-link {{ Route::is('help.*') ? 'active' : '' }}">
+                    <i class="nav-icon fas fa-life-ring text-info"></i>
+                    <p>
+                        Help &amp; Support
+                        <i class="right fas fa-angle-left"></i>
+                    </p>
+                </a>
+                <ul class="nav nav-treeview">
+                    <li class="nav-item">
+                        <a href="{{ route('help.index') }}#getting-started" class="nav-link">
+                            <i class="fas fa-play-circle nav-icon text-xs"></i>
+                            <p>Getting started</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ route('help.index') }}#applications" class="nav-link">
+                            <i class="fas fa-tasks nav-icon text-xs"></i>
+                            <p>Applications</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ route('help.index') }}#training" class="nav-link">
+                            <i class="fas fa-chalkboard-teacher nav-icon text-xs"></i>
+                            <p>Training &amp; disbursement</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ route('help.index') }}#reports" class="nav-link">
+                            <i class="fas fa-file-alt nav-icon text-xs"></i>
+                            <p>Reports &amp; uploads</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ route('help.index') }}#troubleshooting" class="nav-link">
+                            <i class="fas fa-wrench nav-icon text-xs"></i>
+                            <p>Troubleshooting</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="{{ route('help.index') }}#contact" class="nav-link">
+                            <i class="fas fa-envelope nav-icon text-xs"></i>
+                            <p>Contact support</p>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            @endauth
+
             @hasrole('accountant|super-admin')
                 <li class="nav-header text-uppercase text-xs text-muted">Accounts</li>
                 <li class="nav-item">
