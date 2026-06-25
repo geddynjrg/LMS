@@ -14,6 +14,8 @@ use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 
 class MembersTemplateExport implements WithHeadings, WithEvents
 {
+    private const DATA_ROW_LIMIT = 10000;
+
     protected $phases;
     protected $yesNo = ['Yes', 'No'];
     protected $loan_types = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
@@ -48,7 +50,7 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
                 $highestColumn = $event->sheet->getHighestColumn();
-                $rowLimit = 2000;
+                $rowLimit = self::DATA_ROW_LIMIT;
 
                 $this->styleHeader($sheet);
 

@@ -15,6 +15,8 @@ use PhpOffice\PhpSpreadsheet\Style\Protection;
 
 class LoanTemplateExport implements WithHeadings, WithEvents
 {
+    private const DATA_ROW_LIMIT = 10000;
+
     protected $wards;
     protected $phases;
     protected $loan_types = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
@@ -52,7 +54,7 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
 
-                $limit = 2000;
+                $limit = self::DATA_ROW_LIMIT;
                 $highestColumn = $event->sheet->getHighestColumn();
 
                 // 1. HEADER & TOTALS (Rows 1 and 2)
@@ -66,23 +68,10 @@ class LoanTemplateExport implements WithHeadings, WithEvents
                 $sheet->getStyle("K2:M2")->getNumberFormat()->setFormatCode('#,##0');
                 $sheet->getStyle("A2:M2")->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFF3F4F6');
 
-                // 2. DYNAMIC S/NO (Column A)
-
-                $sheet->getStyle("A3:{$highestColumn}{$limit}")
-                    ->getProtection()
-                    ->setLocked(Protection::PROTECTION_UNPROTECTED);
-
-                // 3. PROTECT STRUCTURE, UNLOCK DATA
-                $sheet->getStyle("B3:{$highestColumn}{$limit}")
-                    ->getProtection()
-                    ->setLocked(\PhpOffice\PhpSpreadsheet\Style\Protection::PROTECTION_UNPROTECTED);
-
-                $sheet->getProtection()->setSheet(true);
-
-                // 4. DATA VALIDATIONS (Applied to the whole range at once)
+                // 2. DATA VALIDATIONS (Applied to the whole range at once)
                 $this->applyDynamicValidations($sheet, $limit);
 
-                // 5. GLOBAL STYLING & DROPDOWNS
+                // 3. GLOBAL STYLING & DROPDOWNS
                 $this->applyStyles($sheet, $highestColumn, $limit);
 
                 $this->addDropdown($sheet, 'D', $this->wards, $limit);
@@ -90,6 +79,8 @@ class LoanTemplateExport implements WithHeadings, WithEvents
                 $this->addDropdown($sheet, 'F', $this->loan_types, $limit);
                 $this->addDropdown($sheet, 'I', $this->categories, $limit);
                 $this->addDropdown($sheet, 'J', $this->sectors, $limit);
+
+                $this->prepareEditableDataArea($sheet, $highestColumn, $limit);
 
                 // Freeze Rows 1 and 2 (Headings and Totals)
                 $sheet->freezePane('A3');
@@ -212,5 +203,17 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             ->setError('Please select a valid option from the list.')
             ->setFormula1($list)
             ->setSqref("{$column}2:{$column}{$maxRows}");
+    }
+
+    /**
+     * Keep data cells editable (no worksheet protection — avoids Excel lock errors past row limit).
+     */
+    private function prepareEditableDataArea(Worksheet $sheet, string $highestColumn, int $rowLimit): void
+    {
+        $sheet->getStyle("A1:{$highestColumn}{$rowLimit}")
+            ->getProtection()
+            ->setLocked(Protection::PROTECTION_UNPROTECTED);
+
+        $sheet->getProtection()->setSheet(false);
     }
 }
