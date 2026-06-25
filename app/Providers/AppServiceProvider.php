@@ -34,12 +34,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         if (config('app.env') !== 'local') {
-            URL::forceScheme('https');
-
-            $appUrl = config('app.url');
-            if (is_string($appUrl) && $appUrl !== '') {
-                URL::forceRootUrl(rtrim($appUrl, '/'));
-            }
+            $this->configureApplicationUrl();
 
             // Vite dev marker breaks CSS/JS on staging/production (loads localhost:5173).
             $hotFile = public_path('hot');
@@ -74,5 +69,43 @@ class AppServiceProvider extends ServiceProvider
                 'full'    => "FY " . $startYear . "/" . $endYear
             ]);
         });
+    }
+
+    /**
+     * Use the incoming host for URL generation so staging and production domains
+     * can share one LMS instance without cross-domain login/CSRF failures.
+     */
+    private function configureApplicationUrl(): void
+    {
+        URL::forceScheme('https');
+
+        $allowedHosts = [
+            'lms-staging.uwezo.go.ke',
+            'lms.uwezo.go.ke',
+        ];
+
+        if ($this->app->runningInConsole()) {
+            $appUrl = config('app.url');
+            if (is_string($appUrl) && $appUrl !== '') {
+                URL::forceRootUrl(rtrim($appUrl, '/'));
+            }
+
+            return;
+        }
+
+        $host = request()->getHost();
+
+        if (in_array($host, $allowedHosts, true)) {
+            $rootUrl = 'https://'.$host;
+            URL::forceRootUrl($rootUrl);
+            config(['app.asset_url' => $rootUrl]);
+
+            return;
+        }
+
+        $appUrl = config('app.url');
+        if (is_string($appUrl) && $appUrl !== '') {
+            URL::forceRootUrl(rtrim($appUrl, '/'));
+        }
     }
 }
