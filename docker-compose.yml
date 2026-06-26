@@ -9,7 +9,7 @@ services:
     image: uwezo-lms-app
     container_name: uwezo-lms-app
     restart: unless-stopped
-    command: ["apache2-foreground"]
+    command: ["sh", "-c", "cp /var/www/html/.docker/php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini && apache2-foreground"]
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html
