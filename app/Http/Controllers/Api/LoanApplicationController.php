@@ -261,6 +261,18 @@ class LoanApplicationController extends Controller
         }
 
         if ($payloadStore->exists($applicationId)) {
+            $importError = $payloadStore->getImportError($applicationId);
+            if ($importError) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'status' => 'failed',
+                        'application_id' => $applicationId,
+                        'error' => $importError,
+                    ],
+                ]);
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => [

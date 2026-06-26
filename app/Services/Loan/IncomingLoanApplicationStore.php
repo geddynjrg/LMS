@@ -2,12 +2,15 @@
 
 namespace App\Services\Loan;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class IncomingLoanApplicationStore
 {
     private const DIRECTORY = 'incoming-loan-applications';
+
+    public const IMPORT_ERROR_CACHE_PREFIX = 'loan_app_import_error:';
 
     private function ensureDirectory(): void
     {
@@ -26,6 +29,7 @@ class IncomingLoanApplicationStore
     public function put(string $applicationId, array $payload): string
     {
         $this->ensureDirectory();
+        $this->clearImportError($applicationId);
 
         $path = $this->pathFor($applicationId);
         $written = Storage::disk('local')->put(
@@ -70,6 +74,29 @@ class IncomingLoanApplicationStore
         if (Storage::disk('local')->exists($path)) {
             Storage::disk('local')->delete($path);
         }
+
+        $this->clearImportError($applicationId);
+    }
+
+    public function recordImportError(string $applicationId, string $error): void
+    {
+        Cache::put(
+            self::IMPORT_ERROR_CACHE_PREFIX . $applicationId,
+            substr($error, 0, 1000),
+            now()->addDay(),
+        );
+    }
+
+    public function getImportError(string $applicationId): ?string
+    {
+        $error = Cache::get(self::IMPORT_ERROR_CACHE_PREFIX . $applicationId);
+
+        return is_string($error) && $error !== '' ? $error : null;
+    }
+
+    public function clearImportError(string $applicationId): void
+    {
+        Cache::forget(self::IMPORT_ERROR_CACHE_PREFIX . $applicationId);
     }
 
     /**

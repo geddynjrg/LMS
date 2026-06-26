@@ -74,10 +74,14 @@ class ProcessLoanApplication implements ShouldQueue
             );
 
             if ($validator->fails()) {
+                $errorSummary = collect($validator->errors()->all())->implode('; ');
+
                 Log::warning('Validation failed in queue job', [
                     'application_id' => $this->applicationId,
                     'errors' => $validator->errors()->toArray(),
                 ]);
+
+                $store->recordImportError($this->applicationId, $errorSummary);
 
                 throw new \Illuminate\Validation\ValidationException($validator);
             }
@@ -100,6 +104,8 @@ class ProcessLoanApplication implements ShouldQueue
                 'application_id' => $this->applicationId,
                 'error' => $e->getMessage(),
             ]);
+
+            $store->recordImportError($this->applicationId, $e->getMessage());
 
             throw $e;
         } finally {
