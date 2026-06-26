@@ -1800,13 +1800,14 @@ class ApplicationPhaseDetails extends Component
     {
         switch ($document) {
             case 'code_list':
-                $query  = $this->exportService->exportCodeList($this->phase->id);
+                $query  = $this->exportService->exportConstituencyCodeList($this->phase->id);
                 try {
                     $fileName = "Code_List_{$this->constituency->constituency_name}_" . now()->format('Ymd_His') . ".xlsx";
 
                     return Excel::download(
                         new ConstituencyCodeListExport(
-                                $query
+                                $query,
+                                $this->phase
                             ),
                         $fileName
                     );

@@ -13,11 +13,26 @@ use App\Models\TempApplication;
 
 class ExportService
 {
-    public function exportCodeList($phaseId, ?string $constituency = null) : Builder
+    /**
+     * Constituency officer Generated Files → Code List.
+     * Includes pending applications still under constituency review.
+     */
+    public function exportConstituencyCodeList(int $phaseId): Builder
+    {
+        return $this->codeListBaseQuery($phaseId)
+            ->whereNotIn('status', ['rejected', 'deferred']);
+    }
+
+    public function exportCodeList($phaseId, ?string $constituency = null): Builder
+    {
+        return $this->codeListBaseQuery($phaseId)
+            ->whereNotIn('status', ['rejected', 'deferred', 'pending']);
+    }
+
+    private function codeListBaseQuery(int $phaseId): Builder
     {
         $query = PhaseApplication::query()
             ->where('loan_phase_id', $phaseId)
-            ->whereNotIn('status', ['rejected', 'deferred', 'pending'])
             ->select([
                 'id',
                 'loan_phase_id',

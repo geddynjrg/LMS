@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\LoanPhase;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromQuery;
@@ -45,11 +46,13 @@ class ConstituencyCodeListExport extends DefaultValueBinder implements
     use Exportable;
 
     protected $query;
+    protected ?LoanPhase $phase;
     protected int $rowNumber = 0;
 
-    public function __construct($query)
+    public function __construct($query, ?LoanPhase $phase = null)
     {
         $this->query = $query;
+        $this->phase = $phase;
     }
 
     public function startCell(): string
@@ -108,8 +111,9 @@ class ConstituencyCodeListExport extends DefaultValueBinder implements
     public function map($app): array
     {
         $this->rowNumber++;
-        $businessType = $app->tempApplication->business_type;
-        $currentActivity = is_array($businessType) ? ($businessType[0] ?? 'N/A') : $businessType;
+        $temp = $app->tempApplication;
+        $businessType = $temp?->business_type;
+        $currentActivity = is_array($businessType) ? ($businessType[0] ?? 'N/A') : ($businessType ?? 'N/A');
 
         $prevAmount = '0';
         $loanLevel = 'L1';
@@ -119,17 +123,20 @@ class ConstituencyCodeListExport extends DefaultValueBinder implements
             $loanLevel = 'L' . ($app->loan_level ?? 1);
         }
 
+        $applied = $app->amount_applied ?? $temp?->loan_amount ?? '0';
+        $recommended = $app->amount_approved ?? '0';
+
         return [
             $this->rowNumber,
-            $app->group_code,
-            Str::upper($app->tempApplication->group_name ?? 'N/A'),
+            $app->group_code ?? '',
+            Str::upper($temp->group_name ?? 'N/A'),
             $app->gfs_code ?? 'N/A',
-            $app->amount_applied,
+            $applied,
             Str::upper((string) $currentActivity),
             $prevAmount,
             $loanLevel,
-            $app->amount_approved ?? 0,
-            Str::upper($app->tempApplication->nature_of_business ?? 'N/A'),
+            $recommended,
+            Str::upper($temp->nature_of_business ?? 'N/A'),
         ];
     }
 
@@ -144,50 +151,50 @@ class ConstituencyCodeListExport extends DefaultValueBinder implements
                 $dataStartRow = 8;
                 $highestRow = $sheet->getHighestRow();
                 $highestCol = $sheet->getHighestColumn();
-                $totalRow = $highestRow + 1;
+                $hasDataRows = $highestRow >= $dataStartRow;
+                $totalRow = $hasDataRows ? $highestRow + 1 : $highestRow;
 
-                $firstRecord = $this->query->first();
-                if (! $firstRecord) {
+                $metadata = $this->resolveDocumentMetadata();
+                if ($metadata === null) {
                     return;
                 }
 
-                $constituencyName = $firstRecord->reviewPhase->constituency->constituency_name ?? 'N/A';
-                $constCode = $firstRecord->reviewPhase->constituency_code ?? 'N/A';
-                $countyName = $firstRecord->reviewPhase->constituency->county->county_name ?? 'N/A';
-                $phase = $firstRecord->reviewPhase->phase ?? 'N/A';
+                if ($hasDataRows) {
+                    $sheet->setCellValue("D{$totalRow}", 'TOTAL');
+                    $sheet->setCellValue("E{$totalRow}", "=SUM(E{$dataStartRow}:E{$highestRow})");
+                    $sheet->setCellValue("I{$totalRow}", "=SUM(I{$dataStartRow}:I{$highestRow})");
 
-                $sheet->setCellValue("D{$totalRow}", 'TOTAL');
-                $sheet->setCellValue("E{$totalRow}", "=SUM(E{$dataStartRow}:E{$highestRow})");
-                $sheet->setCellValue("I{$totalRow}", "=SUM(I{$dataStartRow}:I{$highestRow})");
+                    $totalStyle = [
+                        'font' => ['bold' => true],
+                        'numberFormat' => ['formatCode' => '#,##0'],
+                    ];
 
-                $totalStyle = [
-                    'font' => ['bold' => true],
-                    'numberFormat' => ['formatCode' => '#,##0'],
-                ];
+                    $sheet->getStyle("D{$totalRow}:I{$totalRow}")->applyFromArray($totalStyle);
+                    $sheet->getStyle("D{$totalRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
 
-                $sheet->getStyle("D{$totalRow}:I{$totalRow}")->applyFromArray($totalStyle);
-                $sheet->getStyle("D{$totalRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+                    foreach (['E', 'G', 'I'] as $col) {
+                        $sheet->getStyle("{$col}{$dataStartRow}:{$col}{$highestRow}")
+                            ->getNumberFormat()
+                            ->setFormatCode('#,##0');
+                    }
 
-                foreach (['E', 'G', 'I'] as $col) {
-                    $sheet->getStyle("{$col}8:{$col}{$highestRow}")
-                        ->getNumberFormat()
-                        ->setFormatCode('#,##0');
+                    $sheet->getStyle("F{$dataStartRow}:F{$highestRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $sheet->getStyle("H{$dataStartRow}:H{$highestRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $sheet->getStyle("J{$dataStartRow}:J{$highestRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 }
 
                 $sheet->getStyle("A7:{$highestCol}{$totalRow}")->getBorders()->getAllBorders()
                     ->setBorderStyle(Border::BORDER_THIN);
 
-                $sheet->getStyle("F7:F{$highestRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("H7:H{$highestRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle("J7:J{$highestRow}")->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
                 $sheet->setCellValue('A1', 'UWEZO FUND');
-                $sheet->setCellValue('A2', 'CODE LIST ' . strtoupper($phase));
+                $sheet->setCellValue('A2', 'CODE LIST ' . strtoupper($metadata['phase']));
                 $sheet->setCellValue('A3', 'Republic of Kenya');
                 $sheet->setCellValue('A4', 'Uwezo Fund Oversight Board');
                 $sheet->setCellValue(
                     'A5',
-                    'Name of Constituency: ' . strtoupper($constituencyName) . " | IEBC Code: {$constCode} | County: " . strtoupper($countyName)
+                    'Name of Constituency: ' . strtoupper($metadata['constituency_name'])
+                    . " | IEBC Code: {$metadata['constituency_code']} | County: "
+                    . strtoupper($metadata['county_name'])
                 );
                 $sheet->setCellValue('A6', 'For the Month Ended: ' . now()->format('d F Y'));
 
@@ -201,6 +208,37 @@ class ConstituencyCodeListExport extends DefaultValueBinder implements
                 }
             },
         ];
+    }
+
+    /**
+     * @return array{phase: string, constituency_name: string, constituency_code: string, county_name: string}|null
+     */
+    private function resolveDocumentMetadata(): ?array
+    {
+        $firstRecord = (clone $this->query)->first();
+        if ($firstRecord?->reviewPhase) {
+            $phase = $firstRecord->reviewPhase;
+
+            return [
+                'phase' => $phase->phase ?? 'N/A',
+                'constituency_name' => $phase->constituency->constituency_name ?? 'N/A',
+                'constituency_code' => $phase->constituency_code ?? 'N/A',
+                'county_name' => $phase->constituency->county->county_name ?? 'N/A',
+            ];
+        }
+
+        if ($this->phase) {
+            $this->phase->loadMissing('constituency.county');
+
+            return [
+                'phase' => $this->phase->phase ?? 'N/A',
+                'constituency_name' => $this->phase->constituency->constituency_name ?? 'N/A',
+                'constituency_code' => $this->phase->constituency_code ?? 'N/A',
+                'county_name' => $this->phase->constituency->county->county_name ?? 'N/A',
+            ];
+        }
+
+        return null;
     }
 
     public function styles(Worksheet $sheet): array
