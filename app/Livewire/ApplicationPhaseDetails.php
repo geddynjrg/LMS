@@ -7,7 +7,6 @@ use Livewire\WithPagination;
 use Livewire\WithFileUploads;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
-use App\Exports\CodeListExport;
 use App\Exports\ConstituencyCodeListExport;
 use App\Exports\StandardVettedExport;
 use App\Exports\DisaggregatedDataExport;
@@ -63,7 +62,7 @@ class ApplicationPhaseDetails extends Component
     public $hasExistingIdentifier = false;
 
     public $generatedReports = [
-        ['id' => 'code_list', 'name' => 'Code List', 'meta' => 'Approved groups with GFS codes, loan levels & financial summary'],
+        ['id' => 'code_list', 'name' => 'Code List', 'meta' => 'GFS Codes, Loan Levels, Contact Persons & Financials'],
         ['id' => 'standard_vetted', 'name' => 'Standard Vetted Form', 'meta' => 'Full demographics, Bank info, & Sectors'],
         ['id' => 'disaggregated', 'name' => 'Disaggregated Data', 'meta' => 'Gender & PWD breakdown by Ward'],
         ['id' => 'disbursement', 'name' => 'Disbursement Report', 'meta' => 'Bank Accounts & Final Amounts'],
@@ -1803,10 +1802,10 @@ class ApplicationPhaseDetails extends Component
             case 'code_list':
                 $query  = $this->exportService->exportCodeList($this->phase->id);
                 try {
-                    $fileName = "Processed_Codelist_{$this->constituency->constituency_name}_" . now()->format('Ymd_His') . ".xlsx";
+                    $fileName = "Code_List_{$this->constituency->constituency_name}_" . now()->format('Ymd_His') . ".xlsx";
 
                     return Excel::download(
-                        new CodeListExport(
+                        new ConstituencyCodeListExport(
                                 $query
                             ),
                         $fileName
