@@ -387,12 +387,12 @@
                                                         <td class="text-right">
                                                             <div class="btn-group">
                                                                 @can('update member')
-                                                                    <button wire:click="editMember({{ $groupMember->member_Id }}, {{ $individualLoan->id }})" class="btn btn-xs btn-outline-primary" title="Edit">
+                                                                    <button type="button" wire:click="editMember('{{ $groupMember }}')" class="btn btn-xs btn-outline-primary" title="Edit">
                                                                         <i class="fas fa-edit"></i>
                                                                     </button>
                                                                 @endcan
                                                                 @can('delete member')
-                                                                    <button wire:click="removeMember({{ $groupMember->member->id }})" class="btn btn-xs btn-outline-danger ml-1" title="Delete">
+                                                                    <button type="button" wire:click="removeMember('{{ $groupMember }}')" class="btn btn-xs btn-outline-danger ml-1" title="Delete">
                                                                         <i class="fas fa-trash"></i>
                                                                     </button>
                                                                 @endcan

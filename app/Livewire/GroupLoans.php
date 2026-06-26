@@ -29,6 +29,8 @@ class GroupLoans extends Component
     public $dateTo;
     public $statusFilter;
     public $wardFilter;
+
+    #[Url(except: '')]
     public $phaseFilter;
 
     public $perPage = 15;

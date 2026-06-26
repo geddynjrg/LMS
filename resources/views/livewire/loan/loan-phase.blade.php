@@ -39,9 +39,12 @@
                                     <td class="text-right">{{number_format($loanPhase->grouploans->sum('amount_repaid'))}}</td>
                                     <td class="text-right">{{number_format($loanPhase->grouploans->sum('amount_issued') - $loanPhase->grouploans->sum('amount_repaid'))}}</td>
                                     <td class="text-center">
-                                        <button type="button" class="btn btn-sm btn-primary mr-2">
-                                            <span><i class="fas fa-eye"></i> View</span>
-                                        </button>
+                                        <a href="{{ route('const.loans.grouploans', ['county' => $county->slug, 'constituency' => $constituency->slug, 'phaseFilter' => $loanPhase->slug]) }}"
+                                           class="btn btn-sm btn-outline-info d-inline-flex align-items-center rounded-lg"
+                                           title="View group loans for this phase">
+                                            <i class="fas fa-eye"></i>
+                                            <span class="ml-1">View</span>
+                                        </a>
                                     </td>
                                 </tr>
                             @endforeach

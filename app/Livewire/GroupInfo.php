@@ -144,12 +144,8 @@ class GroupInfo extends Component
         $this->dispatch('show-addMember-modal');
     }
 
-    public function editMember($member_Id, $loan_id)
+    public function editMember($member)
     {
-
-        dd($member_Id, $loan_id);
-        $member = Member::findOrFail($id);
-
         $this->dispatch('editMember-modal', member: $member)->to(EditMember::class);
         $this->dispatch('show-editMember-modal');
     }
