@@ -864,14 +864,80 @@ class LoanPhaseService
 
     public function storeProcessedCodeListDocument(LoanPhase $phase, string $binary, string $originalFilename): void
     {
-        $phase->loadMissing('phaseApplicationDocuments');
+        $extension = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION) ?: 'xlsx');
+        if (! in_array($extension, ['xlsx', 'xls'], true)) {
+            $extension = 'xlsx';
+        }
 
-        $directory = "phases/{$phase->slug}";
-        $filename = 'processed-code-list-' . time() . '.xlsx';
+        $mimeType = $extension === 'xls'
+            ? 'application/vnd.ms-excel'
+            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+        $this->persistProcessedCodeListDocument(
+            $phase,
+            fn (string $directory) => $this->writeProcessedCodeListBinary($directory, $binary, $extension),
+            $originalFilename,
+            $mimeType,
+        );
+    }
+
+    public function storeProcessedCodeListFromUpload(LoanPhase $phase, $uploadedFile): void
+    {
+        $extension = strtolower($uploadedFile->getClientOriginalExtension() ?: '');
+        if ($extension === '') {
+            $extension = match ($uploadedFile->getMimeType()) {
+                'application/vnd.ms-excel' => 'xls',
+                default => 'xlsx',
+            };
+        }
+
+        if (! in_array($extension, ['xlsx', 'xls'], true)) {
+            throw ValidationException::withMessages([
+                'codeListFile' => 'Only Excel files (.xlsx, .xls) are accepted.',
+            ]);
+        }
+
+        if ($uploadedFile->getSize() > 5 * 1024 * 1024) {
+            throw ValidationException::withMessages([
+                'codeListFile' => 'The processed code list must not exceed 5MB.',
+            ]);
+        }
+
+        $this->persistProcessedCodeListDocument(
+            $phase,
+            fn (string $directory) => $uploadedFile->storeAs(
+                $directory,
+                'processed-code-list-' . time() . '.' . $extension,
+                'local',
+            ),
+            $uploadedFile->getClientOriginalName(),
+            $uploadedFile->getMimeType(),
+        );
+    }
+
+    protected function writeProcessedCodeListBinary(string $directory, string $binary, string $extension): string
+    {
+        $filename = 'processed-code-list-' . time() . '.' . $extension;
         $path = "{$directory}/{$filename}";
 
         Storage::disk('local')->put($path, $binary);
+
+        return $path;
+    }
+
+    protected function persistProcessedCodeListDocument(
+        LoanPhase $phase,
+        callable $storeFile,
+        string $originalFilename,
+        string $mimeType,
+    ): void {
+        $phase->loadMissing('phaseApplicationDocuments');
+
+        $directory = "phases/{$phase->slug}";
+        $path = $storeFile($directory);
         $this->ensurePhaseDocumentPermissions($path);
+        $filename = basename($path);
+        $size = Storage::disk('local')->size($path);
 
         try {
             DB::beginTransaction();
@@ -892,15 +958,15 @@ class LoanPhaseService
                 'original_filename' => $originalFilename,
                 'filename' => $filename,
                 'path' => $path,
-                'mime_type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'size' => strlen($binary),
+                'mime_type' => $mimeType,
+                'size' => $size,
                 'uploaded_by' => auth()->id(),
             ]);
 
             DB::commit();
         } catch (\Throwable $th) {
             DB::rollBack();
-            Log::error('Failed to store generated processed code list: ' . $th->getMessage());
+            Log::error('Failed to store processed code list: ' . $th->getMessage());
 
             if (Storage::disk('local')->exists($path)) {
                 Storage::disk('local')->delete($path);

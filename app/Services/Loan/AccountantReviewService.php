@@ -87,7 +87,7 @@ class AccountantReviewService
 
         if (! $this->phaseHasProcessedCodeList($phase)) {
             throw ValidationException::withMessages([
-                'phase' => 'Regenerate the processed code list before resubmitting to accounts.',
+                'phase' => 'Upload the processed code list before resubmitting to accounts.',
             ]);
         }
 

@@ -500,7 +500,7 @@
                                 </div>
                                 <div class="card-body pt-2 pb-3">
                                     <p class="text-xs text-gray-600 mb-2">
-                                        Accounts returned this phase for clarification. Regenerate the processed code list if needed, then explain what HQ has corrected before sending it back for review.
+                                        Accounts returned this phase for clarification. Upload the corrected processed code list, then explain what HQ has corrected before sending it back for review.
                                     </p>
                                     @if($this->detailedPhase->accountant_notes)
                                         <div class="alert alert-warning py-2 px-3 mb-3">
@@ -508,6 +508,22 @@
                                             <p class="text-xs mb-0">{{ $this->detailedPhase->accountant_notes }}</p>
                                         </div>
                                     @endif
+                                    @if($this->processedCodeListDocument)
+                                        <div class="alert alert-light border py-2 px-3 mb-3">
+                                            <div class="small font-weight-bold text-uppercase text-muted mb-1">Current processed code list on file</div>
+                                            <p class="text-xs mb-0">
+                                                {{ $this->processedCodeListDocument->original_filename }}
+                                                <span class="text-muted">• uploaded {{ $this->processedCodeListDocument->created_at->format('d M Y, H:i') }}</span>
+                                            </p>
+                                        </div>
+                                    @endif
+                                    <div class="form-group mb-3">
+                                        <label class="small font-weight-bold text-uppercase text-muted">Upload corrected processed code list</label>
+                                        <x-file-upload model="codeListFile" height="48px" accept=".xlsx,.xls" />
+                                        @error('codeListFile')
+                                            <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                        @enderror
+                                    </div>
                                     <div class="form-group mb-3">
                                         <label class="small font-weight-bold text-uppercase text-muted">HQ response notes for Accounts</label>
                                         <textarea wire:model.blur="hqAccountantResubmitNotes"
@@ -522,13 +538,13 @@
                                     <div class="d-flex flex-wrap justify-content-center" style="gap: 8px;">
                                         <button wire:click="resubmitToAccountantWithNotes"
                                                 wire:loading.attr="disabled"
-                                                wire:target="resubmitToAccountantWithNotes"
+                                                wire:target="codeListFile, resubmitToAccountantWithNotes"
                                                 class="btn btn-warning btn-sm shadow-sm font-weight-bold">
-                                            <span wire:loading.remove wire:target="resubmitToAccountantWithNotes">
-                                                <i class="fas fa-paper-plane mr-2"></i> Resubmit to Accounts
+                                            <span wire:loading.remove wire:target="codeListFile, resubmitToAccountantWithNotes">
+                                                <i class="fas fa-paper-plane mr-2"></i> Upload &amp; resubmit to Accounts
                                             </span>
-                                            <span wire:loading wire:target="resubmitToAccountantWithNotes">
-                                                <i class="fas fa-spinner fa-spin mr-2"></i> Sending...
+                                            <span wire:loading wire:target="codeListFile, resubmitToAccountantWithNotes">
+                                                <i class="fas fa-spinner fa-spin mr-2"></i> Submitting...
                                             </span>
                                         </button>
                                     </div>
@@ -544,21 +560,38 @@
 
                                 <div class="card-body pt-1 pb-3">
                                     <span class="text-xs text-gray-500 d-block mb-3">
-                                        Generate the processed code list from the current phase data and send it directly to Accounts for review — no download or re-upload required.
+                                        Download the code list template below, process it offline, then upload the completed Excel file and submit to Accounts for review.
                                         Accounts will also review the bank reconciliation submitted by the constituency.
                                     </span>
+
+                                    @if($this->processedCodeListDocument)
+                                        <div class="alert alert-light border py-2 px-3 mb-3">
+                                            <div class="small font-weight-bold text-uppercase text-muted mb-1">Processed code list on file</div>
+                                            <p class="text-xs mb-0">
+                                                {{ $this->processedCodeListDocument->original_filename }}
+                                                <span class="text-muted">• uploaded {{ $this->processedCodeListDocument->created_at->format('d M Y, H:i') }}</span>
+                                            </p>
+                                        </div>
+                                    @endif
+
+                                    <div class="form-group mb-3">
+                                        <label class="small font-weight-bold text-uppercase text-muted">Upload processed code list</label>
+                                        <x-file-upload model="codeListFile" height="48px" accept=".xlsx,.xls" />
+                                        @error('codeListFile')
+                                            <small class="text-danger d-block mt-1">{{ $message }}</small>
+                                        @enderror
+                                    </div>
 
                                     <div class="d-flex flex-wrap justify-content-center" style="gap: 8px;">
                                         <button wire:click="sendProcessedCodeListToAccountant"
                                                 wire:loading.attr="disabled"
-                                                wire:target="sendProcessedCodeListToAccountant"
+                                                wire:target="codeListFile, sendProcessedCodeListToAccountant"
                                                 class="btn btn-refresh-premium btn-sm shadow-sm">
-                                            <span wire:loading.remove wire:target="sendProcessedCodeListToAccountant">
-                                                <i class="fas fa-paper-plane mr-2"></i>
-                                                {{ $this->detailedPhase->has_processed_code_list ? 'Regenerate & send to Accounts' : 'Generate & send to Accounts' }}
+                                            <span wire:loading.remove wire:target="codeListFile, sendProcessedCodeListToAccountant">
+                                                <i class="fas fa-paper-plane mr-2"></i> Submit to Accounts
                                             </span>
-                                            <span wire:loading wire:target="sendProcessedCodeListToAccountant">
-                                                <i class="fas fa-spinner fa-spin mr-2"></i> Sending...
+                                            <span wire:loading wire:target="codeListFile, sendProcessedCodeListToAccountant">
+                                                <i class="fas fa-spinner fa-spin mr-2"></i> Submitting...
                                             </span>
                                         </button>
                                     </div>

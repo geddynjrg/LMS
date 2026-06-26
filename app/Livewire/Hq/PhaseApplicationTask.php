@@ -253,22 +253,35 @@ class PhaseApplicationTask extends Component
             return;
         }
 
+        $this->validate([
+            'codeListFile' => 'required|file|mimes:xlsx,xls|max:5120',
+        ], [
+            'codeListFile.required' => 'Please upload the processed code list Excel file.',
+            'codeListFile.mimes' => 'Only Excel files (.xlsx, .xls) are accepted.',
+            'codeListFile.max' => 'The processed code list must not exceed 5MB.',
+        ]);
+
         try {
-            app(ProcessedCodeListDocumentService::class)->generateAndAttach($this->phase);
+            app(ProcessedCodeListDocumentService::class)->attachFromUpload($this->phase, $this->codeListFile);
             app(AccountantReviewService::class)->queueForReview($this->phase->fresh());
 
+            $this->reset('codeListFile');
             $this->refreshData();
 
             $this->dispatch('swal:toast',
                 title: 'Sent to Accounts 😊',
-                message: 'Processed code list generated and queued for accounts review.',
+                message: 'Processed code list uploaded and queued for accounts review.',
                 type: 'success'
             );
+        } catch (ValidationException $e) {
+            foreach ($e->errors() as $field => $messages) {
+                $this->addError($field, $messages[0]);
+            }
         } catch (\Exception $e) {
             logger()->error('Processed code list send error: ' . $e->getMessage());
             $this->dispatch('swal:toast',
                 title: 'Send failed 😕',
-                message: 'Could not generate and send the processed code list. Please try again.',
+                message: 'Could not upload and send the processed code list. Please try again.',
                 type: 'error'
             );
         }
@@ -288,6 +301,13 @@ class PhaseApplicationTask extends Component
         $reviewStatus = $this->detailedPhase->accountant_review_status ?? null;
 
         return $reviewStatus === null;
+    }
+
+    #[Computed]
+    public function processedCodeListDocument()
+    {
+        return $this->detailedPhase->phaseApplicationDocuments
+            ->first(fn ($doc) => in_array($doc->document_type, PhaseDocumentType::processedCodeListTypes(), true));
     }
 
     public function canResubmitToAccountant(): bool
@@ -327,14 +347,25 @@ class PhaseApplicationTask extends Component
             return;
         }
 
+        $this->validate([
+            'codeListFile' => 'required|file|mimes:xlsx,xls|max:5120',
+            'hqAccountantResubmitNotes' => 'required|string|min:20|max:2000',
+        ], [
+            'codeListFile.required' => 'Please upload the updated processed code list Excel file.',
+            'codeListFile.mimes' => 'Only Excel files (.xlsx, .xls) are accepted.',
+            'codeListFile.max' => 'The processed code list must not exceed 5MB.',
+            'hqAccountantResubmitNotes.required' => 'Please describe what HQ has corrected before resubmitting to accounts.',
+            'hqAccountantResubmitNotes.min' => 'Please describe what HQ has corrected before resubmitting to accounts (at least 20 characters).',
+        ]);
+
         try {
-            app(ProcessedCodeListDocumentService::class)->generateAndAttach($this->phase);
+            app(ProcessedCodeListDocumentService::class)->attachFromUpload($this->phase, $this->codeListFile);
             app(AccountantReviewService::class)->resubmitToAccountant(
                 $this->phase->fresh(),
                 $this->hqAccountantResubmitNotes
             );
 
-            $this->reset('hqAccountantResubmitNotes');
+            $this->reset(['hqAccountantResubmitNotes', 'codeListFile']);
             $this->refreshData();
 
             $this->dispatch('swal:toast',

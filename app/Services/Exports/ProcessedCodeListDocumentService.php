@@ -36,4 +36,11 @@ class ProcessedCodeListDocumentService
 
         return $phase->fresh(['phaseApplicationDocuments']);
     }
+
+    public function attachFromUpload(LoanPhase $phase, $uploadedFile): LoanPhase
+    {
+        $this->phaseService->storeProcessedCodeListFromUpload($phase, $uploadedFile);
+
+        return $phase->fresh(['phaseApplicationDocuments']);
+    }
 }
