@@ -24,6 +24,12 @@ class RememberLastVisitedPage
             return $response;
         }
 
+        // File/stream downloads (e.g. Excel exports) are BinaryFileResponse/StreamedResponse
+        // and do not implement Laravel's withCookie() helper.
+        if (! method_exists($response, 'withCookie')) {
+            return $response;
+        }
+
         return $response->withCookie(cookie(
             ReturnPath::COOKIE_NAME,
             $path,
