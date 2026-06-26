@@ -120,16 +120,34 @@ class SecureApiAccess
 
     private function isRateLimited(Request $request): bool
     {
-        $key = 'api_rate_limit:' . $request->ip();
-        $limit = 100; // requests per minute
-        $window = 60; // seconds
+        // Import-status polling is read-only; do not throttle it with write traffic.
+        if (
+            $request->isMethod('GET')
+            && str_contains($request->path(), 'import-status')
+        ) {
+            return false;
+        }
 
-        $current = Cache::get($key, 0);
+        $periodMinutes = max(1, (int) config('app.api_rate_limit_period', 1));
+        $window = $periodMinutes * 60;
+        $limit = max(60, (int) config('app.api_rate_limit', 600));
+        $bucket = str_contains($request->path(), 'application') && $request->isMethod('POST')
+            ? 'write'
+            : 'read';
+        $key = sprintf('api_rate_limit:%s:%s', $bucket, $request->ip());
+
+        $current = (int) Cache::get($key, 0);
         if ($current >= $limit) {
             return true;
         }
 
-        Cache::put($key, $current + 1, $window);
+        if ($current === 0) {
+            Cache::put($key, 1, $window);
+        }
+        else {
+            Cache::increment($key);
+        }
+
         return false;
     }
 

@@ -195,6 +195,10 @@ return [
 
     'lms_api_key' => env('LMS_API_KEY'),
 
+    // Server-to-server API rate limits (per client IP, per window).
+    'api_rate_limit' => env('API_RATE_LIMIT', 600),
+    'api_rate_limit_period' => env('API_RATE_LIMIT_PERIOD', 1),
+
     // IP Whitelist - Only these IPs can access the API
     'allowed_ips' => [
         env('ALLOWED_IP_1', '127.0.0.1'),
