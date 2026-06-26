@@ -25,6 +25,7 @@ use App\Services\Loan\LoanAnalysisService;
 use App\Services\IdempotencyService;
 use App\Models\LoanPhase;
 use App\Support\AccountantReviewStatus;
+use App\Support\HqAccess;
 use App\Support\PhaseDocumentType;
 use App\Models\GroupLoan;
 use App\Support\PhaseWorkflowStatus;
@@ -94,8 +95,13 @@ class PhaseApplicationTask extends Component
 
     public function mount(LoanPhase $phase)
     {
-        $this->phase = $phase;
+        abort_unless(
+            HqAccess::phaseCanBeViewedBy(auth()->user(), $phase),
+            403,
+            'This phase is not available for HQ review.'
+        );
 
+        $this->phase = $phase;
     }
 
     public function sortBy($field)
@@ -555,8 +561,7 @@ class PhaseApplicationTask extends Component
 
     public function canApproveApplication() : bool
     {
-        $user = auth()->user();
-        return $user->hasPermissionTo('approve application');
+        return auth()->user()?->canApproveHqPhases() ?? false;
     }
 
     public function canDownloadSignedCodeList(): bool
@@ -566,6 +571,16 @@ class PhaseApplicationTask extends Component
 
     public function exportReport($document)
     {
+        if (! HqAccess::phaseCanBeViewedBy(auth()->user(), $this->phase)) {
+            $this->dispatch('swal:toast',
+                title: 'Permission Denied 😕',
+                message: 'You do not have permission to export reports for this phase.',
+                type: 'error'
+            );
+
+            return null;
+        }
+
         switch ($document) {
             case 'code_list':
                 app(ConstituencyAllocationService::class)->syncAllSubmittedPhasesForConstituency($this->phase->constituency_code, $this->phase);

@@ -13,7 +13,7 @@
             <div class="info ">
                 <div class="d-block text-center text-bold text-lg">
                     @auth
-                        @hasrole('hq_officer')
+                        @hasrole('hq_officer|admin')
                             <a class="brand-text text-lime">National Headquarters</a>
                         @elseif(auth()->user()->hasRole('head_of_secretariat'))
                             <a class="brand-text text-purple">Head of Secretariat</a>
@@ -118,7 +118,7 @@
                 </li>
             @endhasrole
 
-            @hasrole('hq_officer|super-admin')
+            @hasrole('hq_officer|admin|super-admin')
                 <li class="nav-header text-uppercase text-xs text-muted">National Administration</li>
                 <li class="nav-item">
                     <a href="{{ route('dashboard') }}" class="nav-link {{ Route::is('dashboard') ? 'active' : '' }}">

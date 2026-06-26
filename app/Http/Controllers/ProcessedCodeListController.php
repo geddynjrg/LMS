@@ -8,12 +8,24 @@ use App\Models\PhaseApplication;
 use App\Services\Constituency\ConstituencyAllocationService;
 use App\Services\Exports\ExportService;
 use App\Services\Exports\SignedCodeListPdfService;
+use App\Support\HqAccess;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ProcessedCodeListController extends Controller
 {
+    protected function authorizeHqPhaseReview(LoanPhase $phase): void
+    {
+        abort_unless(
+            HqAccess::phaseCanBeViewedBy(auth()->user(), $phase),
+            403,
+            'You do not have permission to access this phase code list.'
+        );
+    }
+
     public function preview(LoanPhase $phase)
     {
+        $this->authorizeHqPhaseReview($phase);
+
         $phase->loadMissing('constituency:constituency_code,constituency_name');
 
         app(ConstituencyAllocationService::class)->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase);
@@ -42,6 +54,8 @@ class ProcessedCodeListController extends Controller
 
     public function download(LoanPhase $phase)
     {
+        $this->authorizeHqPhaseReview($phase);
+
         $phase->loadMissing('constituency:constituency_code,constituency_name');
 
         app(ConstituencyAllocationService::class)->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase);
@@ -55,6 +69,8 @@ class ProcessedCodeListController extends Controller
 
     public function downloadSigned(LoanPhase $phase)
     {
+        $this->authorizeHqPhaseReview($phase);
+
         app(ConstituencyAllocationService::class)->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase);
 
         return app(SignedCodeListPdfService::class)->downloadResponse($phase);

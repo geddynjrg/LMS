@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use App\Models\TempApplication;
 use App\Models\LoanPhase;
+use App\Support\HqAccess;
 
 class HqApplications extends Controller
 {
@@ -17,6 +18,12 @@ class HqApplications extends Controller
 
     public function review(Request $request, LoanPhase $phase)
     {
+        abort_unless(
+            HqAccess::phaseCanBeViewedBy($request->user(), $phase),
+            403,
+            'This phase is not available for HQ review.'
+        );
+
         return View('hq.app.phase_review', [
             'phase' => $phase->load([
                 'constituency',

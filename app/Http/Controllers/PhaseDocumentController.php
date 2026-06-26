@@ -4,13 +4,38 @@ namespace App\Http\Controllers;
 
 use App\Models\PhaseApplicationDocument;
 use App\Services\Loan\PhaseDocumentResolver;
+use App\Support\HqAccess;
 use Illuminate\Support\Facades\Storage;
 
 class PhaseDocumentController extends Controller
 {
+    protected function authorizePhaseDocumentAccess(PhaseApplicationDocument $doc): void
+    {
+        $user = auth()->user();
+        $phase = $doc->loanPhase;
+
+        if ($phase && HqAccess::phaseCanBeViewedBy($user, $phase)) {
+            return;
+        }
+
+        if ($user?->hasRole('constituency_officer')
+            && $phase
+            && $user->constituencies()->where('constituency_code', $phase->constituency_code)->exists()) {
+            return;
+        }
+
+        if ($user?->hasAnyRole(['super-admin', 'head_of_secretariat', 'accountant'])) {
+            return;
+        }
+
+        abort(403, 'You do not have permission to access this document.');
+    }
+
     public function serve(int $id, string $action, PhaseDocumentResolver $resolver)
     {
         $doc = PhaseApplicationDocument::with('loanPhase')->findOrFail($id);
+
+        $this->authorizePhaseDocumentAccess($doc);
 
         $fullPath = $resolver->resolveReadablePath($doc);
 
@@ -35,6 +60,8 @@ class PhaseDocumentController extends Controller
     public function preview(int $id)
     {
         $doc = PhaseApplicationDocument::with(['loanPhase.constituency'])->findOrFail($id);
+
+        $this->authorizePhaseDocumentAccess($doc);
 
         return view('documents.phase-document-preview', [
             'doc' => $doc,

@@ -12,7 +12,7 @@ class DashboardController extends Controller
         /** @var \App\Models\User $user */
         $user = auth()->user();
 
-        if ($user && $user->hasRole('hq_officer')) {
+        if ($user && ($user->hasRole('hq_officer') || $user->hasRole('admin'))) {
             return view('hq.dashboard');
         }
 

@@ -4,6 +4,7 @@ namespace App\Livewire\Secretariat;
 
 use App\Models\LoanPhase;
 use App\Models\SecretariatApproval;
+use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\SecretariatApprovalService;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
@@ -20,10 +21,17 @@ class PhaseReview extends Component
     public $signatureFile;
 
     protected SecretariatApprovalService $secretariatService;
+    protected LoanPhaseService $phaseService;
 
-    public function boot(SecretariatApprovalService $secretariatService): void
+    public function boot(SecretariatApprovalService $secretariatService, LoanPhaseService $phaseService): void
     {
         $this->secretariatService = $secretariatService;
+        $this->phaseService = $phaseService;
+    }
+
+    public function getFileMetadata($file)
+    {
+        return $this->phaseService->getFileMetadata($file);
     }
 
     public function mount(LoanPhase $phase): void

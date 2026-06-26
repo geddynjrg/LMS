@@ -200,6 +200,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasAnyRole(['hq_officer', 'head_of_secretariat', 'accountant']);
     }
 
+    public function canAccessHq(): bool
+    {
+        return \App\Support\HqAccess::userCanAccessRoutes($this);
+    }
+
+    public function canApproveHqPhases(): bool
+    {
+        return \App\Support\HqAccess::userCanApprovePhases($this);
+    }
+
     public function clearLocalAssignments(): void
     {
         $this->constituencies()->detach();

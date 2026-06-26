@@ -90,6 +90,11 @@ class LoanPhase extends Model
         });
     }
 
+    public function canBeViewedByHq($user): bool
+    {
+        return \App\Support\HqAccess::phaseCanBeViewedBy($user, $this);
+    }
+
     public function canBeEditedBy($user)
     {
         if ($this->is_locked) {
@@ -100,8 +105,8 @@ class LoanPhase extends Model
             return false;
         }
 
-        if ($user->hasRole('hq_officer') && $user->can('approve application')) {
-            return $this->status === 'submitted_to_hq';
+        if ($user->canAccessHq() && $user->can('approve application')) {
+            return \App\Support\HqAccess::phaseCanBeEditedBy($user, $this);
         }
 
         if ($user->hasRole('constituency_officer') && $user->can('submit application')) {

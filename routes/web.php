@@ -71,7 +71,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/help', [HelpController::class, 'index'])->name('help.index');
 
     // --- HQ / National Administration Routes ---
-    Route::middleware(['role:super-admin|hq_officer'])
+    Route::middleware(['hq.access'])
     ->prefix('hq')
     ->name('hq.')
     ->group(function () {
