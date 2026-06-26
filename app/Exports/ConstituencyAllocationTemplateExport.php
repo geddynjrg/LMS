@@ -30,8 +30,14 @@ class ConstituencyAllocationTemplateExport implements FromArray, ShouldAutoSize,
             ['ALLOCATIONS BY YEAR', 'Amount (KES)'],
         ];
 
-        foreach (ConstituencyAllocationFields::allocationLabels() as $key => $label) {
-            $rows[] = [$label, $this->profile?->{$key} ?? 0];
+        foreach ($this->profile?->normalizedAllocationYears() ?? ConstituencyAllocationFields::defaultAllocationYears() as $allocationYear) {
+            $rows[] = [
+                ConstituencyAllocationFields::allocationLabelForYears(
+                    (int) $allocationYear['year_start'],
+                    (int) $allocationYear['year_end']
+                ),
+                $allocationYear['amount'] ?? 0,
+            ];
         }
 
         $rows[] = ['Total Allocations', $this->profile?->totalAllocations() ?? 0];
@@ -68,7 +74,7 @@ class ConstituencyAllocationTemplateExport implements FromArray, ShouldAutoSize,
 
     public function styles(Worksheet $sheet): array
     {
-        $allocationCount = count(ConstituencyAllocationFields::allocationKeys());
+        $allocationCount = count($this->profile?->normalizedAllocationYears() ?? ConstituencyAllocationFields::defaultAllocationYears());
         $transferCount = count($this->profile?->normalizedTransferLevels() ?? ConstituencyAllocationFields::defaultTransferLevels());
         $phaseCount = count($this->profile?->normalizedPhaseIssuedAmounts() ?? ConstituencyAllocationFields::defaultPhaseIssuedAmounts());
 

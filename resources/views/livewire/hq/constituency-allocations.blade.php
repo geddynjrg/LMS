@@ -14,7 +14,7 @@
                 <strong class="text-navy">Used in processed code lists</strong>
                 <p class="mb-0 small text-muted">
                     These figures appear on the right-hand summary panel when HQ generates or exports a code list Excel workbook
-                    (2013/2014 through 2025/2026 allocations, dynamic transfer levels, phase issued amounts, and balance).
+                    (allocations by fiscal year, dynamic transfer levels, phase issued amounts, and balance).
                 </p>
             </div>
         </div>
@@ -71,21 +71,45 @@
         <div class="row">
             <div class="col-lg-7">
                 <div class="card hq-panel-card border-0 mb-4">
-                    <div class="card-header bg-white border-0">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
                         <h6 class="font-weight-bold text-navy text-uppercase small mb-0">Allocations by year (KES)</h6>
+                        <button type="button" wire:click="addAllocationYear" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-plus mr-1"></i> Add {{ $this->nextAllocationYearLabel }}
+                        </button>
                     </div>
                     <div class="card-body pt-0">
+                        @error('allocationYears') <small class="text-danger d-block mb-2">{{ $message }}</small> @enderror
+
+                        @if($allocationYears === [])
+                            <p class="text-muted small mb-3">No allocation years yet. Click <strong>Add Allocation Year</strong> to begin.</p>
+                        @endif
+
                         <div class="row">
-                            @foreach($allocationLabels as $key => $label)
-                                <div class="col-12 mb-3">
-                                    <label class="small font-weight-bold text-muted">{{ $label }}</label>
+                            @foreach($allocationYears as $index => $allocationYear)
+                                <div class="col-12 mb-3" wire:key="allocation-year-{{ $allocationYear['year_start'] }}-{{ $index }}">
+                                    <label class="small font-weight-bold text-muted">
+                                        {{ \App\Support\ConstituencyAllocationFields::allocationLabelForYears($allocationYear['year_start'], $allocationYear['year_end']) }}
+                                    </label>
                                     <input type="number" min="0" step="0.01"
-                                           wire:model.live.debounce.300ms="allocations.{{ $key }}"
+                                           wire:model.live.debounce.300ms="allocationYears.{{ $index }}.amount"
                                            class="form-control"
                                            placeholder="0">
-                                    @error('allocations.'.$key) <small class="text-danger">{{ $message }}</small> @enderror
+                                    @error('allocationYears.'.$index.'.amount') <small class="text-danger">{{ $message }}</small> @enderror
+                                    @error('allocationYears.'.$index.'.year_end') <small class="text-danger">{{ $message }}</small> @enderror
                                 </div>
                             @endforeach
+                        </div>
+
+                        <div class="border-top pt-3 mt-2">
+                            <div class="row">
+                                <div class="col-12 mb-0">
+                                    <label class="small font-weight-bold text-muted">Total Allocation</label>
+                                    <input type="text" readonly
+                                           value="KES {{ number_format($this->computedTotalAllocations, 2) }}"
+                                           class="form-control bg-light font-weight-bold">
+                                    <small class="text-muted">Sum of all year allocations</small>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -120,7 +144,7 @@
                                            value="KES {{ number_format($this->computedTotalLoanPortfolio, 2) }}"
                                            class="form-control bg-light font-weight-bold">
                                     <small class="text-muted">
-                                        Total Allocations (KES {{ number_format($this->computedTotalAllocations, 2) }})
+                                        Total Allocation (KES {{ number_format($this->computedTotalAllocations, 2) }})
                                         + Total Transfers (KES {{ number_format($this->computedTotalTransfers, 2) }})
                                     </small>
                                 </div>

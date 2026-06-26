@@ -23,6 +23,7 @@ class ConstituencyAllocationProfile extends Model
         'allocation_2023_2024',
         'allocation_2024_2025',
         'allocation_2025_2026',
+        'allocation_years',
         'transfer_levels',
         'phase_issued_amounts',
         'balance_main_account',
@@ -43,6 +44,7 @@ class ConstituencyAllocationProfile extends Model
         'allocation_2023_2024' => 'decimal:2',
         'allocation_2024_2025' => 'decimal:2',
         'allocation_2025_2026' => 'decimal:2',
+        'allocation_years' => 'array',
         'transfer_levels' => 'array',
         'phase_issued_amounts' => 'array',
         'balance_main_account' => 'decimal:2',
@@ -56,6 +58,45 @@ class ConstituencyAllocationProfile extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /**
+     * @return list<array{year_start:int,year_end:int,amount:float}>
+     */
+    public function normalizedAllocationYears(): array
+    {
+        $years = collect($this->allocation_years ?? [])
+            ->map(function ($row) {
+                return [
+                    'year_start' => (int) ($row['year_start'] ?? 0),
+                    'year_end' => (int) ($row['year_end'] ?? 0),
+                    'amount' => round((float) ($row['amount'] ?? 0), 2),
+                ];
+            })
+            ->filter(fn (array $row) => $row['year_start'] > 0 && $row['year_end'] === $row['year_start'] + 1)
+            ->sortBy('year_start')
+            ->values()
+            ->all();
+
+        if ($years !== []) {
+            return $years;
+        }
+
+        $legacyYears = [];
+
+        foreach (ConstituencyAllocationFields::allocationKeys() as $key) {
+            if (! preg_match('/^allocation_(\d{4})_(\d{4})$/', $key, $matches)) {
+                continue;
+            }
+
+            $legacyYears[] = [
+                'year_start' => (int) $matches[1],
+                'year_end' => (int) $matches[2],
+                'amount' => round((float) $this->{$key}, 2),
+            ];
+        }
+
+        return $legacyYears ?: ConstituencyAllocationFields::defaultAllocationYears();
     }
 
     /**
@@ -98,8 +139,8 @@ class ConstituencyAllocationProfile extends Model
 
     public function totalAllocations(): float
     {
-        return collect(ConstituencyAllocationFields::allocationKeys())
-            ->sum(fn (string $key) => (float) $this->{$key});
+        return collect($this->normalizedAllocationYears())
+            ->sum(fn (array $row) => $row['amount']);
     }
 
     public function totalTransfers(): float

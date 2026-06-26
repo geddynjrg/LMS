@@ -200,8 +200,14 @@ class SignedCodeListPdfService
     {
         $rows = [];
 
-        foreach (ConstituencyAllocationFields::allocationLabels() as $key => $label) {
-            $rows[] = ['label' => $label, 'amount' => (float) $profile->{$key}];
+        foreach ($profile->normalizedAllocationYears() as $allocationYear) {
+            $rows[] = [
+                'label' => ConstituencyAllocationFields::allocationLabelForYears(
+                    (int) $allocationYear['year_start'],
+                    (int) $allocationYear['year_end']
+                ),
+                'amount' => (float) $allocationYear['amount'],
+            ];
         }
 
         $rows[] = ['label' => 'Total Allocations', 'amount' => $profile->totalAllocations(), 'bold' => true];

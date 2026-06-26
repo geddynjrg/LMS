@@ -297,9 +297,12 @@ class CodeListExport extends DefaultValueBinder implements
         $row = $totalRow + 2;
 
         if ($profile) {
-            foreach (ConstituencyAllocationFields::allocationLabels() as $key => $label) {
-                $sheet->setCellValue("{$labelCol}{$row}", $label);
-                $sheet->setCellValue("{$valueCol}{$row}", (float) $profile->{$key});
+            foreach ($profile->normalizedAllocationYears() as $allocationYear) {
+                $sheet->setCellValue("{$labelCol}{$row}", ConstituencyAllocationFields::allocationLabelForYears(
+                    (int) $allocationYear['year_start'],
+                    (int) $allocationYear['year_end']
+                ));
+                $sheet->setCellValue("{$valueCol}{$row}", (float) $allocationYear['amount']);
                 $row++;
             }
 

@@ -42,10 +42,50 @@ final class ConstituencyAllocationFields
     public static function allocationLabelForKey(string $key): string
     {
         if (preg_match('/^allocation_(\d{4})_(\d{4})$/', $key, $matches)) {
-            return "{$matches[1]}/{$matches[2]} Allocation";
+            return self::allocationLabelForYears((int) $matches[1], (int) $matches[2]);
         }
 
         throw new \InvalidArgumentException("Unknown allocation key: {$key}");
+    }
+
+    public static function allocationLabelForYears(int $yearStart, int $yearEnd): string
+    {
+        return "{$yearStart}/{$yearEnd} Allocation";
+    }
+
+    public static function allocationKeyForYears(int $yearStart, int $yearEnd): string
+    {
+        return sprintf('allocation_%d_%d', $yearStart, $yearEnd);
+    }
+
+    /**
+     * @return list<array{year_start:int,year_end:int,amount:float|int}>
+     */
+    public static function defaultAllocationYears(): array
+    {
+        $years = [];
+
+        for ($year = self::ALLOCATION_FIRST_YEAR; $year <= self::ALLOCATION_LAST_YEAR; $year++) {
+            $years[] = [
+                'year_start' => $year,
+                'year_end' => $year + 1,
+                'amount' => 0,
+            ];
+        }
+
+        return $years;
+    }
+
+    public static function nextAllocationYearStart(array $allocationYears): int
+    {
+        $lastYearStart = collect($allocationYears)
+            ->max(fn (array $row) => (int) ($row['year_start'] ?? 0));
+
+        if ($lastYearStart === null || $lastYearStart < self::ALLOCATION_FIRST_YEAR) {
+            return self::ALLOCATION_FIRST_YEAR;
+        }
+
+        return $lastYearStart + 1;
     }
 
     /**
@@ -93,6 +133,7 @@ final class ConstituencyAllocationFields
     public static function emptyPayload(): array
     {
         return [
+            'allocation_years' => self::defaultAllocationYears(),
             ...array_fill_keys(self::allocationKeys(), 0),
             'transfer_levels' => self::defaultTransferLevels(),
             'phase_issued_amounts' => self::defaultPhaseIssuedAmounts(),

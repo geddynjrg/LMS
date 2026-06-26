@@ -38,7 +38,7 @@ class ConstituencyAllocationService
     {
         $data = ConstituencyAllocationFields::emptyPayload();
 
-        $labelMap = array_change_key_case(ConstituencyAllocationFields::allocationLabels(), CASE_LOWER);
+        $labelMap = array_change_key_case($this->allocationLabelMap(), CASE_LOWER);
         $labelMap['balance in the main account'] = '__skip__';
         $labelMap['total allocations'] = '__skip__';
         $labelMap['total transfers'] = '__skip__';
@@ -60,7 +60,26 @@ class ConstituencyAllocationService
                     continue;
                 }
 
-                $data[$labelMap[$labelLower]] = $amount;
+                if (is_array($labelMap[$labelLower])) {
+                    $this->upsertAllocationYear(
+                        $data,
+                        (int) $labelMap[$labelLower]['year_start'],
+                        (int) $labelMap[$labelLower]['year_end'],
+                        $amount
+                    );
+                } else {
+                    if (preg_match('/^allocation_(\d{4})_(\d{4})$/', (string) $labelMap[$labelLower], $matches)) {
+                        $this->upsertAllocationYear($data, (int) $matches[1], (int) $matches[2], $amount);
+                    } else {
+                        $data[$labelMap[$labelLower]] = $amount;
+                    }
+                }
+
+                continue;
+            }
+
+            if (preg_match('/^(\d{4})\/(\d{4})\s+allocation$/i', $label, $matches)) {
+                $this->upsertAllocationYear($data, (int) $matches[1], (int) $matches[2], $amount);
 
                 continue;
             }
@@ -196,7 +215,9 @@ class ConstituencyAllocationService
 
     protected function profileToPayload(ConstituencyAllocationProfile $profile): array
     {
-        $payload = [];
+        $payload = [
+            'allocation_years' => $profile->normalizedAllocationYears(),
+        ];
 
         foreach (ConstituencyAllocationFields::allocationKeys() as $key) {
             $payload[$key] = (float) $profile->{$key};
@@ -208,15 +229,39 @@ class ConstituencyAllocationService
         return $payload;
     }
 
+    /**
+     * @return array<string, array{year_start:int,year_end:int}|string>
+     */
+    protected function allocationLabelMap(): array
+    {
+        $map = [];
+
+        foreach (ConstituencyAllocationFields::allocationLabels() as $key => $label) {
+            $map[$label] = $key;
+        }
+
+        return $map;
+    }
+
     public function normalizePayload(array $data): array
     {
         $payload = ConstituencyAllocationFields::emptyPayload();
+
+        if (array_key_exists('allocation_years', $data)) {
+            $payload['allocation_years'] = $this->normalizeAllocationYears($data['allocation_years']);
+        }
 
         foreach (ConstituencyAllocationFields::allocationKeys() as $key) {
             if (array_key_exists($key, $data)) {
                 $payload[$key] = $this->parseAmount($data[$key]) ?? 0;
             }
         }
+
+        if (! array_key_exists('allocation_years', $data)) {
+            $payload['allocation_years'] = $this->allocationYearsFromLegacyColumns($payload);
+        }
+
+        $payload = $this->syncLegacyAllocationColumns($payload);
 
         if (array_key_exists('transfer_levels', $data)) {
             $payload['transfer_levels'] = $this->normalizeTransferLevels($data['transfer_levels']);
@@ -233,8 +278,8 @@ class ConstituencyAllocationService
 
     protected function computeBalanceMainAccount(array $payload): float
     {
-        $totalAllocations = collect(ConstituencyAllocationFields::allocationKeys())
-            ->sum(fn (string $key) => (float) ($payload[$key] ?? 0));
+        $totalAllocations = collect($payload['allocation_years'] ?? [])
+            ->sum(fn (array $row) => (float) ($row['amount'] ?? 0));
 
         $totalTransfers = collect($payload['transfer_levels'] ?? [])
             ->sum(fn (array $row) => (float) ($row['amount'] ?? 0));
@@ -243,6 +288,93 @@ class ConstituencyAllocationService
             ->sum(fn (array $row) => (float) ($row['amount'] ?? 0));
 
         return round(($totalAllocations + $totalTransfers) - $totalApprovals, 2);
+    }
+
+    /**
+     * @return list<array{year_start:int,year_end:int,amount:float}>
+     */
+    protected function normalizeAllocationYears(mixed $years): array
+    {
+        $normalized = collect($years ?: [])
+            ->map(function ($row) {
+                $yearStart = (int) ($row['year_start'] ?? 0);
+                $yearEnd = (int) ($row['year_end'] ?? 0);
+
+                if ($yearEnd <= 0 && $yearStart > 0) {
+                    $yearEnd = $yearStart + 1;
+                }
+
+                return [
+                    'year_start' => $yearStart,
+                    'year_end' => $yearEnd,
+                    'amount' => $this->parseAmount($row['amount'] ?? 0) ?? 0,
+                ];
+            })
+            ->filter(fn (array $row) => $row['year_start'] > 0 && $row['year_end'] === $row['year_start'] + 1)
+            ->unique(fn (array $row) => $row['year_start'])
+            ->sortBy('year_start')
+            ->values()
+            ->all();
+
+        return $normalized ?: ConstituencyAllocationFields::defaultAllocationYears();
+    }
+
+    /**
+     * @return list<array{year_start:int,year_end:int,amount:float}>
+     */
+    protected function allocationYearsFromLegacyColumns(array $payload): array
+    {
+        $years = [];
+
+        foreach (ConstituencyAllocationFields::allocationKeys() as $key) {
+            if (! preg_match('/^allocation_(\d{4})_(\d{4})$/', $key, $matches)) {
+                continue;
+            }
+
+            $years[] = [
+                'year_start' => (int) $matches[1],
+                'year_end' => (int) $matches[2],
+                'amount' => (float) ($payload[$key] ?? 0),
+            ];
+        }
+
+        return $years;
+    }
+
+    protected function syncLegacyAllocationColumns(array $payload): array
+    {
+        foreach ($payload['allocation_years'] ?? [] as $row) {
+            $key = ConstituencyAllocationFields::allocationKeyForYears(
+                (int) $row['year_start'],
+                (int) $row['year_end']
+            );
+
+            if (in_array($key, ConstituencyAllocationFields::allocationKeys(), true)) {
+                $payload[$key] = (float) ($row['amount'] ?? 0);
+            }
+        }
+
+        return $payload;
+    }
+
+    protected function upsertAllocationYear(array &$data, int $yearStart, int $yearEnd, float $amount): void
+    {
+        if ($yearEnd !== $yearStart + 1) {
+            return;
+        }
+
+        $years = collect($data['allocation_years'] ?? ConstituencyAllocationFields::defaultAllocationYears())
+            ->reject(fn (array $row) => (int) ($row['year_start'] ?? 0) === $yearStart)
+            ->push([
+                'year_start' => $yearStart,
+                'year_end' => $yearEnd,
+                'amount' => $amount,
+            ])
+            ->sortBy('year_start')
+            ->values()
+            ->all();
+
+        $data['allocation_years'] = $years;
     }
 
     /**

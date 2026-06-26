@@ -19,7 +19,8 @@ class ConstituencyAllocations extends Component
     public string $constituencyFilter = '';
     public array $countyOptions = [];
     public array $constituencyOptions = [];
-    public array $allocations = [];
+    /** @var list<array{year_start:int,year_end:int,amount:string}> */
+    public array $allocationYears = [];
     /** @var list<array{level:int,amount:string}> */
     public array $transferLevels = [];
     /** @var list<array{phase:int,amount:string}> */
@@ -51,6 +52,17 @@ class ConstituencyAllocations extends Component
     public function updatedConstituencyFilter(): void
     {
         $this->loadProfile();
+    }
+
+    public function addAllocationYear(): void
+    {
+        $nextYearStart = ConstituencyAllocationFields::nextAllocationYearStart($this->allocationYears);
+
+        $this->allocationYears[] = [
+            'year_start' => $nextYearStart,
+            'year_end' => $nextYearStart + 1,
+            'amount' => '0',
+        ];
     }
 
     public function addTransferLevel(): void
@@ -86,9 +98,14 @@ class ConstituencyAllocations extends Component
             return;
         }
 
-        foreach (ConstituencyAllocationFields::allocationKeys() as $key) {
-            $this->allocations[$key] = (string) $profile->{$key};
-        }
+        $this->allocationYears = collect($profile->normalizedAllocationYears())
+            ->map(fn (array $row) => [
+                'year_start' => $row['year_start'],
+                'year_end' => $row['year_end'],
+                'amount' => (string) $row['amount'],
+            ])
+            ->values()
+            ->all();
 
         $this->transferLevels = collect($profile->normalizedTransferLevels())
             ->map(fn (array $row) => [
@@ -118,7 +135,14 @@ class ConstituencyAllocations extends Component
 
     public function getComputedTotalAllocationsProperty(): float
     {
-        return round(collect($this->allocations)->sum(fn ($value) => (float) $value), 2);
+        return round(collect($this->allocationYears)->sum(fn ($row) => (float) ($row['amount'] ?? 0)), 2);
+    }
+
+    public function getNextAllocationYearLabelProperty(): string
+    {
+        $nextYearStart = ConstituencyAllocationFields::nextAllocationYearStart($this->allocationYears);
+
+        return ConstituencyAllocationFields::allocationLabelForYears($nextYearStart, $nextYearStart + 1);
     }
 
     public function getComputedTotalTransfersProperty(): float
@@ -145,8 +169,10 @@ class ConstituencyAllocations extends Component
     {
         $this->validate([
             'constituencyFilter' => 'required|exists:constituencies,constituency_code',
-            'allocations' => 'array',
-            'allocations.*' => 'nullable|numeric|min:0',
+            'allocationYears' => 'array',
+            'allocationYears.*.year_start' => 'required|integer|min:2013',
+            'allocationYears.*.year_end' => 'required|integer',
+            'allocationYears.*.amount' => 'nullable|numeric|min:0',
             'transferLevels' => 'array',
             'transferLevels.*.level' => 'required|integer|min:1',
             'transferLevels.*.amount' => 'nullable|numeric|min:0',
@@ -155,10 +181,26 @@ class ConstituencyAllocations extends Component
             'phaseIssuedAmounts.*.amount' => 'nullable|numeric|min:0',
         ]);
 
-        $payload = array_merge($this->allocations, [
+        $yearStarts = collect($this->allocationYears)->pluck('year_start');
+        if ($yearStarts->count() !== $yearStarts->unique()->count()) {
+            $this->addError('allocationYears', 'Each fiscal year can only appear once.');
+
+            return;
+        }
+
+        foreach ($this->allocationYears as $index => $row) {
+            if ((int) ($row['year_end'] ?? 0) !== (int) ($row['year_start'] ?? 0) + 1) {
+                $this->addError("allocationYears.{$index}.year_end", 'Fiscal year end must be exactly one year after the start year.');
+
+                return;
+            }
+        }
+
+        $payload = [
+            'allocation_years' => $this->allocationYears,
             'transfer_levels' => $this->transferLevels,
             'phase_issued_amounts' => $this->phaseIssuedAmounts,
-        ]);
+        ];
 
         $this->allocationService->save($this->constituencyFilter, $payload);
 
@@ -220,7 +262,13 @@ class ConstituencyAllocations extends Component
 
     protected function resetAmounts(): void
     {
-        $this->allocations = [];
+        $this->allocationYears = collect(ConstituencyAllocationFields::defaultAllocationYears())
+            ->map(fn (array $row) => [
+                'year_start' => $row['year_start'],
+                'year_end' => $row['year_end'],
+                'amount' => (string) $row['amount'],
+            ])
+            ->all();
         $this->transferLevels = collect(ConstituencyAllocationFields::defaultTransferLevels())
             ->map(fn (array $row) => [
                 'level' => $row['level'],
@@ -233,10 +281,6 @@ class ConstituencyAllocations extends Component
                 'amount' => (string) $row['amount'],
             ])
             ->all();
-
-        foreach (ConstituencyAllocationFields::allocationKeys() as $key) {
-            $this->allocations[$key] = '0';
-        }
     }
 
     protected function loadCountyOptions(): void
@@ -278,8 +322,6 @@ class ConstituencyAllocations extends Component
 
     public function render()
     {
-        return view('livewire.hq.constituency-allocations', [
-            'allocationLabels' => ConstituencyAllocationFields::allocationLabels(),
-        ]);
+        return view('livewire.hq.constituency-allocations');
     }
 }
