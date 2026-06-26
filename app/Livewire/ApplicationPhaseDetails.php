@@ -63,7 +63,7 @@ class ApplicationPhaseDetails extends Component
     public $hasExistingIdentifier = false;
 
     public $generatedReports = [
-        ['id' => 'code_list', 'name' => 'Processed Codelist', 'meta' => 'Approved groups with GFS codes, loan levels & financial summary'],
+        ['id' => 'code_list', 'name' => 'Code List', 'meta' => 'Approved groups with GFS codes, loan levels & financial summary'],
         ['id' => 'standard_vetted', 'name' => 'Standard Vetted Form', 'meta' => 'Full demographics, Bank info, & Sectors'],
         ['id' => 'disaggregated', 'name' => 'Disaggregated Data', 'meta' => 'Gender & PWD breakdown by Ward'],
         ['id' => 'disbursement', 'name' => 'Disbursement Report', 'meta' => 'Bank Accounts & Final Amounts'],

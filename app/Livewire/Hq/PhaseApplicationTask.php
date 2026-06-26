@@ -63,7 +63,7 @@ class PhaseApplicationTask extends Component
     public $sortDirection = 'desc';
 
     public $generatedReports = [
-        ['id' => 'code_list', 'name' => 'Processed Codelist', 'meta' => 'GFS codes, loan levels, financial summary & board remarks'],
+        ['id' => 'code_list', 'name' => 'Code List', 'meta' => 'GFS codes, loan levels, financial summary & board remarks'],
         ['id' => 'standard_vetted', 'name' => 'Standard Vetted Form', 'meta' => 'Full demographics, Bank info, & Sectors'],
         ['id' => 'disaggregated', 'name' => 'Disaggregated Data', 'meta' => 'Gender & PWD breakdown by Ward'],
         ['id' => 'disbursement', 'name' => 'Disbursement Report', 'meta' => 'Bank Accounts & Final Amounts'],
