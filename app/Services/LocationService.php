@@ -11,6 +11,11 @@ use Illuminate\Support\Str;
 
 class LocationService
 {
+    /** @var array<string, string> Alternate constituency labels mapped to IEBC names. */
+    private const CONSTITUENCY_NAME_ALIASES = [
+        'MOUNT ELGON' => 'MT. ELGON',
+    ];
+
     protected int $cacheTtl = 3600; // 1 hour - same as your existing filters
     protected string $cachePrefix = 'location_';
     protected int $cacheMonthTtl = 2592000; // 30 days in seconds
@@ -110,6 +115,8 @@ class LocationService
         if ($normalized === '') {
             return null;
         }
+
+        $normalized = self::CONSTITUENCY_NAME_ALIASES[$normalized] ?? $normalized;
 
         $columns = ['constituency_code', 'constituency_name', 'county_code', 'slug'];
 

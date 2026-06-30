@@ -3,13 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Constituency;
 use App\Models\Wards;
+use App\Services\LocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class LocationController extends Controller
 {
+    public function __construct(private readonly LocationService $locationService)
+    {
+    }
     /**
      * List wards for a constituency (by name).
      */
@@ -27,11 +30,7 @@ class LocationController extends Controller
             ], 400);
         }
 
-        $normalizedLookup = mb_strtolower($constituencyName);
-
-        $constituency = Constituency::query()
-            ->whereRaw('LOWER(TRIM(constituency_name)) = ?', [$normalizedLookup])
-            ->first();
+        $constituency = $this->locationService->resolveConstituencyByName($constituencyName);
 
         if (!$constituency) {
             return response()->json([
