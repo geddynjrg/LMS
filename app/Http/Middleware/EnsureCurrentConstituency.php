@@ -26,8 +26,15 @@ class EnsureCurrentConstituency
         // 1. Has the user picked a constituency?
         $code = $user->current_constituency_code;
         if (!$code) {
-            return redirect()->route('dashboard')
-                ->with('error', 'Please select your active constituency first.');
+            $assignedCodes = $user->constituencies()->pluck('constituencies.constituency_code');
+
+            if ($assignedCodes->count() === 1) {
+                $code = $assignedCodes->first();
+                $user->update(['current_constituency_code' => $code]);
+            } else {
+                return redirect()->route('dashboard')
+                    ->with('error', 'Please select your active constituency first.');
+            }
         }
 
         // 2. Get the slug from the URL and resolve the Constituency

@@ -142,6 +142,10 @@ class AddUserData extends Component
                 : '047';
 
             DB::transaction(function () use ($finalCountyCode){
+                $initialConstituencyCode = in_array($this->selected_role, ['constituency_officer', 'intern'], true)
+                    ? ($this->selected_constituencies[0] ?? null)
+                    : null;
+
                 $user = \App\Models\User::create([
                     'name'         => $this->name,
                     'email'        => $this->email,
@@ -149,6 +153,7 @@ class AddUserData extends Component
                     'phone_number' => $this->phone_number,
                     'password'     => bcrypt($this->password),
                     'county_code'  => $finalCountyCode,
+                    'current_constituency_code' => $initialConstituencyCode,
                     'status'       => 1,
                 ]);
 
