@@ -2,8 +2,8 @@
     <div class="row no-gutters min-vh-100">
         <div class="col-md-6 d-none d-md-flex align-items-center justify-content-center bg-white border-right">
             <div class="text-center p-5">
-                <div class="d-inline-block p-4 mb-4 rounded-circle shadow-lg border-0 bg-white" style="width: 160px; height: 160px;">
-                    <img src="{{ asset('images/uwezo_fund_logo.png') }}" class="img-fluid" alt="Uwezo Logo">
+                <div class="d-inline-block p-4 mb-4 rounded shadow-lg border-0 bg-white">
+                    <img src="{{ asset('images/uwezo_logo_full.png') }}" class="img-fluid" alt="Uwezo Logo" style="max-width: 220px; height: auto;">
                 </div>
                 <h1 class="display-4 font-weight-bold text-navy mb-0">Uwezo <span class="text-primary">Loan Portal</span></h1>
                 <div class="mx-auto my-3" style="width: 60px; height: 4px; background: var(--uwezo-gold); border-radius: 2px;"></div>
