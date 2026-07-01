@@ -28788,7 +28788,12 @@ INSERT INTO `wards` (`id`, `constituency_code`, `ward_name`, `created_at`, `upda
 (1448, '290', 'HURUMA', NULL, NULL),
 (1449, '290', 'NGEI', NULL, NULL),
 (1450, '290', 'MLANGO KUBWA', NULL, NULL),
-(1451, '290', 'KIAMAIKO', NULL, NULL);
+(1451, '290', 'KIAMAIKO', NULL, NULL),
+(1452, '061', 'MARIANI', NULL, NULL),
+(1453, '061', 'KARINGANI', NULL, NULL),
+(1454, '061', 'MAGUMONI', NULL, NULL),
+(1455, '061', 'MUGWE', NULL, NULL),
+(1456, '061', 'IGAMBANG\'OMBE', NULL, NULL);
 
 --
 -- Indexes for dumped tables
@@ -29069,7 +29074,7 @@ ALTER TABLE `user_constituencies`
 -- AUTO_INCREMENT for table `wards`
 --
 ALTER TABLE `wards`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1452;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=1457;
 
 --
 -- Constraints for dumped tables
