@@ -28797,7 +28797,16 @@ INSERT INTO `wards` (`id`, `constituency_code`, `ward_name`, `created_at`, `upda
 (1457, '193', 'SIGOWET', NULL, NULL),
 (1458, '193', 'KAPLELARTET', NULL, NULL),
 (1459, '193', 'SOLIAT', NULL, NULL),
-(1460, '193', 'SOIN', NULL, NULL);
+(1460, '193', 'SOIN', NULL, NULL),
+(1461, '251', 'MFANGANO ISLAND', NULL, NULL),
+(1462, '251', 'RUSINGA ISLAND', NULL, NULL),
+(1463, '251', 'KASGUNGA', NULL, NULL),
+(1464, '251', 'GEMBE', NULL, NULL),
+(1465, '251', 'LAMBWE', NULL, NULL),
+(1466, '252', 'KAKSINGRI WEST', NULL, NULL),
+(1467, '252', 'RUMA-KAKSINGRI', NULL, NULL),
+(1468, '252', 'GWASSI NORTH', NULL, NULL),
+(1469, '252', 'GWASSI SOUTH', NULL, NULL);
 
 --
 -- Indexes for dumped tables
