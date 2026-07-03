@@ -14,6 +14,8 @@ class LocationService
     /** @var array<string, string> Alternate constituency labels mapped to IEBC names. */
     private const CONSTITUENCY_NAME_ALIASES = [
         'MOUNT ELGON' => 'MT. ELGON',
+        'SIGOWET SOIN' => 'SIGOWET/SOIN',
+        'SIGOWET-SOIN' => 'SIGOWET/SOIN',
     ];
 
     protected int $cacheTtl = 3600; // 1 hour - same as your existing filters
