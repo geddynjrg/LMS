@@ -14,7 +14,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 
 class MembersTemplateExport implements WithHeadings, WithEvents
 {
-    private const DATA_ROW_LIMIT = 10000;
+    private const DATA_ROW_LIMIT = 50000;
 
     protected $phases;
     protected $yesNo = ['Yes', 'No'];

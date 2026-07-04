@@ -15,7 +15,7 @@ use PhpOffice\PhpSpreadsheet\Style\Protection;
 
 class LoanTemplateExport implements WithHeadings, WithEvents
 {
-    private const DATA_ROW_LIMIT = 10000;
+    private const DATA_ROW_LIMIT = 50000;
 
     protected $wards;
     protected $phases;
