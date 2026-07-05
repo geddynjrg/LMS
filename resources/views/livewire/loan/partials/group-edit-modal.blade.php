@@ -118,10 +118,17 @@
     x-on:open-modal.window="if($event.detail.name === 'confirm-delete-group-modal') $($el).modal('show')"
     x-on:close-modal.window="if($event.detail.name === 'confirm-delete-group-modal') $($el).modal('hide')"
 >
-    <p class="mb-0 text-sm text-gray-700">
-        This will permanently remove the group from this loan phase, including its members for this phase.
-        The action is recorded in the audit trail and cannot be undone.
-    </p>
+    <div class="alert alert-warning text-left mb-0" role="alert">
+        <p class="mb-2 small">
+            Deleting this group will remove the group loan and all members linked to it from this phase.
+        </p>
+        <p class="mb-2 small">
+            A backup file is saved automatically before deletion. The action is recorded in the audit trail.
+        </p>
+        <p class="mb-0 small font-weight-bold">
+            This cannot be undone.
+        </p>
+    </div>
 
     <x-slot name="footer">
         <x-pill-button label="Cancel" variant="outline" color="secondary" data-dismiss="modal" icon="fas fa-times" class="mx-1 shadow-sm btn-refresh-premium" />

@@ -18,6 +18,7 @@ class GroupDetailEditService
     public function __construct(
         protected LoanPhaseService $phaseService,
         protected AppCacheService $cacheService,
+        protected GroupDeleteBackupService $backupService,
     ) {}
 
     public function canEditGroupLoan(GroupLoan $groupLoan, User $user): bool
@@ -182,8 +183,10 @@ class GroupDetailEditService
 
         $snapshot = $this->buildSnapshot($groupLoan, $group);
 
-        DB::transaction(function () use ($groupLoan, $group, $phase, $user, $snapshot) {
-            $this->logAudit($groupLoan, $group, $phase, $user, 'deleted', $snapshot, []);
+        $backup = $this->backupService->backup($groupLoan);
+
+        DB::transaction(function () use ($groupLoan, $group, $phase, $user, $snapshot, $backup) {
+            $this->logAudit($groupLoan, $group, $phase, $user, 'deleted', $snapshot, [], $backup['path']);
 
             GroupMember::where('group_loans_id', $groupLoan->id)->delete();
 
@@ -318,8 +321,18 @@ class GroupDetailEditService
         string $action,
         array $oldValues,
         array $newValues,
+        ?string $backupFile = null,
     ): void {
         $groupName = $group?->name ?? 'Group';
+
+        $message = match ($action) {
+            'deleted' => "Group \"{$groupName}\" was removed from phase \"{$phase->phase}\".",
+            default => "Group \"{$groupName}\" details were updated.",
+        };
+
+        if ($action === 'deleted' && $backupFile) {
+            $message .= ' Backup: ' . $backupFile;
+        }
 
         activity('group_audit')
             ->performedOn($groupLoan)
@@ -334,12 +347,10 @@ class GroupDetailEditService
                 'constituency_code' => $phase->constituency_code,
                 'old_values' => $oldValues,
                 'new_values' => $newValues,
+                'backup_file' => $backupFile,
                 'ip_address' => request()->ip(),
                 'user_agent' => request()->userAgent(),
             ])
-            ->log(match ($action) {
-                'deleted' => "Group \"{$groupName}\" was removed from phase \"{$phase->phase}\".",
-                default => "Group \"{$groupName}\" details were updated.",
-            });
+            ->log($message);
     }
 }

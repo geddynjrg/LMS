@@ -421,26 +421,25 @@
                 </p>
             @endif
 
-            @if($deletingPhaseGroupCount > 0)
-                <div class="alert alert-warning text-left mb-3" role="alert">
-                    <p class="mb-2 font-weight-bold">
-                        <i class="fas fa-exclamation-triangle mr-1"></i>
-                        This phase has linked groups
-                    </p>
-                    <p class="mb-0 small">
-                        Confirming will back up the phase data, then delete
-                        <strong>{{ $deletingPhaseGroupCount }}</strong> group(s)
+            <div class="alert alert-warning text-left mb-3" role="alert">
+                <p class="mb-2 font-weight-bold">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    Deleting this phase removes all linked data
+                </p>
+                <p class="mb-2 small">
+                    <strong>Linked groups</strong> are group loans (and their members) attached to this phase through historical data upload or group assignment.
+                    @if($deletingPhaseGroupCount > 0)
+                        This phase has <strong>{{ $deletingPhaseGroupCount }}</strong> linked group(s)
                         @if($deletingPhaseMemberCount > 0)
                             and <strong>{{ $deletingPhaseMemberCount }}</strong> member record(s)
                         @endif
-                        linked to this phase. This action cannot be undone.
-                    </p>
-                </div>
-            @else
-                <p class="text-muted mb-3">
-                    A backup will be created before this phase is removed.
+                        that will also be removed.
+                    @endif
                 </p>
-            @endif
+                <p class="mb-0 small">
+                    Deleting this phase will remove the phase and all groups/members linked to it. A backup file is saved automatically before deletion. This action cannot be undone.
+                </p>
+            </div>
 
             <p class="text-muted mb-0 small">
                 Deletion is blocked while applications are still assigned to this phase. Remove or reassign them first if needed.

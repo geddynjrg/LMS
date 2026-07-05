@@ -38,7 +38,7 @@
                                 <li class="mb-2">Open the <strong>Actions</strong> dropdown (three dots) on that row.</li>
                                 <li class="mb-2">Choose <strong>Edit Details</strong> to update the phase name or settings.</li>
                                 <li class="mb-0">
-                                    Choose <strong>Remove Phase</strong> to delete it. If the phase has linked groups, you will see a warning that those groups and their members will also be deleted. A backup is created automatically before deletion. Phases with applications still assigned cannot be deleted — remove or reassign them first.
+                                    Choose <strong>Remove Phase</strong> to delete the phase and all of its data. <strong>Linked groups</strong> are group loans (and their members) attached to that phase through historical data upload or group assignment — deleting the phase removes them too. A backup file is saved automatically before deletion. Phases with applications still assigned cannot be deleted — remove or reassign them first.
                                 </li>
                             </ol>
                         </div>
@@ -63,7 +63,7 @@
                                 <li class="mb-2">Locate the group in the table.</li>
                                 <li class="mb-2">In the <strong>Action</strong> column, click the <strong>Edit</strong> button (pencil icon) to update group details.</li>
                                 <li class="mb-0">
-                                    Click the <strong>Delete</strong> button (trash icon) to remove the group from the phase. Confirm when prompted.
+                                    Click the <strong>Delete</strong> button (trash icon) to remove the group and its members from the phase. A backup file is saved automatically before deletion. Confirm when prompted.
                                 </li>
                             </ol>
                         </div>
