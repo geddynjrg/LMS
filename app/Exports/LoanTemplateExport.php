@@ -5,6 +5,7 @@ namespace App\Exports;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use App\Support\GfsExcelColumn;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -125,14 +126,7 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             ->setFormula1(3)
             ->setSqref("C2:C{$limit}");
 
-        // GFS Code (Exact 10)
-        $gfsVal = $sheet->getCell('G3')->getDataValidation();
-        $gfsVal->setType(DataValidation::TYPE_TEXTLENGTH)
-            ->setOperator(DataValidation::OPERATOR_EQUAL)
-            ->setFormula1(10)
-            ->setAllowBlank(false)
-            ->setError('GFS Code must be exactly 10 characters.')
-            ->setSqref("G2:G{$limit}");
+        GfsExcelColumn::apply($sheet, 'G', 3, $limit);
     }
 
     private function applyStyles(Worksheet $sheet, string $highestColumn, int $maxRows): void
@@ -165,16 +159,6 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             ],
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
-
-        // $sheet->getStyle("G2:G{$maxRows}")->applyFromArray([
-        //     'alignment' => [
-        //         'wrapText' => false,
-        //     ],
-        // ]);
-
-        $sheet->getStyle("G2:G{$maxRows}")
-            ->getNumberFormat()
-            ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_TEXT);
 
         // Auto-size columns
         foreach (range('A', $highestColumn) as $col) {

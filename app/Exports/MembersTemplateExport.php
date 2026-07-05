@@ -5,6 +5,7 @@ namespace App\Exports;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
+use App\Support\GfsExcelColumn;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -64,6 +65,7 @@ class MembersTemplateExport implements WithHeadings, WithEvents
                 $this->addDropdown($sheet, 'K', $this->yesNo, $rowLimit);
 
                 $this->formatColumns($sheet, $rowLimit);
+                GfsExcelColumn::apply($sheet, 'E', 2, $rowLimit);
                 $this->addMemberIdValidation($sheet, $rowLimit);
 
                 $snVal = $sheet->getCell('A2')->getDataValidation();
@@ -136,10 +138,6 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             ],
         ]);
 
-        $sheet->getStyle("E2:E{$maxRows}")
-            ->getNumberFormat()
-            ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_TEXT);
-
         foreach (range('A', $highestColumn) as $col) {
             if (in_array($col, ['D', 'E', 'F'])) {
                 $sheet->getColumnDimension($col)->setAutoSize(false);
@@ -160,7 +158,11 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             ->getNumberFormat()
             ->setFormatCode('0');
 
-        $sheet->getStyle("B2:K{$rowLimit}")
+        $sheet->getStyle("B2:D{$rowLimit}")
+            ->getNumberFormat()
+            ->setFormatCode('@');
+
+        $sheet->getStyle("F2:K{$rowLimit}")
             ->getNumberFormat()
             ->setFormatCode('@');
     }
