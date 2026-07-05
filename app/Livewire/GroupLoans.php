@@ -10,13 +10,14 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\Constituency;
 use App\Models\County;
 use App\Models\GroupLoan;
+use App\Livewire\Concerns\ManagesGroupDetailEditing;
 use App\Services\Group\GroupsService;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Cache\AppCacheService;
 
 class GroupLoans extends Component
 {
-    use WithPagination;
+    use WithPagination, ManagesGroupDetailEditing;
 
     protected $paginationTheme = 'bootstrap';
 

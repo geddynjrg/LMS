@@ -88,6 +88,7 @@ class Group extends Model
         'ward_id',
         'identifier',
         'code',
+        'gfs_code',
         'date_formed',
         'date_registered',
         'reg_number',

@@ -375,14 +375,30 @@
                                             <span class="text-sm text-gray-900">{{ number_format($groupLoan->balance ?? 0, 2) }}</span>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <x-modal-trigger
-                                                target="viewGroupLoan({{ $groupLoan->gl_id }})"
-                                                label=""
-                                                title="View Loan"
-                                                icon="fas fa-eye"
-                                                variant="outline-primary"
-                                                defaultLabel=""
-                                            />
+                                            <div class="btn-group btn-group-sm">
+                                                <x-modal-trigger
+                                                    target="viewGroupLoan({{ $groupLoan->gl_id }})"
+                                                    label=""
+                                                    title="View Loan"
+                                                    icon="fas fa-eye"
+                                                    variant="outline-primary"
+                                                    defaultLabel=""
+                                                />
+                                                @if($this->canEditGroupInPhase($groupLoan->lph_id))
+                                                    <button type="button"
+                                                            class="btn btn-outline-secondary"
+                                                            wire:click="openEditGroupModal({{ $groupLoan->gl_id }})"
+                                                            title="Edit group details">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button type="button"
+                                                            class="btn btn-outline-danger"
+                                                            wire:click="deleteGroup({{ $groupLoan->gl_id }})"
+                                                            title="Delete group from phase">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty
@@ -551,4 +567,6 @@
             </div>
         </x-slot>
     </x-action-modal>
+
+    @include('livewire.loan.partials.group-edit-modal')
 </section>
