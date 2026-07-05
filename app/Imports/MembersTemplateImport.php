@@ -13,6 +13,7 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterImport;
 use App\Models\Constituency;
 use App\Models\GroupLoan;
+use App\Support\GfsCode;
 
 class MembersTemplateImport implements
     ToCollection,
@@ -390,15 +391,16 @@ class MembersTemplateImport implements
 
     private function validateGfs($value, $rowNumber, $row)
     {
-        $gfsPattern = '/^(\d{10})$|^(\d)-(\d{3})-(\d{3})-(\d{7})-(\d{3})-(\d{3,4})$/';
-        if (!preg_match($gfsPattern, $value, $matches)) {
+        $parsed = GfsCode::parse($value);
+        if (!$parsed) {
             $this->errors[] = "Row {$rowNumber}: GFS Code '{$value}' is invalid. Sample 4-{$this->constituency->county_code}-{$this->constituency->constituency_code}-4110202-201-001";
             return;
         }
 
-        $providedInit = $matches[2];
-        $providedCountyCode       = $matches[3];
-        $providedConstituencyCode = $matches[4];
+        $value = $parsed['full'];
+        $providedInit = $parsed['init'];
+        $providedCountyCode = $parsed['county'];
+        $providedConstituencyCode = $parsed['constituency'];
 
 
         $expectedInit = (string) 4;
@@ -417,12 +419,7 @@ class MembersTemplateImport implements
             return;
         }
 
-        $groupCode = $this->extractGroupCode($value);
-
-        if (!$groupCode) {
-            $this->errors[] = "Row {$rowNumber}: GFS suffix (last 3-4 digits) invalid in '{$value}'";
-            return;
-        }
+        $groupCode = $parsed['group_suffix'];
 
         $this->checkForDuplicateGroupCodeInDoc($groupCode, $rowNumber, $value, $row);
     }
@@ -461,10 +458,7 @@ class MembersTemplateImport implements
 
     private function extractGroupCode(string $gfs): ?string
     {
-        $parts = explode('-', $gfs);
-        $last = end($parts);
-        $last = trim($last);
-        return (strlen($last) >= 3 && strlen($last) <= 4 && ctype_digit($last)) ? $last : null;
+        return GfsCode::groupSuffix($gfs);
     }
 
     private function checkForDuplicateGroupCodeInDoc(
@@ -516,7 +510,7 @@ class MembersTemplateImport implements
         $phase = strtolower(trim($rowData[1] ?? ''));
         $loanType = strtolower(trim($rowData[2] ?? ''));
         $groupName = trim($rowData[3] ?? '');
-        $gfs = trim($rowData[4] ?? '');
+        $gfs = GfsCode::normalize(trim($rowData[4] ?? '')) ?? trim($rowData[4] ?? '');
         $memberId = strtolower(trim($rowData[6] ?? ''));
         $memberName = trim($rowData[5] ?? '');
         $memberRole = strtolower(trim($rowData[7] ?? ''));

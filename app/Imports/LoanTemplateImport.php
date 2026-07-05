@@ -21,6 +21,7 @@ use App\Models\GroupLoan;
 use App\Models\LoanPhase;
 use App\Models\Wards;
 use App\Services\Loan\LoanPhaseService;
+use App\Support\GfsCode;
 use App\Support\LoanPhaseFinancialTotals;
 
 class LoanTemplateImport implements
@@ -287,22 +288,16 @@ class LoanTemplateImport implements
 
     private function validateGfs($value, $rowNumber, $row, $mapping)
     {
-        $gfsPattern = '/^(\d{10})$|^(\d)-(\d{3})-(\d{3})-(\d{7})-(\d{3})-(\d{3,4})$/';
-        if (!preg_match($gfsPattern, $value, $matches)) {
+        $parsed = GfsCode::parse($value);
+        if (!$parsed) {
             $this->errors[] = "Row {$rowNumber}: GFS Code '{$value}' is invalid. Sample 4-{$this->constituency->county_code}-{$this->constituency->constituency_code}-4110202-201-001";
             return;
         }
 
-        // $matches[0] = full string
-        // $matches[1] = first digit (e.g. 4)
-        // $matches[2] = county_code (3 digits)
-        // $matches[3] = constituency_code (3 digits)
-        // $matches[4] = middle 7-digit part
-        // $matches[5] = next 3-digit
-        // $matches[6] = last 3-4 digit
-        $providedInit = $matches[2];
-        $providedCountyCode       = $matches[3];
-        $providedConstituencyCode = $matches[4];
+        $value = $parsed['full'];
+        $providedInit = $parsed['init'];
+        $providedCountyCode = $parsed['county'];
+        $providedConstituencyCode = $parsed['constituency'];
 
         // dd($providedInit);
         $expectedInit = (string) 4;
@@ -321,12 +316,7 @@ class LoanTemplateImport implements
             return;
         }
 
-        $groupCode = $this->extractGroupCode($value);
-
-        if (!$groupCode) {
-            $this->errors[] = "Row {$rowNumber}: GFS suffix (last 3-4 digits) invalid in '{$value}'";
-            return;
-        }
+        $groupCode = $parsed['group_suffix'];
 
         $this->checkForDuplicateGroupCodeInDoc($groupCode, $rowNumber, $value, $row, $mapping);
     }
@@ -463,10 +453,7 @@ class LoanTemplateImport implements
 
     private function extractGroupCode(string $gfs): ?string
     {
-        $parts = explode('-', $gfs);
-        $last = end($parts);
-        $last = trim($last);
-        return (strlen($last) >= 3 && strlen($last) <= 4 && ctype_digit($last)) ? $last : null;
+        return GfsCode::groupSuffix($gfs);
     }
 
     private function checkForDuplicateGroupCodeInDoc(

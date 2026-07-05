@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use App\Support\GfsCode;
 
 class GroupsImport implements ToCollection, WithChunkReading, WithBatchInserts
 {
@@ -128,6 +129,9 @@ class GroupsImport implements ToCollection, WithChunkReading, WithBatchInserts
             $groupName = $row[2] ?? null;
             $groupCode = $row[3] ?? null;
             $gfsCode = $row[4] ?? null;
+            if (!empty($gfsCode)) {
+                $gfsCode = GfsCode::normalize((string) $gfsCode);
+            }
             $identifier = $row[5] ?? null;
             $regNumber = $row[6] ?? null;
             $category = $row[7] ?? null;
@@ -253,6 +257,9 @@ class GroupsImport implements ToCollection, WithChunkReading, WithBatchInserts
             $groupName = $row[2] ?? null;
             $groupCode = $row[3] ?? null;
             $gfsCode = $row[4] ?? null;
+            if (!empty($gfsCode)) {
+                $gfsCode = GfsCode::normalize((string) $gfsCode);
+            }
             $identifier = $row[5] ?? null;
             $regNumber = $row[6] ?? null;
             $category = $row[7] ?? null;
@@ -277,6 +284,9 @@ class GroupsImport implements ToCollection, WithChunkReading, WithBatchInserts
 
             if (empty($gfsCode)) {
                 $errors[] = "Row {$rowNumber}: GFS code is required";
+            } elseif ($gfsCode === null) {
+                $errors[] = "Row {$rowNumber}: GFS code '{$row[4]}' is invalid";
+                $gfsCode = $row[4] ?? null;
             }
             if (empty($groupCode)) {
                 $errors[] = "Row {$rowNumber}: Group code is required";
