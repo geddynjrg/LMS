@@ -69,6 +69,9 @@ class PhaseManager extends Component
     public $selectAll = false;
 
     public $selectedPhaseId;
+    public ?string $deletingPhaseName = null;
+    public int $deletingPhaseGroupCount = 0;
+    public int $deletingPhaseMemberCount = 0;
 
     #[Url(except: '')]
     public $sortField = 'name';
@@ -246,9 +249,28 @@ class PhaseManager extends Component
 
     public function deletePhase($phaseId)
     {
+        $phase = LoanPhase::query()
+            ->where('constituency_code', $this->constituency->constituency_code)
+            ->findOrFail($phaseId);
+
+        $counts = app(PhaseDetailEditService::class)->deletePreviewCounts($phase);
+
         $this->selectedPhaseId = $phaseId;
+        $this->deletingPhaseName = $phase->phase;
+        $this->deletingPhaseGroupCount = $counts['group_loans'];
+        $this->deletingPhaseMemberCount = $counts['group_members'];
 
         $this->dispatch('open-modal', name: 'confirm-deletePhase-modal');
+    }
+
+    protected function resetPhaseDeleteState(): void
+    {
+        $this->reset([
+            'selectedPhaseId',
+            'deletingPhaseName',
+            'deletingPhaseGroupCount',
+            'deletingPhaseMemberCount',
+        ]);
     }
 
     public function confirmDeletePhase()
@@ -262,7 +284,7 @@ class PhaseManager extends Component
                 type: 'error'
             );
 
-            $this->reset('selectedPhaseId');
+            $this->resetPhaseDeleteState();
 
             $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
 
@@ -277,7 +299,7 @@ class PhaseManager extends Component
                 type: 'error'
             );
 
-            $this->reset('selectedPhaseId');
+            $this->resetPhaseDeleteState();
 
             $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
 
@@ -290,27 +312,37 @@ class PhaseManager extends Component
                 auth()->user(),
             );
 
-            $this->reset('selectedPhaseId');
+            $this->resetPhaseDeleteState();
 
             $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
 
             $this->dispatch('swal:toast',
                 title: 'Phase Deleted 😊',
-                message: 'Phase Removed successfully',
+                message: 'Phase removed successfully.',
                 type: 'success'
             );
 
             $this->dispatch('app-updated')->to(SideNavBadge::class);
 
             $this->refreshData();
-        } catch (\Throwable $th) {
+        } catch (ValidationException $e) {
             $this->dispatch('swal:toast',
                 title: 'Deleting Phase 😕',
-                message: "Could Not delete phase. Please Try again later.",
+                message: collect($e->errors())->flatten()->first(),
                 type: 'error'
             );
 
-            $this->reset('selectedPhaseId');
+            $this->resetPhaseDeleteState();
+
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+        } catch (\Throwable $th) {
+            $this->dispatch('swal:toast',
+                title: 'Deleting Phase 😕',
+                message: $th->getMessage() ?: 'Could not delete phase. Please try again later.',
+                type: 'error'
+            );
+
+            $this->resetPhaseDeleteState();
 
             $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
 

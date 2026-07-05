@@ -414,10 +414,36 @@
         x-on:open-modal.window="if($event.detail.name === 'confirm-deletePhase-modal') $($el).modal('show')"
         x-on:close-modal.window="if($event.detail.name === 'confirm-deletePhase-modal') $($el).modal('hide')"
      >
-        <div class="text-center">
+        <div class="text-center px-3">
+            @if($deletingPhaseName)
+                <p class="mb-3">
+                    You are about to permanently remove <strong>{{ $deletingPhaseName }}</strong>.
+                </p>
+            @endif
 
-            <p class="text-muted px-3">
-                Before confirming,  ensure that there are no application assigned to this phase.
+            @if($deletingPhaseGroupCount > 0)
+                <div class="alert alert-warning text-left mb-3" role="alert">
+                    <p class="mb-2 font-weight-bold">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        This phase has linked groups
+                    </p>
+                    <p class="mb-0 small">
+                        Confirming will back up the phase data, then delete
+                        <strong>{{ $deletingPhaseGroupCount }}</strong> group(s)
+                        @if($deletingPhaseMemberCount > 0)
+                            and <strong>{{ $deletingPhaseMemberCount }}</strong> member record(s)
+                        @endif
+                        linked to this phase. This action cannot be undone.
+                    </p>
+                </div>
+            @else
+                <p class="text-muted mb-3">
+                    A backup will be created before this phase is removed.
+                </p>
+            @endif
+
+            <p class="text-muted mb-0 small">
+                Deletion is blocked while applications are still assigned to this phase. Remove or reassign them first if needed.
             </p>
         </div>
 

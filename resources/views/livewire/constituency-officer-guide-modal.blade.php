@@ -38,7 +38,7 @@
                                 <li class="mb-2">Open the <strong>Actions</strong> dropdown (three dots) on that row.</li>
                                 <li class="mb-2">Choose <strong>Edit Details</strong> to update the phase name or settings.</li>
                                 <li class="mb-0">
-                                    Choose <strong>Remove Phase</strong> to delete it. Deletion is only allowed when the phase has <strong>no applications or group loans</strong> assigned — remove or reassign them first if needed.
+                                    Choose <strong>Remove Phase</strong> to delete it. If the phase has linked groups, you will see a warning that those groups and their members will also be deleted. A backup is created automatically before deletion. Phases with applications still assigned cannot be deleted — remove or reassign them first.
                                 </li>
                             </ol>
                         </div>
@@ -71,14 +71,14 @@
                 </div>
 
                 <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
-                    <div class="custom-control custom-checkbox">
+                    <div class="d-flex align-items-center">
                         <input
                             type="checkbox"
-                            class="custom-control-input"
+                            class="form-check-input m-0 mr-2"
                             id="dont-show-officer-guide"
                             wire:model="dontShowAgain"
                         >
-                        <label class="custom-control-label text-muted" for="dont-show-officer-guide">
+                        <label class="text-muted mb-0" for="dont-show-officer-guide">
                             Do not show this again
                         </label>
                     </div>
