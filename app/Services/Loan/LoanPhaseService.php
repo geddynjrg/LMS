@@ -491,6 +491,10 @@ class LoanPhaseService
             $phase = LoanPhase::findOrFail($phase);
         }
 
+        if ($phase->isHistoricalUpload()) {
+            return $this->fetchHistoricalPhaseFromDb($phase, $perPage, $filters, $sortField, $sortDirection);
+        }
+
         $stats = $phase->phaseApplications()
             ->join('temp_applications', 'phase_applications.temp_application_id', '=', 'temp_applications.id')
             ->selectRaw("
@@ -655,13 +659,114 @@ class LoanPhaseService
         return [
             'phase' => $phase,
             'applications' => $applications,
+            'is_historical_upload' => false,
+        ];
+    }
+
+    /**
+     * Historical upload phases store beneficiaries as group_loans (no phase_applications).
+     */
+    protected function fetchHistoricalPhaseFromDb(
+        LoanPhase $phase,
+        int $perPage,
+        array $filters,
+        ?string $sortField,
+        ?string $sortDirection
+    ): array {
+        $stats = $phase->grouploans()
+            ->whereIn('loan_status', ['financed', 'cancelled'])
+            ->selectRaw("
+                COUNT(*) as total_applications,
+                0 as pending_count,
+                0 as pending_submission_to_hq_count,
+                0 as pending_hq_approval_count,
+                SUM(CASE WHEN loan_status = 'cancelled' THEN 1 ELSE 0 END) as rejected_count,
+                SUM(CASE WHEN loan_status = 'financed' THEN 1 ELSE 0 END) as approved_count,
+                SUM(CASE WHEN loan_status = 'financed' THEN 1 ELSE 0 END) as disbursed_count,
+                SUM(CASE WHEN LOWER(category) LIKE '%youth%' THEN 1 ELSE 0 END) as youth_count,
+                SUM(CASE WHEN LOWER(category) LIKE '%women%' THEN 1 ELSE 0 END) as women_count,
+                SUM(CASE WHEN LOWER(category) LIKE '%pwd%' THEN 1 ELSE 0 END) as pwd_count,
+                SUM(CASE WHEN loan_status = 'financed' AND LOWER(category) LIKE '%youth%' THEN 1 ELSE 0 END) as approved_youth_count,
+                SUM(CASE WHEN loan_status = 'financed' AND LOWER(category) LIKE '%women%' THEN 1 ELSE 0 END) as approved_women_count,
+                SUM(CASE WHEN loan_status = 'financed' AND LOWER(category) LIKE '%pwd%' THEN 1 ELSE 0 END) as approved_pwd_count,
+                SUM(CASE WHEN loan_status = 'financed' AND LOWER(category) LIKE '%youth%' THEN 1 ELSE 0 END) as disbursed_youth_count,
+                SUM(CASE WHEN loan_status = 'financed' AND LOWER(category) LIKE '%women%' THEN 1 ELSE 0 END) as disbursed_women_count,
+                SUM(CASE WHEN loan_status = 'financed' AND LOWER(category) LIKE '%pwd%' THEN 1 ELSE 0 END) as disbursed_pwd_count,
+                COALESCE(SUM(amount_applied), 0) as total_requested,
+                COALESCE(SUM(CASE WHEN loan_status = 'financed' THEN amount_approved ELSE 0 END), 0) as total_approved,
+                COALESCE(SUM(CASE WHEN loan_status = 'financed' THEN amount_issued ELSE 0 END), 0) as total_issued
+            ")
+            ->first();
+
+        $phase->forceFill($stats?->toArray() ?? []);
+
+        $query = DB::table('group_loans as gl')
+            ->join('groups as g', 'gl.group_id', '=', 'g.id')
+            ->join('wards as w', 'g.ward_id', '=', 'w.id')
+            ->where('gl.loan_phase_id', $phase->id)
+            ->whereIn('gl.loan_status', ['financed', 'cancelled'])
+            ->select([
+                'gl.id',
+                'gl.loan_phase_id',
+                'gl.group_id',
+                'gl.amount_applied',
+                'gl.amount_approved',
+                'gl.amount_issued',
+                'gl.amount_repaid',
+                'gl.loan_status',
+                'gl.loan_level',
+                'gl.category',
+                'gl.sector',
+                'gl.gfs_code',
+                'gl.status',
+                'gl.disbursement_date',
+                'gl.updated_at',
+                'g.name as group_name',
+                'g.slug as group_slug',
+                'g.identifier as group_identifier',
+                'w.ward_name',
+                DB::raw('(gl.amount_issued - gl.amount_repaid) as balance'),
+            ]);
+
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('g.name', 'like', "%{$search}%")
+                    ->orWhere('g.identifier', 'like', "%{$search}%");
+            });
+        }
+
+        if (!empty($filters['status'])) {
+            $query->where('gl.status', $filters['status']);
+        }
+
+        if (!empty($filters['risk'])) {
+            $query->where('gl.category', 'like', "%{$filters['risk']}%");
+        }
+
+        $sortMap = [
+            'applicationId' => 'g.identifier',
+            'group_name' => 'g.name',
+            'category' => 'gl.category',
+            'amount_applied' => 'gl.amount_applied',
+            'amount_approved' => 'gl.amount_approved',
+            'status' => 'gl.status',
+            'updated' => 'gl.updated_at',
+            'disbursement_date' => 'gl.disbursement_date',
+            'issued' => 'gl.amount_issued',
+            'repaid' => 'gl.amount_repaid',
+            'balance' => 'balance',
+            'ward' => 'w.ward_name',
         ];
 
-        // return [
-        //     'phase' => $phase,
-        //     'applications' => $applications,
-        // ];
+        $orderBy = $sortMap[$sortField] ?? 'gl.disbursement_date';
+        $applications = $query->orderBy($orderBy, $sortDirection ?? 'desc')->paginate($perPage);
 
+        return [
+            'phase' => $phase,
+            'applications' => $applications,
+            'is_historical_upload' => true,
+        ];
     }
 
     public function getPhasesByStatus(string $constituencyCode, ?string $search = null, int $perPage = 15)

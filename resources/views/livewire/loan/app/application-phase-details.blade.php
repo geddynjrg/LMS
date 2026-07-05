@@ -155,7 +155,12 @@
                         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center">
 
                             <h3 class="card-title text-gray-900 text-capitalize">
-                                <i class="fas fa-list text-primary mr-2"></i> Applications
+                                <i class="fas fa-list text-primary mr-2"></i>
+                                @if($this->isHistoricalPhase)
+                                    Groups
+                                @else
+                                    Applications
+                                @endif
                             </h3>
                             <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-md-end flex-md-grow-1" style="gap: 15px;">
 
@@ -169,7 +174,7 @@
                                         @focus="focused = true"
                                         @blur="focused = false"
                                         class="form-control border-right-0 shadow-none text-sm"
-                                        placeholder="Search Applications..."
+                                        placeholder="{{ $this->isHistoricalPhase ? 'Search groups...' : 'Search Applications...' }}"
                                         style="height: 32px; border-radius: 10px 0 0 10px; font-size: 0.8rem; border-color: #ced4da; padding-left: 12px;">
 
                                     <div class="input-group-append">
@@ -220,6 +225,9 @@
                     </div>
 
                     <div class="card-body">
+                        @if($this->isHistoricalPhase)
+                            @include('livewire.loan.app.partials.historical-phase-applications')
+                        @else
                         {{-- filters --}}
                         <div class="row mb-3">
                             <div class="col-sm col-6">
@@ -561,12 +569,12 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="card-footer clearfix bg-transparent">
-                        <div class="pagination-sm">
-                            {{ $this->applications->links() }}
+                        <div class="card-footer clearfix bg-transparent">
+                            <div class="pagination-sm">
+                                {{ $this->applications->links() }}
+                            </div>
                         </div>
+                        @endif
                     </div>
                 </div>
             </div>

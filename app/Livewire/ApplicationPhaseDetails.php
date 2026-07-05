@@ -152,6 +152,7 @@ class ApplicationPhaseDetails extends Component
         unset($this->detailedPhase);
         unset($this->phaseSummary);
         unset($this->applicationsSummary);
+        unset($this->isHistoricalPhase);
         unset($this->phaseApplicationDocuments);
         unset($this->vettingPercentage);
         unset($this->documentsCount);
@@ -1794,6 +1795,22 @@ class ApplicationPhaseDetails extends Component
     public function applications()
     {
         return $this->phaseSummary['applications'];
+    }
+
+    #[Computed]
+    public function isHistoricalPhase(): bool
+    {
+        return (bool) ($this->phaseSummary['is_historical_upload'] ?? false);
+    }
+
+    #[Computed]
+    public function historicalStatusOptions(): array
+    {
+        return [
+            ['value' => 'active', 'name' => 'Performing'],
+            ['value' => 'defaulted', 'name' => 'Defaulted'],
+            ['value' => 'completed', 'name' => 'Cleared'],
+        ];
     }
 
     public function exportReport($document)
