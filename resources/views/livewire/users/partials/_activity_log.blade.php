@@ -20,9 +20,57 @@
 
                 @foreach($logs as $log)
                     @php
-                        $isUpdate = $log->description === 'updated';
-                        $isDanger = in_array($log->description, ['deleted', 'deactivated']);
+                        $isPhaseAudit = $log->log_name === 'phase_audit';
+                        $isGroupAudit = $log->log_name === 'group_audit';
+                        $isCustomAudit = $isPhaseAudit || $isGroupAudit;
+                        $hasAttributeDiff = $log->properties->has('attributes');
+                        $hasValueDiff = $log->properties->has('old_values') || $log->properties->has('new_values');
+
+                        $action = $log->event ?? $log->description;
+                        $isUpdate = in_array($action, ['updated', 'update'], true);
+                        $isDanger = in_array($action, ['deleted', 'deactivated', 'delete'], true);
                         $iconClass = $isUpdate ? 'bg-primary' : ($isDanger ? 'bg-danger' : 'bg-success');
+
+                        $oldValues = (array) ($log->properties->get('old_values') ?? []);
+                        $newValues = (array) ($log->properties->get('new_values') ?? []);
+                        $diffKeys = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
+                        $hiddenDiffKeys = ['id', 'group_loan_id', 'loan_phase_id', 'group_id'];
+                        $visibleDiffKeys = array_values(array_filter(
+                            $diffKeys,
+                            fn ($key) => ! in_array($key, $hiddenDiffKeys, true),
+                        ));
+
+                        if ($isPhaseAudit) {
+                            $subjectLabel = 'Phase';
+                            $subjectName = $log->subject?->phase
+                                ?? ($newValues['phase'] ?? $oldValues['phase'] ?? null)
+                                ?? ('#' . ($log->properties->get('loan_phase_id') ?? $log->subject_id));
+                        } elseif ($isGroupAudit) {
+                            $subjectLabel = 'Group';
+                            $subjectName = $newValues['group_name']
+                                ?? $oldValues['group_name']
+                                ?? $log->subject?->group?->name
+                                ?? ('#' . ($log->properties->get('group_id') ?? $log->subject_id));
+                        } else {
+                            $subjectLabel = class_basename($log->subject_type);
+                            $subjectName = $log->subject?->name ?? $log->subject?->phase ?? $log->subject?->id ?? 'Record #' . $log->subject_id;
+                        }
+
+                        $formatAuditValue = static function ($value): string {
+                            if ($value === null || $value === '') {
+                                return '—';
+                            }
+
+                            if (is_bool($value)) {
+                                return $value ? 'Yes' : 'No';
+                            }
+
+                            if (is_array($value)) {
+                                return json_encode($value);
+                            }
+
+                            return (string) $value;
+                        };
                     @endphp
 
                     <div class="mb-4">
@@ -34,21 +82,32 @@
                             </span>
 
                             <h3 class="timeline-header border-0 pb-0">
-                                <span class="text-capitalize font-weight-bold text-dark">{{ $log->description }}</span>
+                                @if($isCustomAudit)
+                                    <span class="badge badge-{{ $isPhaseAudit ? 'info' : 'secondary' }} mr-1">
+                                        {{ $isPhaseAudit ? 'Phase Audit' : 'Group Audit' }}
+                                    </span>
+                                @endif
+                                <span class="text-capitalize font-weight-bold text-dark">
+                                    {{ $isCustomAudit ? $log->description : ucfirst($log->description) }}
+                                </span>
                                 <span class="text-muted mx-1">by</span>
                                 <span class="badge badge-light border">{{ $log->causer?->name ?? 'System' }}</span>
                             </h3>
 
                             <div class="timeline-body pt-2 pb-2">
                                 <p class="mb-2 text-secondary">
-                                    Performed action on {{ class_basename($log->subject_type) }}:
-                                    <span class="text-dark font-weight-600">
-                                        {{ $log->subject?->name ?? $log->subject?->id ?? 'Record #'.$log->subject_id }}
-                                    </span>
+                                    Performed action on {{ $subjectLabel }}:
+                                    <span class="text-dark font-weight-600">{{ $subjectName }}</span>
                                 </p>
 
-                                {{-- Details Toggle with Alpine --}}
-                                @if($log->properties->has('attributes'))
+                                @if($log->properties->get('ip_address'))
+                                    <p class="mb-2 small text-muted">
+                                        <i class="fas fa-network-wired mr-1"></i>
+                                        IP: {{ $log->properties->get('ip_address') }}
+                                    </p>
+                                @endif
+
+                                @if($hasAttributeDiff || ($hasValueDiff && $visibleDiffKeys !== []))
                                     <div class="mt-2">
                                         <button @click="expandedLog === {{ $log->id }} ? expandedLog = null : expandedLog = {{ $log->id }}"
                                                 class="btn btn-xs btn-link text-info p-0 font-weight-bold"
@@ -72,15 +131,41 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        @foreach($log->properties['attributes'] as $key => $value)
-                                                            @if(isset($log->properties['old'][$key]))
+                                                        @if($hasAttributeDiff)
+                                                            @foreach($log->properties['attributes'] as $key => $value)
+                                                                @if(isset($log->properties['old'][$key]))
+                                                                    <tr>
+                                                                        <td class="font-weight-bold text-info" style="width: 30%;">{{ Str::headline($key) }}</td>
+                                                                        <td class="text-danger"><s>{{ $log->properties['old'][$key] ?? 'null' }}</s></td>
+                                                                        <td class="text-success font-weight-bold">{{ $value ?? 'null' }}</td>
+                                                                    </tr>
+                                                                @endif
+                                                            @endforeach
+                                                        @else
+                                                            @foreach($visibleDiffKeys as $key)
+                                                                @php
+                                                                    $oldValue = $oldValues[$key] ?? null;
+                                                                    $newValue = $newValues[$key] ?? null;
+                                                                @endphp
                                                                 <tr>
                                                                     <td class="font-weight-bold text-info" style="width: 30%;">{{ Str::headline($key) }}</td>
-                                                                    <td class="text-danger"><s>{{ $log->properties['old'][$key] ?? 'null' }}</s></td>
-                                                                    <td class="text-success font-weight-bold">{{ $value ?? 'null' }}</td>
+                                                                    <td class="text-danger">
+                                                                        @if($isDanger && ! array_key_exists($key, $newValues))
+                                                                            <s>{{ $formatAuditValue($oldValue) }}</s>
+                                                                        @else
+                                                                            {{ $formatAuditValue($oldValue) }}
+                                                                        @endif
+                                                                    </td>
+                                                                    <td class="text-success font-weight-bold">
+                                                                        @if($isDanger && ! array_key_exists($key, $newValues))
+                                                                            <span class="text-muted">Removed</span>
+                                                                        @else
+                                                                            {{ $formatAuditValue($newValue) }}
+                                                                        @endif
+                                                                    </td>
                                                                 </tr>
-                                                            @endif
-                                                        @endforeach
+                                                            @endforeach
+                                                        @endif
                                                     </tbody>
                                                 </table>
                                             </div>

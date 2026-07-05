@@ -22,7 +22,9 @@ class UserService
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('description', 'like', "%{$search}%")
-                      ->orWhere('subject_type', 'like', "%{$search}%");
+                      ->orWhere('subject_type', 'like', "%{$search}%")
+                      ->orWhere('log_name', 'like', "%{$search}%")
+                      ->orWhere('event', 'like', "%{$search}%");
                 });
             })
             ->latest()
