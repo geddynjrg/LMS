@@ -249,6 +249,8 @@
 
             <div class="wrapper">
                 @auth
+                    <livewire:constituency-officer-guide-modal />
+
                     <!-- Navbar -->
                     @include('nav-bar')
                     <!-- /.navbar -->

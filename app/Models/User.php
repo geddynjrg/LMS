@@ -63,6 +63,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone_number',
         'id_number',
         'slug',
+        'dismissed_officer_guide_at',
     ];
 
     /**
@@ -142,6 +143,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at' => 'datetime',
         'status' => 'boolean',
+        'dismissed_officer_guide_at' => 'datetime',
     ];
 
     /**
