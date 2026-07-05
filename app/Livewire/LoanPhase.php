@@ -6,9 +6,12 @@ use App\Models\Constituency;
 use App\Models\County;
 use Livewire\Component;
 use App\Models\LoanPhase as Phases;
+use App\Livewire\Concerns\ManagesPhaseDetailEditing;
 
 class LoanPhase extends Component
 {
+    use ManagesPhaseDetailEditing;
+
     public $loanPhases;
     public $totalApplications;
     public $totalAmountIssued;
@@ -25,12 +28,12 @@ class LoanPhase extends Component
         $this->getLoanPhases ();
     }
 
-    private function getLoanPhases ()
+    public function getLoanPhases(): void
     {
-        $code = $this->constituency->constituency_code;
         $this->loanPhases = Phases::whereHas('constituency', function ($query) {
             $query->where('constituency_code', $this->constituency->constituency_code);
         })
+        ->with(['grouploans:id,loan_phase_id,amount_issued,amount_repaid'])
         ->withCount(['grouploans' => function ($query) {
             $query->whereIn('loan_status', ['approved', 'financed']);
         }])

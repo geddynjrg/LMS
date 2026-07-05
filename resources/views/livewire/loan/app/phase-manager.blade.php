@@ -442,4 +442,6 @@
             </div>
         </x-slot>
     </x-action-modal>
+
+    @include('livewire.loan.app.partials.phase-edit-modal')
 </section>

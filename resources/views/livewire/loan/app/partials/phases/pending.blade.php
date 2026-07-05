@@ -126,6 +126,15 @@
                                         </button>
                                     @endif
 
+                                    @if($this->canEditPhaseDetails($phase))
+                                        <button type="button"
+                                                class="dropdown-item py-2"
+                                                wire:click="openEditPhaseModal({{ $phase->id }})"
+                                                @click="open = false">
+                                            <i class="fas fa-edit text-info mr-2"></i> Edit Details
+                                        </button>
+                                    @endif
+
                                     <div class="dropdown-divider"></div>
 
                                     <button type="button" class="dropdown-item py-2 text-danger"

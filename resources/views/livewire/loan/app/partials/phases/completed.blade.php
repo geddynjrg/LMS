@@ -95,12 +95,22 @@
                         </span>
                     </td>
                     <td class="px-4 py-3">
-                        <a href="{{ route('const.app.app_phase_details', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
-                            class="btn btn-white btn-sm border shadow-sm"
-                            title="Manage Batch"
-                            >
-                                <i class="fas fa-folder-open text-primary mr-1"></i> Manage
-                        </a>
+                        <div class="btn-group">
+                            <a href="{{ route('const.app.app_phase_details', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
+                                class="btn btn-white btn-sm border shadow-sm"
+                                title="Manage Batch"
+                                >
+                                    <i class="fas fa-folder-open text-primary mr-1"></i> Manage
+                            </a>
+                            @if($this->canEditPhaseDetails($phase))
+                                <button type="button"
+                                        class="btn btn-white btn-sm border shadow-sm"
+                                        wire:click="openEditPhaseModal({{ $phase->id }})"
+                                        title="Edit phase details">
+                                    <i class="fas fa-edit text-info"></i>
+                                </button>
+                            @endif
+                        </div>
                     </td>
                 </tr>
             @empty

@@ -21,11 +21,13 @@ use Livewire\Attributes\On;
 use App\Models\LoanPhase;
 use App\Livewire\AddAppsToPhaseModal;
 use App\Support\PhaseWorkflowStatus;
+use App\Livewire\Concerns\ManagesPhaseDetailEditing;
+use App\Services\Loan\PhaseDetailEditService;
 
 
 class PhaseManager extends Component
 {
-    use WithPagination, WithFileUploads;
+    use WithPagination, WithFileUploads, ManagesPhaseDetailEditing;
 
     protected $paginationTheme = 'bootstrap';
 
@@ -283,9 +285,10 @@ class PhaseManager extends Component
         }
 
         try {
-            DB::transaction(function () use ($phase) {
-                $phase->delete();
-            });
+            app(PhaseDetailEditService::class)->deleteWithAudit(
+                LoanPhase::findOrFail($this->selectedPhaseId),
+                auth()->user(),
+            );
 
             $this->reset('selectedPhaseId');
 

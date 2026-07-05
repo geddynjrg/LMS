@@ -39,12 +39,23 @@
                                     <td class="text-right">{{number_format($loanPhase->grouploans->sum('amount_repaid'))}}</td>
                                     <td class="text-right">{{number_format($loanPhase->grouploans->sum('amount_issued') - $loanPhase->grouploans->sum('amount_repaid'))}}</td>
                                     <td class="text-center">
-                                        <a href="{{ route('const.loans.grouploans', ['county' => $county->slug, 'constituency' => $constituency->slug, 'phaseFilter' => $loanPhase->slug]) }}"
-                                           class="btn btn-sm btn-outline-info d-inline-flex align-items-center rounded-lg"
-                                           title="View group loans for this phase">
-                                            <i class="fas fa-eye"></i>
-                                            <span class="ml-1">View</span>
-                                        </a>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ route('const.loans.grouploans', ['county' => $county->slug, 'constituency' => $constituency->slug, 'phaseFilter' => $loanPhase->slug]) }}"
+                                               class="btn btn-outline-info d-inline-flex align-items-center rounded-lg"
+                                               title="View group loans for this phase">
+                                                <i class="fas fa-eye"></i>
+                                                <span class="ml-1">View</span>
+                                            </a>
+                                            @if($this->canEditPhaseDetails($loanPhase))
+                                                <button type="button"
+                                                        class="btn btn-outline-secondary d-inline-flex align-items-center rounded-lg"
+                                                        wire:click="openEditPhaseModal({{ $loanPhase->id }})"
+                                                        title="Edit phase details">
+                                                    <i class="fas fa-edit"></i>
+                                                    <span class="ml-1">Edit</span>
+                                                </button>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @endforeach
@@ -102,6 +113,8 @@
             <!-- /.modal-dialog -->
         </div>
         <!-- /.defaulter members modal -->
+
+        @include('livewire.loan.app.partials.phase-edit-modal')
 </section>
 @push('styles')
     <link rel="stylesheet" href="{{asset('plugins/toastr/toastr.min.css')}}">

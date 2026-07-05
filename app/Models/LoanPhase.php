@@ -121,6 +121,90 @@ class LoanPhase extends Model
     }
 
     /**
+     * Phases created via historical data upload (no application workflow).
+     */
+    public function isHistoricalUpload(): bool
+    {
+        if ($this->phaseApplications()->exists()) {
+            return false;
+        }
+
+        if ($this->grouploans()->exists()) {
+            return true;
+        }
+
+        return $this->status === 'disbursed'
+            && $this->submitted_to_hq_at === null
+            && $this->review_date === null;
+    }
+
+    /**
+     * Whether constituency staff may edit phase metadata (name, dates, amounts).
+     */
+    public function canEditDetailsBy($user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin')) {
+            return true;
+        }
+
+        if (!$user->hasAnyRole(['constituency_officer', 'intern'])) {
+            return false;
+        }
+
+        if (!$this->userCanManageConstituencyPhases($user)) {
+            return false;
+        }
+
+        if ($this->is_locked) {
+            return false;
+        }
+
+        if ($this->isHistoricalUpload()) {
+            return true;
+        }
+
+        if ($this->status === 'draft') {
+            return true;
+        }
+
+        return $this->canEditCompletedDetails();
+    }
+
+    /**
+     * Closed workflow phases where only metadata corrections are allowed.
+     */
+    public function canEditCompletedDetails(): bool
+    {
+        if ($this->isHistoricalUpload()) {
+            return true;
+        }
+
+        if (!in_array($this->status, ['disbursed', 'rejected'], true)) {
+            return false;
+        }
+
+        if ($this->hasPendingTrainingOrDisbursement()) {
+            return false;
+        }
+
+        return $this->phaseApplications()->exists();
+    }
+
+    protected function userCanManageConstituencyPhases($user): bool
+    {
+        if (!$user->can('submit application') && !$user->can('create new phase')) {
+            return false;
+        }
+
+        return $user->constituencies
+            ->contains('constituency_code', $this->constituency_code);
+    }
+
+    /**
      * Groups still awaiting training completion or disbursement recording.
      */
     public function hasPendingTrainingOrDisbursement(): bool
