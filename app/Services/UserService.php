@@ -4,11 +4,12 @@ namespace App\Services;
 
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Activitylog\Models\Activity;
+use App\Models\GroupLoan;
 use App\Models\User;
 
 class UserService
@@ -16,9 +17,15 @@ class UserService
     public function getUserActions(User $user, int $perPage = 10, string $search = ''): LengthAwarePaginator
     {
         return Activity::query()
-            ->with(['subject', 'causer'])
-            ->where('causer_type', User::class)
-            ->where('causer_id', $user->id)
+            ->with([
+                'causer',
+                'subject' => function (MorphTo $morphTo): void {
+                    $morphTo->morphWith([
+                        GroupLoan::class => ['group'],
+                    ]);
+                },
+            ])
+            ->causedBy($user)
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('description', 'like', "%{$search}%")

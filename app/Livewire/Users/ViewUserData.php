@@ -92,6 +92,8 @@ class ViewUserData extends Component
         $this->loadUserState();
 
         $this->loadLocations();
+
+        $this->resetPage();
     }
 
     public function updatedSelectedCounty($value)
