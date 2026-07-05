@@ -117,7 +117,6 @@ class GroupDetailEditService
             }
 
             if (isset($payload['gfs_code'])) {
-                $groupUpdates['gfs_code'] = $payload['gfs_code'];
                 $loanUpdates['gfs_code'] = $payload['gfs_code'];
             }
 
@@ -302,7 +301,7 @@ class GroupDetailEditService
             'group_name' => $group?->name,
             'ward_id' => $group?->ward_id,
             'ward_name' => $group?->ward?->ward_name,
-            'gfs_code' => $groupLoan?->gfs_code ?? $group?->gfs_code,
+            'gfs_code' => $groupLoan?->gfs_code,
             'amount_applied' => $groupLoan?->amount_applied,
             'amount_approved' => $groupLoan?->amount_approved,
             'amount_issued' => $groupLoan?->amount_issued,
