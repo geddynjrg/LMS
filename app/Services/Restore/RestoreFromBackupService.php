@@ -421,7 +421,7 @@ class RestoreFromBackupService
         'ip_address' => request()->ip(),
         'user_agent' => request()->userAgent(),
       ])
-      ->log("Restored deleted {$type} data from backup " . basename($backupPath));
+      ->log("Restored deleted {$type} data.");
   }
 
   /**

@@ -358,7 +358,7 @@ class PhaseDetailEditService
         }
 
         if (!empty($cascadeCounts['backup_file'])) {
-            $message .= ' Backup: ' . $cascadeCounts['backup_file'];
+            $message .= ' A backup was saved.';
         }
 
         return $message;

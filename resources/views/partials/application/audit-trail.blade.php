@@ -45,6 +45,8 @@
                 <div class="timeline-steps ml-3">
                     @foreach($events as $activity)
                         @php
+                            $activityDescription = preg_replace('/\s+Backup:\s+\S+/', '', $activity->description) ?: $activity->description;
+
                             $config = match($activity->event) {
                                 'created' => ['color' => 'success', 'icon' => 'fa-plus-circle', 'bg' => '#e1fcef'],
                                 'updated' => ['color' => 'info', 'icon' => 'fa-pen-nib', 'bg' => '#e0f2ff'],
@@ -55,7 +57,7 @@
 
                         <div class="timeline-item border-left pb-4 ml-2 position-relative"
                              x-show="(filterEvent === 'all' || '{{ $activity->event }}' === filterEvent) &&
-                                     (logSearch === '' || '{{ strtolower($activity->description) }}'.includes(logSearch.toLowerCase()))"
+                                     (logSearch === '' || '{{ strtolower($activityDescription) }}'.includes(logSearch.toLowerCase()))"
                              style="border-left: 2px solid #e9ecef !important;">
 
                             <div class="position-absolute d-flex align-items-center justify-content-center rounded-circle shadow-sm"
@@ -67,7 +69,7 @@
                                 <div class="d-flex justify-content-between">
                                     <div>
                                         <p class="mb-0 text-dark font-weight-bold" style="font-size: 0.9rem;">
-                                            {{ ucfirst($activity->description) }}
+                                            {{ ucfirst($activityDescription) }}
                                         </p>
                                         <div class="d-flex align-items-center mt-1">
                                             <div class="avatar-xs mr-2" style="width: 20px; height: 20px; background: #eee; border-radius: 50%; display: flex; align-items: center; justify-content: center;">

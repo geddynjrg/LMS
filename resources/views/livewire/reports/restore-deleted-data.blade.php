@@ -38,7 +38,7 @@
                                     <th>Name</th>
                                     <th>Deleted</th>
                                     <th>By</th>
-                                    <th>Backup file</th>
+                                    <th>Backup</th>
                                     <th class="text-right">Actions</th>
                                 </tr>
                             </thead>
@@ -53,7 +53,11 @@
                                         <td class="font-weight-600">{{ $backup['label'] }}</td>
                                         <td>{{ \Carbon\Carbon::parse($backup['deleted_at'])->format('d M Y, H:i') }}</td>
                                         <td>{{ $backup['deleted_by'] ?? '—' }}</td>
-                                        <td><code class="small">{{ $backup['backup_file'] }}</code></td>
+                                        <td>
+                                            <span class="badge badge-light border text-success">
+                                                <i class="fas fa-check-circle mr-1"></i> Available
+                                            </span>
+                                        </td>
                                         <td class="text-right">
                                             <button type="button"
                                                     class="btn btn-sm btn-outline-primary"
@@ -74,7 +78,9 @@
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
                     <h6 class="mb-0 font-weight-bold">Restore preview</h6>
-                    <code class="small">{{ basename($selectedBackupPath) }}</code>
+                    <span class="badge badge-light border text-success small">
+                        <i class="fas fa-check-circle mr-1"></i> Backup available
+                    </span>
                 </div>
                 <div class="card-body">
                     @if($restoreSummary !== [])
@@ -123,8 +129,8 @@
                         </button>
                     </div>
                     <div class="modal-body">
-                        <p class="mb-2">You are about to restore deleted data from:</p>
-                        <p><code>{{ basename($selectedBackupPath ?? '') }}</code></p>
+                        <p class="mb-2">You are about to restore deleted data for:</p>
+                        <p class="font-weight-600">{{ $backups->firstWhere('backup_path', $selectedBackupPath)['label'] ?? 'Selected backup' }}</p>
                         <p class="text-muted small mb-0">
                             This will re-insert the backed-up database rows. The action is logged in the activity audit trail.
                         </p>

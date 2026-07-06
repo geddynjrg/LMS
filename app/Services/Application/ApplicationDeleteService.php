@@ -74,7 +74,7 @@ class ApplicationDeleteService
           'user_agent' => request()->userAgent(),
         ])
         ->log(
-          'Application "' . ($group?->name ?? 'Group') . '" was deleted. Backup: ' . $backup['path'],
+          'Application "' . ($group?->name ?? 'Group') . '" was deleted. A backup was saved.',
         );
 
       LoanReceipts::query()->where('group_loans_id', $groupLoan->id)->delete();

@@ -331,7 +331,7 @@ class GroupDetailEditService
         };
 
         if ($action === 'deleted' && $backupFile) {
-            $message .= ' Backup: ' . $backupFile;
+            $message .= ' A backup was saved.';
         }
 
         activity('group_audit')

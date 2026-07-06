@@ -36,7 +36,7 @@
                         $oldValues = (array) ($log->properties->get('old_values') ?? []);
                         $newValues = (array) ($log->properties->get('new_values') ?? []);
                         $diffKeys = array_unique(array_merge(array_keys($oldValues), array_keys($newValues)));
-                        $hiddenDiffKeys = ['id', 'group_loan_id', 'loan_phase_id', 'group_id'];
+                        $hiddenDiffKeys = ['id', 'group_loan_id', 'loan_phase_id', 'group_id', 'backup_file'];
                         $visibleDiffKeys = array_values(array_filter(
                             $diffKeys,
                             fn ($key) => ! in_array($key, $hiddenDiffKeys, true),
@@ -55,7 +55,7 @@
                                 ?? ('#' . ($log->properties->get('group_id') ?? $log->subject_id));
                         } elseif ($isRestoreAudit) {
                             $subjectLabel = ucfirst((string) ($log->properties->get('backup_type') ?? 'Backup'));
-                            $subjectName = basename((string) ($log->properties->get('backup_file') ?? 'Restore action'));
+                            $subjectName = 'Restored data';
                         } else {
                             $subjectLabel = class_basename($log->subject_type);
                             $subjectName = $log->subject?->name ?? $log->subject?->phase ?? $log->subject?->id ?? 'Record #' . $log->subject_id;
@@ -65,6 +65,18 @@
                         $constituencyLabel = ($showConstituency ?? false) && $constituencyCode
                             ? ($constituencyNameMap[$constituencyCode] ?? $constituencyCode)
                             : null;
+
+                        $stripBackupPathFromDescription = static function (?string $description): string {
+                            if ($description === null || $description === '') {
+                                return '';
+                            }
+
+                            $stripped = preg_replace('/\s+Backup:\s+\S+/', '', $description);
+
+                            return $stripped !== '' ? $stripped : $description;
+                        };
+
+                        $auditDescription = $stripBackupPathFromDescription($log->description);
 
                         $formatAuditValue = static function ($value): string {
                             if ($value === null || $value === '') {
@@ -98,7 +110,7 @@
                                     </span>
                                 @endif
                                 <span class="text-capitalize font-weight-bold text-dark">
-                                    {{ $isCustomAudit ? $log->description : ucfirst($log->description) }}
+                                    {{ $isCustomAudit ? $auditDescription : ucfirst($auditDescription) }}
                                 </span>
                                 <span class="text-muted mx-1">by</span>
                                 <span class="badge badge-light border">{{ $log->causer?->name ?? 'System' }}</span>
@@ -147,7 +159,7 @@
                                            class="btn btn-xs btn-outline-primary">
                                             <i class="fas fa-undo mr-1"></i> Restore from backup
                                         </a>
-                                        <span class="small text-muted d-block mt-1">{{ basename($backupFile) }}</span>
+                                        <span class="small text-muted d-block mt-1">Backup available</span>
                                     </p>
                                 @endif
 
