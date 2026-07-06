@@ -470,6 +470,15 @@
                         <p>Loan Subm Form (F.5)</p>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a href="{{route('const.reports.restore-deleted-data', [
+                            Str::slug($county->slug),
+                            Str::slug($currentConstituency->slug),
+                        ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.restore-deleted-data' ? 'active':''}}">
+                        <i class="fas fa-undo nav-icon"></i>
+                        <p>Restore Deleted Data</p>
+                        </a>
+                    </li>
                     {{-- <li class="nav-item">
                         <a href="{{route('const.reports.disbursement', [
                             Str::slug($county->slug),

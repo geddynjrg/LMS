@@ -107,6 +107,33 @@
                                     </p>
                                 @endif
 
+                                @php
+                                    $backupFile = $log->properties->get('backup_file')
+                                        ?? ($log->properties->get('cascade_counts')['backup_file'] ?? null);
+                                    $restoreCountySlug = request()->route('county');
+                                    $restoreConstituency = null;
+
+                                    if ($backupFile && $restoreCountySlug) {
+                                        $constituencyCode = $log->properties->get('constituency_code');
+                                        $restoreConstituency = $constituencyCode
+                                            ? \App\Models\Constituency::where('constituency_code', $constituencyCode)->value('slug')
+                                            : session('constituency')?->slug;
+                                    }
+                                @endphp
+
+                                @if($isDanger && $backupFile && ($isPhaseAudit || $isGroupAudit) && $restoreCountySlug && $restoreConstituency)
+                                    <p class="mb-2">
+                                        <a href="{{ route('const.reports.restore-deleted-data', [
+                                            'county' => $restoreCountySlug,
+                                            'constituency' => $restoreConstituency,
+                                        ]) }}"
+                                           class="btn btn-xs btn-outline-primary">
+                                            <i class="fas fa-undo mr-1"></i> Restore from backup
+                                        </a>
+                                        <span class="small text-muted d-block mt-1">{{ basename($backupFile) }}</span>
+                                    </p>
+                                @endif
+
                                 @if($hasAttributeDiff || ($hasValueDiff && $visibleDiffKeys !== []))
                                     <div class="mt-2">
                                         <button @click="expandedLog === {{ $log->id }} ? expandedLog = null : expandedLog = {{ $log->id }}"

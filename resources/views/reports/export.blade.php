@@ -71,6 +71,13 @@
                         'title' => 'Upload Data',
                         'desc' => 'Import constituency data for reporting and analysis.',
                     ],
+                    [
+                        'route' => 'const.reports.restore-deleted-data',
+                        'icon' => 'fa-undo',
+                        'color' => 'danger',
+                        'title' => 'Restore Deleted Data',
+                        'desc' => 'Recover deleted loan phases or groups from automatic SQL backups.',
+                    ],
                 ] as $report)
                     <div class="col-md-6 col-xl-3 mb-4">
                         <a href="{{ route($report['route'], ['county' => $county->slug, 'constituency' => $constituency->slug]) }}"

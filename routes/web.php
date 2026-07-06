@@ -196,6 +196,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/dynamic-report', [ReportsController::class, 'dynamicReport'])->name('dynamic-report');
                 Route::get('/data-upload', [ReportsController::class, 'dataUpload'])->name('data-upload');
                 Route::get('/export', [ReportsController::class, 'export'])->name('export');
+                Route::get('/restore-deleted-data', [ReportsController::class, 'restoreDeletedData'])->name('restore-deleted-data');
             });
             Route::prefix('monitoring')->name('monitoring.')->group(function () {
                 Route::get('/report', [MeReportingController::class, 'home'])->name('monitor_home');

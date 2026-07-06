@@ -11,6 +11,7 @@ use App\Models\Group;
 use App\Exports\GroupInstInfor;
 use App\Models\County;
 use App\Models\Constituency;
+use App\Services\Application\ApplicationDeleteService;
 use Maatwebsite\Excel\Facades\Excel;
 
 
@@ -171,26 +172,16 @@ class LoanAplicant extends Component
         $this->dispatch('show-delete-modal', message: 'show');
     }
 
-    public function confirmDelete()
+    public function confirmDelete(ApplicationDeleteService $deleteService)
     {
-        $delGroupLoan = GroupLoan::destroy($this->appliedLoan->id);
-        if ($delGroupLoan > 0) {
-            if($this->appliedLoan->level == 'New'){
-                $delGroup = Group::destroy($this->appliedLoan->group_id);
-                if ($delGroup > 0) {
-                    $this->dispatch('deleted_application', message: 'success');
-                    return redirect()->route('applicants', ['county'=>auth()->user()->county->county_name, 'constituency'=> ucwords(session('constituency')->constituency_name)]);
-                }else {
-                    $this->dispatch('show-delete-modal', message: 'error');
-                }
-            }else {
-                $this->dispatch('deleted_application', message: 'success');
-                return redirect()->route('applicants', ['county'=>auth()->user()->county->county_name, 'constituency'=> ucwords(session('constituency')->constituency_name)]);
-            }
-        } else {
-            $this->dispatch('show-delete-modal', message: 'error');
+        $deleteService->deleteWithAudit($this->appliedLoan, auth()->user());
 
-        }
+        $this->dispatch('deleted_application', message: 'success');
+
+        return redirect()->route('const.loans.applicants', [
+            'county' => $this->county->slug,
+            'constituency' => $this->constituency->slug,
+        ]);
     }
 
 

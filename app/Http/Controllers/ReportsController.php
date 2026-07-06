@@ -48,6 +48,14 @@ class ReportsController extends Controller
         ]);
     }
 
+    public function restoreDeletedData(Request $request, County $county, Constituency $constituency)
+    {
+        return View('reports.restore_deleted_data', [
+            'constituency' => $constituency,
+            'county' => $county,
+        ]);
+    }
+
     public function nationalIndex()
     {
         return redirect()->route('hq.reports.index');
