@@ -153,7 +153,7 @@ class CountyAuditTrailService
             ->where(function ($q) use ($county, $allowedCodes) {
                 $q->where('county_code', $county->county_code)
                     ->whereHas('constituencies', fn ($constituencyQuery) => $constituencyQuery
-                        ->whereIn('constituency_code', $allowedCodes));
+                        ->whereIn('constituencies.constituency_code', $allowedCodes));
             })
             ->orderBy('name')
             ->get(['id', 'name', 'email']);
