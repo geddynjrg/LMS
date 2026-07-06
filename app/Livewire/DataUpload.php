@@ -3,8 +3,8 @@
 namespace App\Livewire;
 
 use Livewire\Component;
-use Livewire\WithFileUploads;
 use Livewire\Attributes\On;
+use App\Livewire\Concerns\HandlesFileUploadErrors;
 use Livewire\Attributes\Computed;
 use Illuminate\Support\Facades\Cache;
 use Maatwebsite\Excel\Facades\Excel;
@@ -16,7 +16,7 @@ use App\Models\Group;
 
 class DataUpload extends Component
 {
-    use WithFileUploads;
+    use HandlesFileUploadErrors;
 
     protected LoanPhaseService $loanPhaseService;
 
@@ -141,22 +141,30 @@ class DataUpload extends Component
     // }
 
 
-    // Add file removal methods
     public function removeFile($field)
     {
+        $allowedFields = ['loanPhasesData', 'groupsData', 'groupLoansData', 'groupMembersData'];
+        if (! in_array($field, $allowedFields, true)) {
+            return;
+        }
+
+        $this->resetValidation($field);
+        $this->$field = null;
+
         switch ($field) {
             case 'loanPhasesData':
-                $this->resetValidation('loanPhasesData');
-
-                // If you want to hide the previous Import Result when a new file is picked:
                 $this->importResult = null;
                 break;
-
-            default:
-                # code...
+            case 'groupsData':
+                $this->groupsImportResult = null;
+                break;
+            case 'groupLoansData':
+                $this->groupLoansImportResult = null;
+                break;
+            case 'groupMembersData':
+                $this->groupMembersImportResult = null;
                 break;
         }
-        $this->$field = null;
     }
 
     public function loanPhasesForm()
@@ -166,6 +174,7 @@ class DataUpload extends Component
         ]);
 
         try {
+            $this->assertValidUploadedFile('loanPhasesData', 'loanPhasesData');
             $import = new \App\Imports\LoanPhasesImport($this->constituency->constituency_code);
             Excel::import($import, $this->loanPhasesData);
 
@@ -243,6 +252,8 @@ class DataUpload extends Component
         ]);
 
         try {
+            $this->assertValidUploadedFile('groupsData', 'groupsData');
+
             $phases = $this->getPhases->pluck('phase')->map(fn($item) => strtolower($item))->toArray();
 
             $import = new \App\Imports\LoanTemplateImport($this->constituency, $phases);
@@ -412,19 +423,12 @@ class DataUpload extends Component
         ]);
 
         try {
-            if (is_array($this->groupMembersData)) {
-                throw new \RuntimeException('Invalid upload state. Please remove the file, re-select it, and try again.');
-            }
-
-            $uploadPath = $this->groupMembersData->getRealPath();
-            if (! $uploadPath || ! is_readable($uploadPath)) {
-                throw new \RuntimeException('Upload file could not be read. Please re-select the file and try again.');
-            }
+            $this->assertValidUploadedFile('groupMembersData', 'groupMembersData');
 
             $phases = $this->getPhases->pluck('phase')->map(fn($item) => strtolower($item))->toArray();
 
             $import = new \App\Imports\MembersTemplateImport($this->constituency, $phases);
-            Excel::import($import, $uploadPath);
+            Excel::import($import, $this->groupMembersData->getRealPath());
 
             $result = $import->getImportResult();
 

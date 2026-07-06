@@ -154,13 +154,13 @@
                                             :class="dragging ? 'border-indigo bg-soft-indigo' : ''"
                                             @dragover.prevent="dragging = true"
                                             @dragleave.prevent="dragging = false"
-                                            @drop="dragging = false"
+                                            @drop.prevent="dragging = false; if ($event.dataTransfer.files.length) { $refs.phaseInput.files = $event.dataTransfer.files; $refs.phaseInput.dispatchEvent(new Event('change', { bubbles: true })); }"
                                             @click="$refs.phaseInput.click()"
                                             style="cursor: pointer; border: 2px dashed #cbd5e0;">
 
                                             <input type="file" x-ref="phaseInput" class="d-none" wire:model="loanPhasesData" accept=".xlsx,.xls,.csv">
 
-                                            @if(!$loanPhasesData)
+                                            @if(!$loanPhasesData || is_array($loanPhasesData))
                                                 <div class="py-2">
                                                     <div class="icon-shape bg-soft-indigo text-indigo mb-3">
                                                         <i class="fas fa-cloud-upload-alt fa-2x"></i>
@@ -174,7 +174,7 @@
                                                     <h6 class="mb-1 text-success font-weight-bold text-truncate">
                                                         {{ is_object($loanPhasesData) ? $loanPhasesData->getClientOriginalName() : 'Selected file' }}
                                                     </h6>
-                                                    <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('loanPhasesData', null); step = 1">
+                                                    <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.cancelUpload('loanPhasesData'); $wire.set('loanPhasesData', null); step = 1">
                                                         <i class="fas fa-trash-alt mr-1"></i> Remove
                                                     </button>
                                                 </div>
@@ -187,7 +187,7 @@
                                             </div>
                                         @enderror
 
-                                        @if($loanPhasesData)
+                                        @if($loanPhasesData && !is_array($loanPhasesData))
                                             <button type="submit" class="btn btn-info btn-block btn-lg mt-3 shadow-sm rounded-pill py-2"
                                                     wire:loading.attr="disabled" wire:target="loanPhasesForm">
                                                 <span wire:loading.remove wire:target="loanPhasesForm">
@@ -598,7 +598,7 @@
                                                 :class="dragging ? 'border-info bg-soft-info' : 'border-light'"
                                                 @dragover.prevent="dragging = true"
                                                 @dragleave.prevent="dragging = false"
-                                                @drop="dragging = false"
+                                                @drop.prevent="dragging = false; if ($event.dataTransfer.files.length) { $refs.groupInput.files = $event.dataTransfer.files; $refs.groupInput.dispatchEvent(new Event('change', { bubbles: true })); }"
                                                 @click="$refs.groupInput.click()"
                                                 style="cursor: pointer; border: 2px dashed #cbd5e0;"
                                             >
@@ -609,7 +609,7 @@
                                                     wire:model="groupsData"
                                                     accept=".xlsx,.xls,.csv">
 
-                                                @if(!$groupsData)
+                                                @if(!$groupsData || is_array($groupsData))
                                                     <div class="py-2">
                                                         <div class="icon-shape bg-soft-info text-info mb-3">
                                                             <i class="fas fa-cloud-upload-alt fa-2x"></i>
@@ -624,7 +624,7 @@
                                                             {{ is_object($groupsData) ? $groupsData->getClientOriginalName() : 'Selected file' }}
                                                         </h6>
                                                         <p class="small text-muted mb-2">{{ number_format($groupsData->getSize() / 1024 / 1024, 2) }} MB</p>
-                                                        <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('groupsData', null)">
+                                                        <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.cancelUpload('groupsData'); $wire.set('groupsData', null)">
                                                             <i class="fas fa-trash-alt mr-1"></i> Remove File
                                                         </button>
                                                     </div>
@@ -662,7 +662,7 @@
                                             </div>
                                         @endif
 
-                                        @if($groupsData && $importProgressGroups == 0)
+                                        @if($groupsData && !is_array($groupsData) && $importProgressGroups == 0)
                                             <button type="submit" class="btn btn-info btn-block btn-lg mt-3 shadow-sm rounded-pill py-2"
                                                     wire:loading.attr="disabled" wire:target="groupsForm">
                                                 <span wire:loading.remove wire:target="groupsForm">
@@ -997,7 +997,7 @@
                                                 :class="dragging ? 'border-info bg-soft-info' : 'border-light'"
                                                 @dragover.prevent="dragging = true"
                                                 @dragleave.prevent="dragging = false"
-                                                @drop="dragging = false"
+                                                @drop.prevent="dragging = false; if ($event.dataTransfer.files.length) { $refs.memberInput.files = $event.dataTransfer.files; $refs.memberInput.dispatchEvent(new Event('change', { bubbles: true })); }"
                                                 @click="$refs.memberInput.click()"
                                                 style="cursor: pointer; border: 2px dashed #4e73df;">
 
@@ -1018,7 +1018,7 @@
                                                         <h6 class="mb-1 text-info font-weight-bold">
                                                             {{ is_object($groupMembersData) ? $groupMembersData->getClientOriginalName() : 'Selected file' }}
                                                         </h6>
-                                                        <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.set('groupMembersData', null)">
+                                                        <button type="button" class="btn btn-sm btn-link text-danger" @click.stop="$wire.cancelUpload('groupMembersData'); $wire.set('groupMembersData', null)">
                                                             <i class="fas fa-trash-alt mr-1"></i> Remove
                                                         </button>
                                                     </div>

@@ -246,6 +246,7 @@ post_deploy() {
 
     # 1. Fix permissions FIRST so artisan commands actually work
     log_info "→ Fixing file permissions..."
+    $SSH_CMD "docker exec -u root $REMOTE_APP_CONTAINER mkdir -p /var/www/html/storage/app/livewire-tmp"
     $SSH_CMD "docker exec -u root $REMOTE_APP_CONTAINER chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache"
     $SSH_CMD "docker exec -u root $REMOTE_APP_CONTAINER chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache"
 
