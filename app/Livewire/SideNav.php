@@ -41,6 +41,10 @@ class SideNav extends Component
             $this->nav = 'loans';
             return;
         }
+        if (Route::is('users.*') || Route::is('county.audit-trail')) {
+            $this->nav = 'users';
+            return;
+        }
         if (Route::is('const.reports.*')) {
             $this->nav = 'reports';
             return;
@@ -95,6 +99,9 @@ class SideNav extends Component
             'const.reports.general'  => ['const.reports.dynamic-report',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.reports.disbursement'  => ['const.reports.disbursement',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.reports.data-upload'  => ['const.reports.data-upload',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.reports.audit-trail'  => ['const.reports.audit-trail',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'const.reports.restore-deleted-data'  => ['const.reports.restore-deleted-data',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
+            'county.audit-trail'  => ['county.audit-trail', ['county' => $countySlug]],
             'const.loans.loanmembers'  => ['const.loans.loanmembers',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.monitoring.monitor_home'  => ['const.monitoring.monitor_home',  ['county' => $countySlug, 'constituency' => $constituencySlug]],
             'const.monitoring.data_view'  => ['const.monitoring.data_view',  ['county' => $countySlug, 'constituency' => $constituencySlug]],

@@ -56,6 +56,21 @@ class ReportsController extends Controller
         ]);
     }
 
+    public function countyAuditTrail(Request $request, County $county)
+    {
+        return View('reports.audit_trail', [
+            'county' => $county,
+        ]);
+    }
+
+    public function constituencyAuditTrail(Request $request, County $county, Constituency $constituency)
+    {
+        return View('reports.constituency_audit_trail', [
+            'constituency' => $constituency,
+            'county' => $county,
+        ]);
+    }
+
     public function nationalIndex()
     {
         return redirect()->route('hq.reports.index');

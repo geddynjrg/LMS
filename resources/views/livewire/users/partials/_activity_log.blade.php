@@ -22,14 +22,16 @@
                     @php
                         $isPhaseAudit = $log->log_name === 'phase_audit';
                         $isGroupAudit = $log->log_name === 'group_audit';
-                        $isCustomAudit = $isPhaseAudit || $isGroupAudit;
+                        $isRestoreAudit = $log->log_name === 'restore_audit';
+                        $isCustomAudit = $isPhaseAudit || $isGroupAudit || $isRestoreAudit;
                         $hasAttributeDiff = $log->properties->has('attributes');
                         $hasValueDiff = $log->properties->has('old_values') || $log->properties->has('new_values');
 
                         $action = $log->event ?? $log->description;
                         $isUpdate = in_array($action, ['updated', 'update'], true);
                         $isDanger = in_array($action, ['deleted', 'deactivated', 'delete'], true);
-                        $iconClass = $isUpdate ? 'bg-primary' : ($isDanger ? 'bg-danger' : 'bg-success');
+                        $isRestore = in_array($action, ['restored', 'restore'], true);
+                        $iconClass = $isRestore ? 'bg-success' : ($isUpdate ? 'bg-primary' : ($isDanger ? 'bg-danger' : 'bg-success'));
 
                         $oldValues = (array) ($log->properties->get('old_values') ?? []);
                         $newValues = (array) ($log->properties->get('new_values') ?? []);
@@ -51,10 +53,18 @@
                                 ?? $oldValues['group_name']
                                 ?? $log->subject?->group?->name
                                 ?? ('#' . ($log->properties->get('group_id') ?? $log->subject_id));
+                        } elseif ($isRestoreAudit) {
+                            $subjectLabel = ucfirst((string) ($log->properties->get('backup_type') ?? 'Backup'));
+                            $subjectName = basename((string) ($log->properties->get('backup_file') ?? 'Restore action'));
                         } else {
                             $subjectLabel = class_basename($log->subject_type);
                             $subjectName = $log->subject?->name ?? $log->subject?->phase ?? $log->subject?->id ?? 'Record #' . $log->subject_id;
                         }
+
+                        $constituencyCode = $log->properties->get('constituency_code');
+                        $constituencyLabel = ($showConstituency ?? false) && $constituencyCode
+                            ? ($constituencyNameMap[$constituencyCode] ?? $constituencyCode)
+                            : null;
 
                         $formatAuditValue = static function ($value): string {
                             if ($value === null || $value === '') {
@@ -74,7 +84,7 @@
                     @endphp
 
                     <div class="mb-4">
-                        <i class="fas {{ $isUpdate ? 'fa-pen' : ($isDanger ? 'fa-exclamation-triangle' : 'fa-plus') }} {{ $iconClass }} shadow-sm"></i>
+                        <i class="fas {{ $isRestore ? 'fa-undo' : ($isUpdate ? 'fa-pen' : ($isDanger ? 'fa-exclamation-triangle' : 'fa-plus')) }} {{ $iconClass }} shadow-sm"></i>
 
                         <div class="timeline-item shadow-none border rounded-lg">
                             <span class="time text-muted mt-1 mr-2">
@@ -83,8 +93,8 @@
 
                             <h3 class="timeline-header border-0 pb-0">
                                 @if($isCustomAudit)
-                                    <span class="badge badge-{{ $isPhaseAudit ? 'info' : 'secondary' }} mr-1">
-                                        {{ $isPhaseAudit ? 'Phase Audit' : 'Group Audit' }}
+                                    <span class="badge badge-{{ $isPhaseAudit ? 'info' : ($isRestoreAudit ? 'success' : 'secondary') }} mr-1">
+                                        {{ $isPhaseAudit ? 'Phase Audit' : ($isRestoreAudit ? 'Restore Audit' : 'Group Audit') }}
                                     </span>
                                 @endif
                                 <span class="text-capitalize font-weight-bold text-dark">
@@ -95,6 +105,13 @@
                             </h3>
 
                             <div class="timeline-body pt-2 pb-2">
+                                @if($constituencyLabel)
+                                    <p class="mb-2 small text-muted">
+                                        <i class="fas fa-map-marker-alt mr-1"></i>
+                                        Constituency: <span class="text-dark font-weight-600">{{ ucwords(strtolower($constituencyLabel)) }}</span>
+                                    </p>
+                                @endif
+
                                 <p class="mb-2 text-secondary">
                                     Performed action on {{ $subjectLabel }}:
                                     <span class="text-dark font-weight-600">{{ $subjectName }}</span>
@@ -206,7 +223,9 @@
             @empty
                 <div class="text-center py-5">
                     <i class="fas fa-ghost fa-3x text-light mb-3"></i>
-                    <p class="text-muted">No activity logs found for this user.</p>
+                    <p class="text-muted">
+                        {{ ($showConstituency ?? false) ? 'No audit entries found for the selected filters.' : 'No activity logs found for this user.' }}
+                    </p>
                 </div>
             @endforelse
 

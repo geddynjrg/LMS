@@ -479,6 +479,15 @@
                         <p>Restore Deleted Data</p>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a href="{{ route('const.reports.audit-trail', [
+                            Str::slug($county->slug),
+                            Str::slug($currentConstituency->slug),
+                        ]) }}" class="nav-link {{ Route::currentRouteName() == 'const.reports.audit-trail' ? 'active':''}}">
+                        <i class="fas fa-history nav-icon"></i>
+                        <p>Audit Trail</p>
+                        </a>
+                    </li>
                     {{-- <li class="nav-item">
                         <a href="{{route('const.reports.disbursement', [
                             Str::slug($county->slug),
@@ -528,8 +537,8 @@
                 </li> --}}
             @endif
 
-            <li class="nav-item {{ Route::is('users.*')? 'menu-open':''}}">
-                <a href="#" class="nav-link text-bold {{ Route::is('users.*')? 'active':''}}">
+            <li class="nav-item {{ Route::is('users.*') || Route::currentRouteName() == 'county.audit-trail' ? 'menu-open':''}}">
+                <a href="#" class="nav-link text-bold {{ Route::is('users.*') || Route::currentRouteName() == 'county.audit-trail' ? 'active':''}}">
                     <i class="nav-icon fas fa-users"></i>
                     <p>
                     USERS
@@ -541,6 +550,12 @@
                     <a href="{{route('users.viewusers', [Str::slug($county->slug),])}}" class="nav-link {{ Route::currentRouteName() == 'users.viewusers' ? 'active':''}}">
                         <i class="fas fa-eye nav-icon"></i>
                         <p>View Users</p>
+                    </a>
+                    </li>
+                    <li class="nav-item">
+                    <a href="{{ route('county.audit-trail', [Str::slug($county->slug)]) }}" class="nav-link {{ Route::currentRouteName() == 'county.audit-trail' ? 'active':''}}">
+                        <i class="fas fa-history nav-icon"></i>
+                        <p>Audit Trail</p>
                     </a>
                     </li>
                     {{-- @can('create user')

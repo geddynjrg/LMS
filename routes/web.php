@@ -152,15 +152,18 @@ Route::middleware(['auth'])->group(function () {
         ->get('/training-certificates/{phaseApplication}', [SecretariatController::class, 'downloadTrainingCertificate'])
         ->name('training-certificate.download');
 
-    Route::middleware('role:super-admin|constituency_officer')->prefix('{county}/users')
+    Route::middleware('role:super-admin|constituency_officer')->prefix('{county}')
         ->where([
-            // optional regex constraints (slug‑style: letters, numbers, hyphens) users.viewuser
-            'county'       => '[A-Za-z0-9\-]+',
-        ])->name('users.')->group(function () {
-            Route::get('/', [UsersController::class, 'index'])->name('viewusers');
-            Route::get('/add', [UsersController::class, 'create'])->name('adduser');
-            Route::get('/{user}', [UsersController::class, 'viewUser'])->name('viewuser');
-    });
+            'county' => '[A-Za-z0-9\-]+',
+        ])->group(function () {
+            Route::prefix('users')->name('users.')->group(function () {
+                Route::get('/', [UsersController::class, 'index'])->name('viewusers');
+                Route::get('/add', [UsersController::class, 'create'])->name('adduser');
+                Route::get('/{user}', [UsersController::class, 'viewUser'])->name('viewuser');
+            });
+
+            Route::get('/audit-trail', [ReportsController::class, 'countyAuditTrail'])->name('county.audit-trail');
+        });
 
     Route::middleware(['currentConstituency'])
         ->prefix('{county}/{constituency}')
@@ -197,6 +200,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('/data-upload', [ReportsController::class, 'dataUpload'])->name('data-upload');
                 Route::get('/export', [ReportsController::class, 'export'])->name('export');
                 Route::get('/restore-deleted-data', [ReportsController::class, 'restoreDeletedData'])->name('restore-deleted-data');
+                Route::get('/audit-trail', [ReportsController::class, 'constituencyAuditTrail'])->name('audit-trail');
             });
             Route::prefix('monitoring')->name('monitoring.')->group(function () {
                 Route::get('/report', [MeReportingController::class, 'home'])->name('monitor_home');
