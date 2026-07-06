@@ -18,9 +18,10 @@ class PhaseDeleteBackupService
     {
         $phaseId = $phase->id;
         $date = now()->format('Y-m-d');
-        $path = "/home/administrator/backups/phase-delete-backup-{$phaseId}-{$date}.sql";
+        $directory = storage_path('app/backups/phase-delete');
+        $path = "{$directory}/phase-delete-backup-{$phaseId}-{$date}.sql";
 
-        File::ensureDirectoryExists(dirname($path));
+        File::ensureDirectoryExists($directory);
 
         $groupLoanIds = GroupLoan::query()
             ->where('loan_phase_id', $phaseId)

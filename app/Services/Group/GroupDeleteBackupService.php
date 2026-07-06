@@ -19,9 +19,10 @@ class GroupDeleteBackupService
 
         $groupLoanId = $groupLoan->id;
         $date = now()->format('Y-m-d');
-        $path = "/home/administrator/backups/group-delete-backup-{$groupLoanId}-{$date}.sql";
+        $directory = storage_path('app/backups/group-delete');
+        $path = "{$directory}/group-delete-backup-{$groupLoanId}-{$date}.sql";
 
-        File::ensureDirectoryExists(dirname($path));
+        File::ensureDirectoryExists($directory);
 
         $tables = [
             ['group_loans', "id={$groupLoanId}"],
