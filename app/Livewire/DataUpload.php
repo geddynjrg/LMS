@@ -167,8 +167,17 @@ class DataUpload extends Component
         }
     }
 
+    private function prepareImportEnvironment(): void
+    {
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '300');
+        set_time_limit(300);
+    }
+
     public function loanPhasesForm()
     {
+        $this->prepareImportEnvironment();
+
         $this->validate([
             'loanPhasesData' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);
@@ -245,6 +254,7 @@ class DataUpload extends Component
 
     public function groupsForm()
     {
+        $this->prepareImportEnvironment();
         $this->groupsImportResult = null;
 
         $this->validate([
@@ -368,8 +378,7 @@ class DataUpload extends Component
 
     public function groupLoansForm()
     {
-        ini_set('memory_limit', '512M');
-        ini_set('max_execution_time', 300);
+        $this->prepareImportEnvironment();
         $this->groupLoansImportResult = null;
         $this->validate([
             'groupLoansData' => 'required|file|mimes:xlsx,xls,csv|max:10240',
@@ -418,6 +427,8 @@ class DataUpload extends Component
 
     public function groupMembersForm()
     {
+        $this->prepareImportEnvironment();
+
         $this->validate([
             'groupMembersData' => 'required|file|mimes:xlsx,xls,csv|max:10240',
         ]);

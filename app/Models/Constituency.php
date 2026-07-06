@@ -13,6 +13,10 @@ class Constituency extends Model
 {
     use HasFactory;
 
+    protected $fillable = [
+        'constituency_bank_balance',
+    ];
+
     public function getRouteKeyName()
     {
         return 'slug';
