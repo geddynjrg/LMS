@@ -246,17 +246,19 @@ post_deploy() {
 
     # 1. Fix permissions FIRST so artisan commands actually work
     log_info "→ Fixing file permissions..."
-    # $SSH_CMD "docker exec -u root $REMOTE_APP_CONTAINER chown -R www-data:www-data /var/www/html storage bootstrap/cache"
-    # $SSH_CMD "docker exec -u root $REMOTE_APP_CONTAINER chmod -R 775 /var/www/html storage bootstrap/cache"
-
+    $SSH_CMD "docker exec -u root $REMOTE_APP_CONTAINER chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache"
+    $SSH_CMD "docker exec -u root $REMOTE_APP_CONTAINER chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache"
 
     $SSH_CMD "
         cd $DEPLOY_PATH &&
-        docker exec -t $REMOTE_APP_CONTAINER php artisan key:generate &&
-        docker exec -t $REMOTE_APP_CONTAINER php artisan optimize:clear &&
-        docker exec -t $REMOTE_APP_CONTAINER php artisan optimize &&
-        docker exec -t $REMOTE_APP_CONTAINER php artisan horizon:terminate
+        docker exec -u www-data -t $REMOTE_APP_CONTAINER php artisan key:generate &&
+        docker exec -u www-data -t $REMOTE_APP_CONTAINER php artisan optimize:clear &&
+        docker exec -u www-data -t $REMOTE_APP_CONTAINER php artisan optimize &&
+        docker exec -u www-data -t $REMOTE_APP_CONTAINER php artisan horizon:terminate
     " || log_warn "Some post-deploy tasks failed (check logs)"
+
+    # Re-apply ownership after artisan (root exec can leave root-owned compiled views)
+    $SSH_CMD "docker exec -u root $REMOTE_APP_CONTAINER chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache"
 }
 
 cleanup() {
