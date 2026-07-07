@@ -410,7 +410,34 @@ class LoanAnalysisService
             'topPerformingConstituencies' => $topConstituencies,
 
             'bottomPerformingConstituencies' => $bottomConstituencies,
+
+            'applicationsPerConstituency' => $this->getApplicationsPerConstituency($filters),
         ];
+    }
+
+    /**
+     * @param  array{county_code?: string, constituency_code?: string}  $filters
+     * @return list<object{constituency_name: string, application_count: int}>
+     */
+    public function getApplicationsPerConstituency(array $filters = [], int $limit = 20): array
+    {
+        return DB::table('temp_applications as ta')
+            ->join('constituencies as c', 'ta.constituency_code', '=', 'c.constituency_code')
+            ->when(!empty($filters['county_code']), fn ($q) => $q->where('c.county_code', $filters['county_code']))
+            ->when(!empty($filters['constituency_code']), fn ($q) => $q->where('c.constituency_code', $filters['constituency_code']))
+            ->select(
+                'c.constituency_name',
+                DB::raw('COUNT(*) as application_count'),
+            )
+            ->groupBy('c.constituency_code', 'c.constituency_name')
+            ->orderByDesc('application_count')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => (object) [
+                'constituency_name' => $row->constituency_name,
+                'application_count' => (int) $row->application_count,
+            ])
+            ->all();
     }
 
     public function countPhaseDuplicates(int $phaseId)

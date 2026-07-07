@@ -80,6 +80,57 @@
         </div>
     </div>
 
+    @php
+        $applicationRows = $this->applicationsByConstituency;
+        $maxApplications = collect($applicationRows)->max('application_count') ?: 1;
+    @endphp
+
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <div>
+                        <h3 class="card-title mb-0">Applications by constituency</h3>
+                        <p class="text-muted small mb-0">National portal submissions, highest to lowest</p>
+                    </div>
+                    <a href="{{ route('dashboard', ['national' => 1]) }}" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-chart-line mr-1"></i> Full national dashboard
+                    </a>
+                </div>
+                <div class="card-body">
+                    @forelse($applicationRows as $row)
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="font-weight-bold text-dark">{{ $row->constituency_name }}</span>
+                                <span class="text-muted">{{ number_format($row->application_count) }}</span>
+                            </div>
+                            <div class="progress" style="height: 10px; border-radius: 999px;">
+                                <div class="progress-bar bg-primary"
+                                     role="progressbar"
+                                     style="width: {{ round(($row->application_count / $maxApplications) * 100, 1) }}%; border-radius: 999px;"></div>
+                            </div>
+                        </div>
+                    @empty
+                        <p class="text-muted mb-0">No application data available.</p>
+                    @endforelse
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100 border-left-primary" style="border-left: 4px solid #007bff;">
+                <div class="card-body">
+                    <h3 class="h6 font-weight-bold text-uppercase text-muted">National insights</h3>
+                    <ul class="list-unstyled mb-0 small text-muted">
+                        <li class="mb-2"><i class="fas fa-check text-success mr-2"></i>Track secretariat backlog from pending authorizations above.</li>
+                        <li class="mb-2"><i class="fas fa-check text-success mr-2"></i>Compare constituency submission volume before authorizing training.</li>
+                        <li class="mb-2"><i class="fas fa-check text-success mr-2"></i>Use the full national dashboard for portfolio, recovery, and sector charts (same as HQ).</li>
+                        <li><i class="fas fa-check text-success mr-2"></i>Drill into a phase from the table below to download code lists and sign authorizations.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card shadow-sm mb-3">
         <div class="card-body py-2">
             <div class="btn-group btn-group-sm">

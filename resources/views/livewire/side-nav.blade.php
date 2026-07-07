@@ -116,6 +116,12 @@
                         <p>Secretariat Dashboard</p>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ route('dashboard', ['national' => 1]) }}" class="nav-link {{ request()->boolean('national') ? 'active' : '' }}">
+                        <i class="nav-icon fas fa-chart-line text-info"></i>
+                        <p>National Analytics</p>
+                    </a>
+                </li>
             @endhasrole
 
             @hasrole('hq_officer|admin|super-admin')

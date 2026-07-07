@@ -16,6 +16,10 @@ class DashboardController extends Controller
             return view('hq.dashboard');
         }
 
+        if ($user && $user->hasRole('head_of_secretariat') && $request->boolean('national')) {
+            return view('hq.dashboard');
+        }
+
         if ($user && $user->hasRole('head_of_secretariat')) {
             return redirect()->route('secretariat.phases.index');
         }

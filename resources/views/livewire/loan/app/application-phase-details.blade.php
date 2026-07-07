@@ -22,10 +22,52 @@
                             </span>
                         </div>
                     </div>
-                    <div class="col-md-4 text-md-right mt-3 mt-md-0">
-                        <span class="badge badge-pill badge-primary px-3 py-2 shadow-sm">
+                    <div class="col-md-4 text-md-right mt-3 mt-md-0 d-flex flex-column align-items-md-end">
+                        <span class="badge badge-pill badge-primary px-3 py-2 shadow-sm mb-2">
                         <i class="fas fa-calendar-alt mr-1"></i> {{ $currentFY->full }} - {{ $currentFY->quarter_suffix }} Quarter
                         </span>
+
+                        @if($this->canEditPhaseDetails($this->detailedPhase) || $this->canDeletePhase($this->detailedPhase))
+                            <div x-data="{ open: false }" class="btn-group">
+                                <button type="button"
+                                        x-ref="phaseActionsTrigger"
+                                        class="btn btn-sm btn-outline-secondary shadow-sm"
+                                        @click="open = !open">
+                                    <i class="fas fa-cog mr-1"></i> Phase Actions
+                                </button>
+
+                                <template x-teleport="body">
+                                    <div x-show="open"
+                                         x-anchor.bottom-end="$refs.phaseActionsTrigger"
+                                         @click.away="open = false"
+                                         x-cloak
+                                         class="dropdown-menu show shadow-lg border-0"
+                                         style="z-index: 9999; min-width: 200px; position: fixed;">
+                                        @if($this->canEditPhaseDetails($this->detailedPhase))
+                                            <button type="button"
+                                                    class="dropdown-item py-2"
+                                                    wire:click="openEditPhaseModal({{ $this->detailedPhase->id }})"
+                                                    @click="open = false">
+                                                <i class="fas fa-edit text-info mr-2"></i> Edit Phase Details
+                                            </button>
+                                        @endif
+
+                                        @if($this->canEditPhaseDetails($this->detailedPhase) && $this->canDeletePhase($this->detailedPhase))
+                                            <div class="dropdown-divider"></div>
+                                        @endif
+
+                                        @if($this->canDeletePhase($this->detailedPhase))
+                                            <button type="button"
+                                                    class="dropdown-item py-2 text-danger"
+                                                    wire:click="deletePhase({{ $this->detailedPhase->id }})"
+                                                    @click="open = false">
+                                                <i class="fas fa-trash-alt mr-2"></i> Remove Phase
+                                            </button>
+                                        @endif
+                                    </div>
+                                </template>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
@@ -494,6 +536,15 @@
                                                         class="btn btn-white btn-sm border shadow-sm">
                                                             <i class="fas fa-folder-open text-primary mr-1"></i> Manage
                                                         </a>
+
+                                                        @if($app->tempApplication && $this->canDeletePhaseApplication($app))
+                                                            <button type="button"
+                                                                    class="btn btn-outline-danger btn-sm border shadow-sm ml-1"
+                                                                    wire:click="confirmDeleteApplication({{ $app->tempApplication->id }})"
+                                                                    title="Delete Application">
+                                                                <i class="fas fa-trash-alt"></i>
+                                                            </button>
+                                                        @endif
 
                                                         @if(in_array($app->status, ['approved', 'in_training', 'pending_disbursement'], true))
                                                             <button type="button"
@@ -1957,6 +2008,89 @@
                     icon="fas fa-check-double"
                     class="mx-1 shadow-sm btn-refresh-premium"
                 />
+            </div>
+        </x-slot>
+    </x-action-modal>
+
+    @include('livewire.loan.app.partials.phase-edit-modal')
+
+    <x-action-modal
+        id="confirm-deletePhase-modal"
+        title="Confirm Phase Removal"
+        type="danger"
+        icon="fas fa-trash-alt"
+        size="modal-md"
+        x-on:open-modal.window="if($event.detail.name === 'confirm-deletePhase-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'confirm-deletePhase-modal') $($el).modal('hide')"
+    >
+        <div class="text-center px-3">
+            @if($deletingPhaseName)
+                <p class="mb-3">
+                    You are about to permanently remove <strong>{{ $deletingPhaseName }}</strong>.
+                </p>
+            @endif
+
+            <div class="alert alert-warning text-left mb-0" role="alert">
+                <p class="mb-2 font-weight-bold">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    SQL backup and audit trail
+                </p>
+                <p class="mb-2 small">
+                    A SQL backup is saved automatically before deletion. Linked groups, members, and applications in this phase may also be removed during the grace period.
+                </p>
+                @if($deletingPhaseGroupCount > 0)
+                    <p class="mb-0 small">
+                        This phase has <strong>{{ $deletingPhaseGroupCount }}</strong> linked group(s)
+                        @if($deletingPhaseMemberCount > 0)
+                            and <strong>{{ $deletingPhaseMemberCount }}</strong> member record(s)
+                        @endif.
+                    </p>
+                @endif
+            </div>
+        </div>
+
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button label="Cancel" variant="outline" color="secondary" data-dismiss="modal" icon="fas fa-times" class="mx-1" />
+                <x-pill-button label="Confirm Delete" target="confirmDeletePhase" color="danger" icon="fas fa-trash-alt" class="mx-1" />
+            </div>
+        </x-slot>
+    </x-action-modal>
+
+    <x-action-modal
+        id="modal-delete-application"
+        title="Delete Application"
+        type="danger"
+        icon="fas fa-trash-alt"
+        size="modal-md"
+        x-on:open-modal.window="if($event.detail.name === 'modal-delete-application') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'modal-delete-application') $($el).modal('hide')"
+    >
+        <div class="text-center px-3">
+            @if($deletingApplicationLabel)
+                <p class="mb-3">
+                    You are about to permanently delete <strong>{{ $deletingApplicationLabel }}</strong>.
+                </p>
+            @endif
+
+            <div class="alert alert-warning text-left mb-0" role="alert">
+                <p class="mb-2 font-weight-bold">
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    This action cannot be undone from this screen
+                </p>
+                <p class="mb-0 small">
+                    A SQL backup is saved automatically and the action is logged in the county audit trail.
+                    @if($gracePeriodActive)
+                        Extended delete access is active until <strong>{{ $gracePeriodEndsAt }}</strong>.
+                    @endif
+                </p>
+            </div>
+        </div>
+
+        <x-slot name="footer">
+            <div class="d-flex justify-content-center w-100">
+                <x-pill-button label="Cancel" variant="outline" color="secondary" data-dismiss="modal" icon="fas fa-times" class="mx-1" />
+                <x-pill-button label="Confirm Delete" target="deleteApplication" color="danger" icon="fas fa-trash-alt" class="mx-1" />
             </div>
         </x-slot>
     </x-action-modal>

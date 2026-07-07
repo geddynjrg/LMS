@@ -27,7 +27,12 @@ use App\Services\Exports\LetterOfAuthorityPdfService;
 use App\Services\IdempotencyService;
 use App\Support\PhaseDocumentType;
 use App\Support\PhaseWorkflowStatus;
+use App\Livewire\Concerns\ManagesPhaseDetailEditing;
 use App\Livewire\Concerns\ManagesPhaseDisbursement;
+use App\Models\TempApplication;
+use App\Services\Application\TempApplicationDeleteService;
+use App\Services\Loan\PhaseDetailEditService;
+use App\Support\LmsGracePeriod;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
@@ -35,7 +40,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ApplicationPhaseDetails extends Component
 {
-    use WithFileUploads, WithPagination, ManagesPhaseDisbursement;
+    use WithFileUploads, WithPagination, ManagesPhaseDisbursement, ManagesPhaseDetailEditing;
 
     protected $paginationTheme = 'bootstrap';
 
@@ -100,6 +105,16 @@ class ApplicationPhaseDetails extends Component
     public $batchChequePrefix = '';
     public $batchDisbursementComment = '';
 
+    public ?int $selectedPhaseId = null;
+    public string $deletingPhaseName = '';
+    public int $deletingPhaseGroupCount = 0;
+    public int $deletingPhaseMemberCount = 0;
+
+    public ?int $deletingApplicationId = null;
+    public string $deletingApplicationLabel = '';
+    public bool $gracePeriodActive = false;
+    public string $gracePeriodEndsAt = '';
+
     public function boot(
         LoanPhaseService $phaseService,
         ExportService $exportService,
@@ -118,6 +133,8 @@ class ApplicationPhaseDetails extends Component
         $this->constituency = $constituency->load(['county', 'wards']);
         $this->wardMap = $this->constituency->wards->pluck('ward_name', 'id')->toArray();
         $this->phase = $phase;
+        $this->gracePeriodActive = LmsGracePeriod::isActive();
+        $this->gracePeriodEndsAt = LmsGracePeriod::endsAt()?->format('j M Y') ?? '';
     }
 
     public function sortBy($field)
@@ -1914,6 +1931,175 @@ class ApplicationPhaseDetails extends Component
                 break;
         }
 
+    }
+
+    public function canDeleteApplication(TempApplication $application): bool
+    {
+        return app(TempApplicationDeleteService::class)->canDelete($application, auth()->user());
+    }
+
+    public function canDeletePhaseApplication(PhaseApplication $phaseApplication): bool
+    {
+        $application = $phaseApplication->tempApplication;
+
+        return $application !== null && $this->canDeleteApplication($application);
+    }
+
+    public function confirmDeleteApplication(int $applicationId): void
+    {
+        $application = TempApplication::query()
+            ->where('constituency_code', $this->constituency->constituency_code)
+            ->findOrFail($applicationId);
+
+        if (!$this->canDeleteApplication($application)) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Blocked',
+                message: LmsGracePeriod::isActive()
+                    ? 'You cannot delete this application. Check your permissions or constituency access.'
+                    : 'Only unassigned applications can be deleted after the grace period.',
+                type: 'error'
+            );
+
+            return;
+        }
+
+        $this->deletingApplicationId = $applicationId;
+        $this->deletingApplicationLabel = trim(
+            ($application->group_name ?: 'Application') . ' (' . $application->application_id . ')'
+        );
+
+        $this->dispatch('open-modal', name: 'modal-delete-application');
+    }
+
+    public function deleteApplication(): void
+    {
+        if (!$this->deletingApplicationId) {
+            return;
+        }
+
+        try {
+            $application = TempApplication::query()
+                ->where('constituency_code', $this->constituency->constituency_code)
+                ->findOrFail($this->deletingApplicationId);
+
+            app(TempApplicationDeleteService::class)->deleteWithAudit($application, auth()->user());
+
+            $this->reset(['deletingApplicationId', 'deletingApplicationLabel']);
+            $this->dispatch('close-modal', name: 'modal-delete-application');
+            $this->dispatch('swal:toast',
+                title: 'Application Deleted',
+                message: 'The application was deleted and a SQL backup was saved.',
+                type: 'success'
+            );
+
+            $this->refreshData();
+        } catch (ValidationException $e) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Failed',
+                message: collect($e->errors())->flatten()->first(),
+                type: 'error'
+            );
+        } catch (\Throwable $e) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Failed',
+                message: $e->getMessage() ?: 'Could not delete this application.',
+                type: 'error'
+            );
+        }
+    }
+
+    public function deletePhase(int $phaseId): void
+    {
+        $phase = LoanPhase::query()
+            ->where('constituency_code', $this->constituency->constituency_code)
+            ->findOrFail($phaseId);
+
+        $counts = app(PhaseDetailEditService::class)->deletePreviewCounts($phase);
+
+        $this->selectedPhaseId = $phaseId;
+        $this->deletingPhaseName = $phase->phase;
+        $this->deletingPhaseGroupCount = $counts['group_loans'];
+        $this->deletingPhaseMemberCount = $counts['group_members'];
+
+        $this->dispatch('open-modal', name: 'confirm-deletePhase-modal');
+    }
+
+    public function confirmDeletePhase(): void
+    {
+        if (!$this->selectedPhaseId) {
+            return;
+        }
+
+        $phase = LoanPhase::query()
+            ->where('constituency_code', $this->constituency->constituency_code)
+            ->find($this->selectedPhaseId);
+
+        if (!$phase) {
+            $this->dispatch('swal:toast',
+                title: 'Invalid Phase',
+                message: 'Could not delete this phase.',
+                type: 'error'
+            );
+            $this->resetPhaseDeleteState();
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+
+            return;
+        }
+
+        if ($phase->phaseApplications()->exists() && !LmsGracePeriod::isActive()) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Blocked',
+                message: 'Remove all applications from this phase before deleting it.',
+                type: 'error'
+            );
+            $this->resetPhaseDeleteState();
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+
+            return;
+        }
+
+        try {
+            app(PhaseDetailEditService::class)->deleteWithAudit($phase, auth()->user());
+
+            $this->resetPhaseDeleteState();
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+            $this->dispatch('swal:toast',
+                title: 'Phase Deleted',
+                message: 'Phase removed successfully. A backup was saved.',
+                type: 'success'
+            );
+
+            $this->redirect(route('const.app.app_phases', [
+                $this->constituency->county->slug,
+                $this->constituency->slug,
+            ]));
+        } catch (ValidationException $e) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Failed',
+                message: collect($e->errors())->flatten()->first(),
+                type: 'error'
+            );
+            $this->resetPhaseDeleteState();
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+        } catch (\Throwable $e) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Failed',
+                message: $e->getMessage() ?: 'Could not delete this phase.',
+                type: 'error'
+            );
+            $this->resetPhaseDeleteState();
+            $this->dispatch('close-modal', name: 'confirm-deletePhase-modal');
+        }
+    }
+
+    protected function resetPhaseDeleteState(): void
+    {
+        $this->reset([
+            'selectedPhaseId',
+            'deletingPhaseName',
+            'deletingPhaseGroupCount',
+            'deletingPhaseMemberCount',
+        ]);
     }
 
     public function render()

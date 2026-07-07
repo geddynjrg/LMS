@@ -207,6 +207,15 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="row">
+                            <div class="col-12 mb-3">
+                                <div class="hq-panel-card p-3 h-100">
+                                    <h6 class="font-weight-bold mb-3"><i class="fas fa-clipboard-list mr-2 text-success"></i>Applications by constituency (highest to lowest)</h6>
+                                    <div class="hq-chart-wrap-sm" wire:ignore><canvas id="hqApplicationVolumeChart"></canvas></div>
+                                </div>
+                            </div>
+                        </div>
                     @endif
 
                     {{-- DATA --}}

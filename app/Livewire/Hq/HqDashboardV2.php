@@ -212,6 +212,10 @@ class HqDashboardV2 extends Component
                 'labels' => collect($this->getStats['topPerformingConstituencies'] ?? [])->pluck('constituency_name')->all(),
                 'values' => collect($this->getStats['topPerformingConstituencies'] ?? [])->pluck('recovery_rate')->map(fn ($v) => (float) $v)->all(),
             ],
+            'applicationVolume' => [
+                'labels' => collect($this->getStats['applicationsPerConstituency'] ?? [])->pluck('constituency_name')->all(),
+                'values' => collect($this->getStats['applicationsPerConstituency'] ?? [])->pluck('application_count')->map(fn ($v) => (int) $v)->all(),
+            ],
             'activeDimension' => $this->analysisDimension,
         ];
     }

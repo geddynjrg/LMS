@@ -3,7 +3,9 @@
 namespace App\Livewire\Secretariat;
 
 use App\Models\LoanPhase;
+use App\Services\Loan\LoanAnalysisService;
 use App\Services\Loan\SecretariatApprovalService;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -16,15 +18,25 @@ class PhaseReviewList extends Component
     public string $filter = 'pending';
 
     protected SecretariatApprovalService $secretariatService;
+    protected LoanAnalysisService $analysisService;
 
-    public function boot(SecretariatApprovalService $secretariatService): void
-    {
+    public function boot(
+        SecretariatApprovalService $secretariatService,
+        LoanAnalysisService $analysisService,
+    ): void {
         $this->secretariatService = $secretariatService;
+        $this->analysisService = $analysisService;
     }
 
     public function updatingFilter(): void
     {
         $this->resetPage();
+    }
+
+    #[Computed]
+    public function applicationsByConstituency(): array
+    {
+        return $this->analysisService->getApplicationsPerConstituency([], 15);
     }
 
     public function render()

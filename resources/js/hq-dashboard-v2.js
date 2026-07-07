@@ -70,6 +70,7 @@ export function renderHqDashboardCharts(payload) {
         doughnutChart('hqDemographicsChart', payload.demographics.labels, payload.demographics.values);
         barChart('hqRecoveryChart', payload.recovery.labels, payload.recovery.values);
         barChart('hqConstituencyChart', payload.constituencies.labels, payload.constituencies.values);
+        barChart('hqApplicationVolumeChart', payload.applicationVolume?.labels, payload.applicationVolume?.values, true);
     }
 
     if (document.getElementById('hqSectorChart')) {

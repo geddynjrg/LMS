@@ -22,7 +22,7 @@ use App\Models\LoanPhase;
 use App\Livewire\AddAppsToPhaseModal;
 use App\Support\PhaseWorkflowStatus;
 use App\Livewire\Concerns\ManagesPhaseDetailEditing;
-use App\Services\Loan\PhaseDetailEditService;
+use App\Support\LmsGracePeriod;
 
 
 class PhaseManager extends Component
@@ -291,7 +291,7 @@ class PhaseManager extends Component
             return;
         }
 
-        if ($phase->total_apps > 0){
+        if ($phase->total_apps > 0 && !LmsGracePeriod::isActive()) {
 
             $this->dispatch('swal:toast',
                 title: 'Deleting Phase 😕',
