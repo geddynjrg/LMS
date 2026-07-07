@@ -6,6 +6,7 @@ use App\Models\GroupLoan;
 use App\Models\LoanPhase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
@@ -60,7 +61,9 @@ class PhaseDeleteBackupService
             'secretariat_approvals',
             'hq_reviews',
         ] as $table) {
-            $tables[] = [$table, "loan_phase_id={$phaseId}"];
+            if (Schema::hasTable($table)) {
+                $tables[] = [$table, "loan_phase_id={$phaseId}"];
+            }
         }
 
         $config = config('database.connections.' . config('database.default'));
@@ -93,8 +96,11 @@ class PhaseDeleteBackupService
                 ->run($command);
 
             if (!$result->successful()) {
+                $error = trim($result->errorOutput() ?: $result->output());
+
                 throw ValidationException::withMessages([
-                    'phase' => 'Could not create a backup before deleting this phase. Deletion was cancelled.',
+                    'phase' => 'Could not create a backup before deleting this phase. Deletion was cancelled.'
+                        . ($error !== '' ? " ({$table}: {$error})" : ''),
                 ]);
             }
 

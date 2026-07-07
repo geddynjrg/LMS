@@ -16,6 +16,7 @@ use App\Models\SecretariatApproval;
 use App\Models\User;
 use App\Services\Cache\AppCacheService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -204,7 +205,10 @@ class PhaseDetailEditService
             PhaseComment::query()->where('loan_phase_id', $phaseId)->delete();
             PhaseDocument::query()->where('loan_phase_id', $phaseId)->delete();
             SecretariatApproval::query()->where('loan_phase_id', $phaseId)->delete();
-            HqReview::query()->where('loan_phase_id', $phaseId)->delete();
+
+            if (Schema::hasTable((new HqReview)->getTable())) {
+                HqReview::query()->where('loan_phase_id', $phaseId)->delete();
+            }
 
             $this->logAudit(
                 $phase,
