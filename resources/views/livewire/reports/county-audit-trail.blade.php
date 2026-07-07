@@ -19,6 +19,7 @@
                         <option value="">All actions</option>
                         <option value="phase_audit">Phase edits / deletes</option>
                         <option value="group_audit">Group edits / deletes</option>
+                        <option value="application_audit">Application deletes</option>
                         <option value="restore_audit">Restores</option>
                     </select>
                 </div>

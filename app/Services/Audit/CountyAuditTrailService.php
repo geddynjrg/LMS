@@ -14,7 +14,7 @@ use Spatie\Activitylog\Models\Activity;
 class CountyAuditTrailService
 {
     /** @var list<string> */
-    protected const AUDIT_LOG_NAMES = ['phase_audit', 'group_audit', 'restore_audit'];
+    protected const AUDIT_LOG_NAMES = ['phase_audit', 'group_audit', 'application_audit', 'restore_audit'];
 
     public function userCanView(?User $user, County $county): bool
     {

@@ -415,6 +415,14 @@
                                                     variant="outline-success"
                                                     defaultLabel=""
                                                 />
+                                                @if($this->canDeleteApplication($app))
+                                                    <button type="button"
+                                                            class="btn btn-sm btn-outline-danger border shadow-sm ml-1"
+                                                            wire:click="confirmDeleteApplication({{ $app->id }})"
+                                                            title="Delete Application">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                @endif
                                             @endif
                                         </div>
                                     </td>
@@ -658,6 +666,55 @@
                         target="removeFromPhase"
                         color="info"
                         icon="fas fa-undo-alt"
+                        class="mx-1"
+                    />
+                </div>
+            </x-slot>
+        </x-action-modal>
+
+        <x-action-modal
+            id="modal-delete-application"
+            title="Delete Unassigned Application"
+            type="danger"
+            icon="fas fa-trash-alt"
+            size="modal-md"
+            x-on:open-modal.window="if($event.detail.name === 'modal-delete-application') $($el).modal('show')"
+            x-on:close-modal.window="if($event.detail.name === 'modal-delete-application') $($el).modal('hide')"
+        >
+            <div class="text-center px-3">
+                @if($deletingApplicationLabel)
+                    <p class="mb-3">
+                        You are about to permanently delete <strong>{{ $deletingApplicationLabel }}</strong>.
+                    </p>
+                @endif
+
+                <div class="alert alert-warning text-left mb-0" role="alert">
+                    <p class="mb-2 font-weight-bold">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        This only applies to applications not assigned to a phase
+                    </p>
+                    <p class="mb-0 small">
+                        A SQL backup is saved automatically before deletion. The action is logged in the county audit trail and cannot be undone from this screen.
+                    </p>
+                </div>
+            </div>
+
+            <x-slot name="footer">
+                <div class="d-flex justify-content-center w-100">
+                    <x-pill-button
+                        label="Cancel"
+                        variant="outline"
+                        color="secondary"
+                        data-dismiss="modal"
+                        icon="fas fa-times"
+                        class="mx-1"
+                    />
+
+                    <x-pill-button
+                        label="Confirm Delete"
+                        target="deleteApplication"
+                        color="danger"
+                        icon="fas fa-trash-alt"
                         class="mx-1"
                     />
                 </div>

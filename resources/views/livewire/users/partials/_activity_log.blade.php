@@ -22,8 +22,9 @@
                     @php
                         $isPhaseAudit = $log->log_name === 'phase_audit';
                         $isGroupAudit = $log->log_name === 'group_audit';
+                        $isApplicationAudit = $log->log_name === 'application_audit';
                         $isRestoreAudit = $log->log_name === 'restore_audit';
-                        $isCustomAudit = $isPhaseAudit || $isGroupAudit || $isRestoreAudit;
+                        $isCustomAudit = $isPhaseAudit || $isGroupAudit || $isApplicationAudit || $isRestoreAudit;
                         $hasAttributeDiff = $log->properties->has('attributes');
                         $hasValueDiff = $log->properties->has('old_values') || $log->properties->has('new_values');
 
@@ -53,6 +54,12 @@
                                 ?? $oldValues['group_name']
                                 ?? $log->subject?->group?->name
                                 ?? ('#' . ($log->properties->get('group_id') ?? $log->subject_id));
+                        } elseif ($isApplicationAudit) {
+                            $subjectLabel = 'Application';
+                            $subjectName = $newValues['application_id']
+                                ?? $oldValues['application_id']
+                                ?? $oldValues['group_name']
+                                ?? ('#' . ($log->properties->get('temp_application_id') ?? $log->subject_id));
                         } elseif ($isRestoreAudit) {
                             $subjectLabel = ucfirst((string) ($log->properties->get('backup_type') ?? 'Backup'));
                             $subjectName = 'Restored data';
@@ -105,8 +112,8 @@
 
                             <h3 class="timeline-header border-0 pb-0">
                                 @if($isCustomAudit)
-                                    <span class="badge badge-{{ $isPhaseAudit ? 'info' : ($isRestoreAudit ? 'success' : 'secondary') }} mr-1">
-                                        {{ $isPhaseAudit ? 'Phase Audit' : ($isRestoreAudit ? 'Restore Audit' : 'Group Audit') }}
+                                    <span class="badge badge-{{ $isPhaseAudit ? 'info' : ($isApplicationAudit ? 'warning' : ($isRestoreAudit ? 'success' : 'secondary')) }} mr-1">
+                                        {{ $isPhaseAudit ? 'Phase Audit' : ($isApplicationAudit ? 'Application Audit' : ($isRestoreAudit ? 'Restore Audit' : 'Group Audit')) }}
                                     </span>
                                 @endif
                                 <span class="text-capitalize font-weight-bold text-dark">
@@ -162,7 +169,7 @@
                                     }
                                 @endphp
 
-                                @if($isDanger && $backupFile && ($isPhaseAudit || $isGroupAudit) && $restoreCountySlug && $restoreConstituency)
+                                @if($isDanger && $backupFile && ($isPhaseAudit || $isGroupAudit || $isApplicationAudit) && $restoreCountySlug && $restoreConstituency)
                                     <p class="mb-2">
                                         <a href="{{ route('const.reports.restore-deleted-data', [
                                             'county' => $restoreCountySlug,

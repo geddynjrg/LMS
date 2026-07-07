@@ -12,6 +12,7 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ApplicationsExport;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
+use App\Services\Application\TempApplicationDeleteService;
 use App\Services\Cache\AppCacheService;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
@@ -72,6 +73,9 @@ class ApplicationDashboard extends Component
 
     public $selectedApplicationId;
     public $currentPhaseId;
+
+    public ?int $deletingApplicationId = null;
+    public string $deletingApplicationLabel = '';
 
     #[Url(except: '')]
     public $sortField = 'created';
@@ -578,6 +582,73 @@ class ApplicationDashboard extends Component
             $this->dispatch('swal:toast',
                 title: 'Action Failed 😕',
                 message: 'An unexpected error occurred. Please try again.',
+                type: 'error'
+            );
+        }
+    }
+
+    public function canDeleteApplication(TempApplication $application): bool
+    {
+        return app(TempApplicationDeleteService::class)->canDelete($application, auth()->user());
+    }
+
+    public function confirmDeleteApplication(int $applicationId): void
+    {
+        $application = TempApplication::query()
+            ->where('constituency_code', $this->constituency->constituency_code)
+            ->findOrFail($applicationId);
+
+        if (!$this->canDeleteApplication($application)) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Blocked 😕',
+                message: 'This application cannot be deleted. It may still be assigned to a phase, or you lack permission.',
+                type: 'error'
+            );
+
+            return;
+        }
+
+        $this->deletingApplicationId = $applicationId;
+        $this->deletingApplicationLabel = trim(
+            ($application->group_name ?: 'Application') . ' (' . $application->application_id . ')'
+        );
+
+        $this->dispatch('open-modal', name: 'modal-delete-application');
+    }
+
+    public function deleteApplication(): void
+    {
+        if (!$this->deletingApplicationId) {
+            return;
+        }
+
+        try {
+            $application = TempApplication::query()
+                ->where('constituency_code', $this->constituency->constituency_code)
+                ->findOrFail($this->deletingApplicationId);
+
+            app(TempApplicationDeleteService::class)->deleteWithAudit($application, auth()->user());
+
+            $this->reset(['deletingApplicationId', 'deletingApplicationLabel']);
+            $this->dispatch('close-modal', name: 'modal-delete-application');
+
+            $this->dispatch('swal:toast',
+                title: 'Application Deleted 😊',
+                message: 'The unassigned application was deleted and a backup was saved.',
+                type: 'success'
+            );
+
+            $this->refreshData();
+        } catch (ValidationException $e) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Failed 😕',
+                message: collect($e->errors())->flatten()->first(),
+                type: 'error'
+            );
+        } catch (\Exception $e) {
+            $this->dispatch('swal:toast',
+                title: 'Delete Failed 😕',
+                message: 'Could not delete this application. Please try again.',
                 type: 'error'
             );
         }
