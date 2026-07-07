@@ -15,7 +15,7 @@ use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 
 class MembersTemplateExport implements WithHeadings, WithEvents
 {
-    private const DATA_ROW_LIMIT = 50000;
+    private const DATA_ROW_LIMIT = 10000;
 
     protected $phases;
     protected $yesNo = ['Yes', 'No'];
@@ -138,17 +138,23 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             ],
         ]);
 
-        foreach (range('A', $highestColumn) as $col) {
-            if (in_array($col, ['D', 'E', 'F'])) {
-                $sheet->getColumnDimension($col)->setAutoSize(false);
-                $sheet->getColumnDimension($col)->setWidth(24);
-            } else {
-                $sheet->getColumnDimension($col)->setAutoSize(true);
-            }
-        }
+        $columnWidths = [
+            'A' => 8,
+            'B' => 20,
+            'C' => 18,
+            'D' => 28,
+            'E' => 20,
+            'F' => 26,
+            'G' => 16,
+            'H' => 16,
+            'I' => 18,
+            'J' => 12,
+            'K' => 12,
+        ];
 
-        for ($row = 2; $row <= $maxRows; $row++) {
-            $sheet->getRowDimension($row)->setRowHeight(-1);
+        foreach ($columnWidths as $column => $width) {
+            $sheet->getColumnDimension($column)->setAutoSize(false);
+            $sheet->getColumnDimension($column)->setWidth($width);
         }
     }
 

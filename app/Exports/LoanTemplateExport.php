@@ -16,7 +16,7 @@ use PhpOffice\PhpSpreadsheet\Style\Protection;
 
 class LoanTemplateExport implements WithHeadings, WithEvents
 {
-    private const DATA_ROW_LIMIT = 50000;
+    private const DATA_ROW_LIMIT = 10000;
 
     protected $wards;
     protected $phases;
@@ -160,9 +160,26 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
-        // Auto-size columns
-        foreach (range('A', $highestColumn) as $col) {
-            $sheet->getColumnDimension($col)->setAutoSize(true);
+        // Fixed widths are significantly faster than autosize on large template ranges.
+        $columnWidths = [
+            'A' => 8,   // S/No
+            'B' => 18,  // Date of Disbursement
+            'C' => 30,  // Name of Group
+            'D' => 22,  // Ward
+            'E' => 20,  // Loan Phase
+            'F' => 18,  // Loan Type
+            'G' => 20,  // GFS Code
+            'H' => 18,  // Identifier
+            'I' => 16,  // Category
+            'J' => 18,  // Sector
+            'K' => 20,  // Amount Approved
+            'L' => 20,  // Amount Issued
+            'M' => 20,  // Amount Repaid
+        ];
+
+        foreach ($columnWidths as $column => $width) {
+            $sheet->getColumnDimension($column)->setAutoSize(false);
+            $sheet->getColumnDimension($column)->setWidth($width);
         }
 
         $sheet->getStyle("A{$summaryRow}:M{$summaryRow}")->applyFromArray([
