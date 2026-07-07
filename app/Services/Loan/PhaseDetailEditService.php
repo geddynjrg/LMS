@@ -142,7 +142,7 @@ class PhaseDetailEditService
 
     public function deleteWithAudit(LoanPhase $phase, User $user): void
     {
-        if (!$phase->canEditDetailsBy($user)) {
+        if (!$phase->canDeleteBy($user)) {
             throw ValidationException::withMessages([
                 'phase' => 'You do not have permission to delete this phase.',
             ]);

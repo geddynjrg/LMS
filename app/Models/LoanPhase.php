@@ -175,6 +175,35 @@ class LoanPhase extends Model
     }
 
     /**
+     * Whether constituency staff may delete this phase.
+     * Deletion is blocked while applications are still linked to the phase.
+     */
+    public function canDeleteBy($user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        if ($user->hasRole('super-admin')) {
+            return !$this->is_locked;
+        }
+
+        if (!$user->hasAnyRole(['constituency_officer', 'intern'])) {
+            return false;
+        }
+
+        if (!$this->userCanManageConstituencyPhases($user)) {
+            return false;
+        }
+
+        if ($this->is_locked) {
+            return false;
+        }
+
+        return !$this->phaseApplications()->exists();
+    }
+
+    /**
      * Closed workflow phases where only metadata corrections are allowed.
      */
     public function canEditCompletedDetails(): bool

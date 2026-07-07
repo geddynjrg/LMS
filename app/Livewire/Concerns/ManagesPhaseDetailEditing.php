@@ -26,6 +26,11 @@ trait ManagesPhaseDetailEditing
         return $phase->canEditDetailsBy(auth()->user());
     }
 
+    public function canDeletePhase(LoanPhase $phase): bool
+    {
+        return $phase->canDeleteBy(auth()->user());
+    }
+
     public function openEditPhaseModal(int $phaseId): void
     {
         $phase = LoanPhase::query()

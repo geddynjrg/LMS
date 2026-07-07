@@ -137,11 +137,13 @@
 
                                     <div class="dropdown-divider"></div>
 
+                                    @if($this->canDeletePhase($phase))
                                     <button type="button" class="dropdown-item py-2 text-danger"
                                             wire:click="deletePhase({{ $phase->id }})"
                                             @click="open = false">
                                         <i class="fas fa-trash-alt mr-2"></i> Remove Phase
                                     </button>
+                                    @endif
                                 </div>
                             </template>
                         </div>
