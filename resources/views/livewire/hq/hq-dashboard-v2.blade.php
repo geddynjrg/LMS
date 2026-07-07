@@ -80,15 +80,24 @@
 
                     <span class="hq-sidebar-label d-block mb-2">Quick links</span>
                     <div class="list-group list-group-flush">
-                        <a href="{{ route('hq.submissions.tasks.phases') }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
-                            <i class="fas fa-tasks text-success mr-2"></i> Approval tasks
-                        </a>
-                        <a href="{{ route('hq.groups.index') }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
-                            <i class="fas fa-users text-success mr-2"></i> Groups registry
-                        </a>
-                        <a href="{{ route('hq.reports.index') }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
-                            <i class="fas fa-file-export text-success mr-2"></i> Reports
-                        </a>
+                        @if($this->isSecretariatDashboard())
+                            <a href="{{ route('secretariat.phases.index', ['filter' => 'pending']) }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
+                                <i class="fas fa-stamp text-purple mr-2"></i> Secretariat queue
+                            </a>
+                            <a href="{{ route('secretariat.phases.index', ['filter' => 'completed']) }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
+                                <i class="fas fa-check-circle text-success mr-2"></i> Authorized phases
+                            </a>
+                        @else
+                            <a href="{{ route('hq.submissions.tasks.phases') }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
+                                <i class="fas fa-tasks text-success mr-2"></i> Approval tasks
+                            </a>
+                            <a href="{{ route('hq.groups.index') }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
+                                <i class="fas fa-users text-success mr-2"></i> Groups registry
+                            </a>
+                            <a href="{{ route('hq.reports.index') }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
+                                <i class="fas fa-file-export text-success mr-2"></i> Reports
+                            </a>
+                        @endif
                     </div>
 
                     <div class="mt-4 p-3 rounded {{ $this->riskProfile['bg_class'] }}">
@@ -186,8 +195,8 @@
                             <div class="col-lg-5 mb-3">
                                 <div class="hq-panel-card p-3 h-100">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="font-weight-bold mb-0"><i class="fas fa-inbox mr-2 text-success"></i>Action inbox</h6>
-                                        <span class="badge badge-warning">{{ $this->actionInbox['pending_phase_count'] }} pending</span>
+                                        <h6 class="font-weight-bold mb-0"><i class="fas fa-inbox mr-2 text-success"></i>{{ $this->actionInbox['inbox_title'] }}</h6>
+                                        <span class="badge badge-{{ $this->actionInbox['mode'] === 'secretariat' ? 'primary' : 'warning' }}">{{ $this->actionInbox['pending_phase_count'] }} pending</span>
                                     </div>
                                     @forelse($this->actionInbox['pending_phases'] as $phase)
                                         <div class="hq-inbox-item mb-2">
@@ -196,14 +205,24 @@
                                                 <small class="text-muted">{{ $phase['submitted_at'] }}</small>
                                             </div>
                                             <small class="text-muted">{{ $phase['constituency'] }}</small>
-                                            <div class="mt-2">
-                                                <a href="{{ $phase['url'] }}" class="btn btn-sm btn-outline-success">Review</a>
+                                            @if(!empty($phase['meta']))
+                                                <small class="d-block text-purple">{{ $phase['meta'] }}</small>
+                                            @endif
+                                            <div class="mt-2 d-flex flex-wrap">
+                                                <a href="{{ $phase['url'] }}" class="btn btn-sm btn-{{ $this->actionInbox['mode'] === 'secretariat' ? 'primary' : 'outline-success' }} mr-1 mb-1">
+                                                    {{ $phase['action_label'] }}
+                                                </a>
+                                                @if(!empty($phase['secondary_url']))
+                                                    <a href="{{ $phase['secondary_url'] }}" class="btn btn-sm btn-outline-secondary mb-1">
+                                                        {{ $phase['secondary_label'] }}
+                                                    </a>
+                                                @endif
                                             </div>
                                         </div>
                                     @empty
-                                        <p class="text-muted mb-0">No phases awaiting HQ review.</p>
+                                        <p class="text-muted mb-0">{{ $this->actionInbox['inbox_empty'] }}</p>
                                     @endforelse
-                                    <a href="{{ route('hq.submissions.tasks.phases') }}" class="btn btn-link btn-sm px-0 mt-2">View all tasks →</a>
+                                    <a href="{{ $this->actionInbox['tasks_queue_url'] }}" class="btn btn-link btn-sm px-0 mt-2">{{ $this->actionInbox['tasks_queue_label'] }} →</a>
                                 </div>
                             </div>
                         </div>
@@ -366,23 +385,55 @@
                             <div class="col-lg-7 mb-3">
                                 <div class="hq-panel-card p-3 h-100">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h5 class="font-weight-bold mb-0">Phases awaiting review</h5>
-                                        <a href="{{ route('hq.submissions.tasks.phases') }}" class="btn btn-sm btn-success">Open task queue</a>
+                                        <h5 class="font-weight-bold mb-0">{{ $this->actionInbox['tasks_title'] }}</h5>
+                                        <a href="{{ $this->actionInbox['tasks_queue_url'] }}" class="btn btn-sm btn-success">{{ $this->actionInbox['tasks_queue_label'] }}</a>
                                     </div>
                                     @forelse($this->actionInbox['pending_phases'] as $phase)
                                         <div class="hq-inbox-item mb-2 d-flex justify-content-between align-items-center">
                                             <div>
                                                 <strong>{{ $phase['label'] }}</strong>
                                                 <small class="d-block text-muted">{{ $phase['constituency'] }} · {{ $phase['submitted_at'] }}</small>
+                                                @if(!empty($phase['meta']))
+                                                    <small class="d-block text-purple">{{ $phase['meta'] }}</small>
+                                                @endif
                                             </div>
-                                            <a href="{{ $phase['url'] }}" class="btn btn-sm btn-outline-success">Review</a>
+                                            <div class="text-nowrap">
+                                                <a href="{{ $phase['url'] }}" class="btn btn-sm btn-{{ $this->actionInbox['mode'] === 'secretariat' ? 'primary' : 'outline-success' }}">
+                                                    {{ $phase['action_label'] }}
+                                                </a>
+                                                @if(!empty($phase['secondary_url']))
+                                                    <a href="{{ $phase['secondary_url'] }}" class="btn btn-sm btn-outline-secondary ml-1">
+                                                        {{ $phase['secondary_label'] }}
+                                                    </a>
+                                                @endif
+                                            </div>
                                         </div>
                                     @empty
-                                        <p class="text-muted">No pending phases in your queue.</p>
+                                        <p class="text-muted">{{ $this->actionInbox['inbox_empty'] }}</p>
                                     @endforelse
                                 </div>
                             </div>
                             <div class="col-lg-5 mb-3">
+                                @if($this->isSecretariatDashboard())
+                                    <div class="hq-panel-card p-3 h-100">
+                                        <h5 class="font-weight-bold mb-3">Secretariat workload</h5>
+                                        <p class="text-muted small">
+                                            This national view mirrors HQ portfolio analytics. Operational work stays on the
+                                            <a href="{{ route('secretariat.phases.index') }}">Secretariat Dashboard</a>
+                                            where you sign authorizations — not HQ batch review.
+                                        </p>
+                                        <ul class="list-unstyled mb-0 small">
+                                            <li class="d-flex justify-content-between py-2 border-bottom">
+                                                <span>Awaiting authorization</span>
+                                                <strong>{{ $this->actionInbox['pending_phase_count'] }}</strong>
+                                            </li>
+                                            <li class="d-flex justify-content-between py-2">
+                                                <span>View</span>
+                                                <a href="{{ route('secretariat.phases.index', ['filter' => 'pending']) }}">Pending tasks →</a>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                @else
                                 <div class="hq-panel-card p-3 h-100">
                                     <h5 class="font-weight-bold mb-3">New applications</h5>
                                     @forelse($this->actionInbox['new_applications'] as $app)
@@ -395,6 +446,7 @@
                                         <p class="text-muted mb-0">No new applications for the current scope.</p>
                                     @endforelse
                                 </div>
+                                @endif
                             </div>
                         </div>
                     @endif
