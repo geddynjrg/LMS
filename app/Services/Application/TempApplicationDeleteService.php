@@ -19,20 +19,34 @@ class TempApplicationDeleteService
 
     public function canDelete(TempApplication $application, User $user): bool
     {
-        if (!$user->can('delete loan application')) {
-            return false;
-        }
-
         if ($application->phaseApplication()->exists()) {
             return false;
         }
 
-        if ($application->constituency_code !== null) {
-            return $user->hasRole('super-admin')
-                || $user->constituencies->contains('constituency_code', $application->constituency_code);
+        if (!$this->userCanManageConstituencyApplication($application, $user)) {
+            return false;
         }
 
-        return $user->hasRole('super-admin');
+        return $user->can('delete loan application')
+            || $user->can('review application')
+            || $user->can('submit application');
+    }
+
+    protected function userCanManageConstituencyApplication(TempApplication $application, User $user): bool
+    {
+        if ($user->hasRole('super-admin')) {
+            return true;
+        }
+
+        if (!$user->hasAnyRole(['constituency_officer', 'intern'])) {
+            return false;
+        }
+
+        if ($application->constituency_code === null) {
+            return false;
+        }
+
+        return $user->constituencies->contains('constituency_code', $application->constituency_code);
     }
 
     public function deleteWithAudit(TempApplication $application, User $user): void
