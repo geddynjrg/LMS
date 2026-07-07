@@ -70,19 +70,6 @@ class DataUpload extends Component
 
         $phases = $this->getPhases->pluck('phase')->toArray();
 
-        // Serve static templates for heavy exports to avoid gateway timeouts.
-        $staticDownloadNames = [
-            'groups' => 'Group_Loan_Template.xlsx',
-            'members' => 'Member_Template.xlsx',
-        ];
-
-        if (isset($staticDownloadNames[$type])) {
-            $filePath = public_path('templates/' . $templates[$type]);
-            if (file_exists($filePath)) {
-                return response()->download($filePath, $staticDownloadNames[$type]);
-            }
-        }
-
         if ($type === 'groups') {
             $wards = $this->constituency->wards->pluck('ward_name')->toArray();
 
