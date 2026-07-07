@@ -8,6 +8,7 @@ use App\Models\GroupMember;
 use App\Models\User;
 use App\Services\Cache\AppCacheService;
 use App\Services\Loan\LoanPhaseService;
+use App\Support\LmsGracePeriod;
 use App\Support\LoanPhaseFinancialTotals;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -60,6 +61,19 @@ class GroupDetailEditService
                 'amount_applied',
                 'amount_approved',
                 'gfs_code',
+            ];
+        }
+
+        if (LmsGracePeriod::isActive()) {
+            return [
+                'group_name',
+                'ward_id',
+                'gfs_code',
+                'amount_applied',
+                'amount_approved',
+                'amount_issued',
+                'amount_repaid',
+                'disbursement_date',
             ];
         }
 

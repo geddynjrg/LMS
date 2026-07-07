@@ -39,6 +39,29 @@ class TempApplicationDeleteBackupService
             }
         }
 
+        $application->loadMissing(['phaseApplication.groupLoan']);
+
+        $phaseApplication = $application->phaseApplication;
+        if ($phaseApplication) {
+            $phaseApplicationId = $phaseApplication->id;
+            $tables[] = ['phase_applications', "id={$phaseApplicationId}"];
+
+            if (Schema::hasTable('phase_application_documents')) {
+                $tables[] = ['phase_application_documents', "phase_application_id={$phaseApplicationId}"];
+            }
+
+            if (Schema::hasTable('phase_comments')) {
+                $tables[] = ['phase_comments', "phase_application_id={$phaseApplicationId}"];
+            }
+
+            if ($phaseApplication->group_loan_id) {
+                $groupLoanId = $phaseApplication->group_loan_id;
+                $tables[] = ['group_loans', "id={$groupLoanId}"];
+                $tables[] = ['group_members', "group_loans_id={$groupLoanId}"];
+                $tables[] = ['loan_receipts', "group_loans_id={$groupLoanId}"];
+            }
+        }
+
         $config = config('database.connections.' . config('database.default'));
         $database = $config['database'];
         $host = $config['host'] ?? '127.0.0.1';

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\LmsGracePeriod;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -159,6 +160,10 @@ class LoanPhase extends Model
             return false;
         }
 
+        if (LmsGracePeriod::isActive()) {
+            return true;
+        }
+
         if ($this->is_locked) {
             return false;
         }
@@ -185,6 +190,10 @@ class LoanPhase extends Model
         }
 
         if ($user->hasRole('super-admin')) {
+            if (LmsGracePeriod::isActive()) {
+                return true;
+            }
+
             return !$this->is_locked;
         }
 
@@ -194,6 +203,10 @@ class LoanPhase extends Model
 
         if (!$this->userCanManageConstituencyPhases($user)) {
             return false;
+        }
+
+        if (LmsGracePeriod::isActive()) {
+            return true;
         }
 
         if ($this->is_locked) {

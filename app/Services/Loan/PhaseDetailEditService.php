@@ -14,7 +14,9 @@ use App\Models\PhaseComment;
 use App\Models\PhaseDocument;
 use App\Models\SecretariatApproval;
 use App\Models\User;
+use App\Services\Application\TempApplicationDeleteService;
 use App\Services\Cache\AppCacheService;
+use App\Support\LmsGracePeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
@@ -50,6 +52,21 @@ class PhaseDetailEditService
 
         if ($phase->status === 'draft') {
             return ['phase', 'review_date', 'review_venue'];
+        }
+
+        if (LmsGracePeriod::isActive()) {
+            return [
+                'phase',
+                'review_date',
+                'review_venue',
+                'amount_disbursed',
+                'amount_repaid',
+                'disbursed_at',
+                'training_start_date',
+                'training_end_date',
+                'training_venue',
+                'training_notes',
+            ];
         }
 
         if ($phase->canEditCompletedDetails()) {
@@ -150,9 +167,24 @@ class PhaseDetailEditService
         }
 
         if ($phase->phaseApplications()->exists()) {
-            throw ValidationException::withMessages([
-                'phase' => 'Remove all applications from this phase before deleting it.',
-            ]);
+            if (!LmsGracePeriod::isActive()) {
+                throw ValidationException::withMessages([
+                    'phase' => 'Remove all applications from this phase before deleting it.',
+                ]);
+            }
+
+            $phase->load(['phaseApplications.tempApplication']);
+
+            foreach ($phase->phaseApplications as $phaseApplication) {
+                if ($phaseApplication->tempApplication) {
+                    app(TempApplicationDeleteService::class)
+                        ->deleteWithAudit($phaseApplication->tempApplication, $user);
+                } else {
+                    $phaseApplication->delete();
+                }
+            }
+
+            $phase->refresh();
         }
 
         $cascadeCounts = $this->deletePreviewCounts($phase);

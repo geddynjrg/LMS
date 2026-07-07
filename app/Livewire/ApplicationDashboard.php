@@ -14,6 +14,7 @@ use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
 use App\Services\Application\TempApplicationDeleteService;
 use App\Services\Cache\AppCacheService;
+use App\Support\LmsGracePeriod;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -77,6 +78,9 @@ class ApplicationDashboard extends Component
     public ?int $deletingApplicationId = null;
     public string $deletingApplicationLabel = '';
 
+    public bool $gracePeriodActive = false;
+    public string $gracePeriodEndsAt = '';
+
     #[Url(except: '')]
     public $sortField = 'created';
     public $sortDirection = 'desc';
@@ -93,6 +97,8 @@ class ApplicationDashboard extends Component
     {
         $this->constituency = $constituency->load('county');
         $this->reviewDate = now()->addDays(7)->format('Y-m-d');
+        $this->gracePeriodActive = LmsGracePeriod::isActive();
+        $this->gracePeriodEndsAt = LmsGracePeriod::endsAt()?->format('j M Y') ?? '';
         if (empty($this->selectedApplications)) {
             $this->selectedApplications = [];
         }
@@ -599,9 +605,13 @@ class ApplicationDashboard extends Component
             ->findOrFail($applicationId);
 
         if (!$this->canDeleteApplication($application)) {
+            $message = LmsGracePeriod::isActive()
+                ? 'This application cannot be deleted. You may lack permission or constituency access.'
+                : 'This application cannot be deleted. Only unassigned applications can be deleted after the grace period, or you lack permission.';
+
             $this->dispatch('swal:toast',
                 title: 'Delete Blocked 😕',
-                message: 'This application cannot be deleted. It may still be assigned to a phase, or you lack permission.',
+                message: $message,
                 type: 'error'
             );
 
@@ -634,7 +644,7 @@ class ApplicationDashboard extends Component
 
             $this->dispatch('swal:toast',
                 title: 'Application Deleted 😊',
-                message: 'The unassigned application was deleted and a backup was saved.',
+                message: 'The application was deleted and a SQL backup was saved to the audit trail.',
                 type: 'success'
             );
 

@@ -415,14 +415,15 @@
                                                     variant="outline-success"
                                                     defaultLabel=""
                                                 />
-                                                @if($this->canDeleteApplication($app))
-                                                    <button type="button"
-                                                            class="btn btn-sm btn-outline-danger border shadow-sm ml-1"
-                                                            wire:click="confirmDeleteApplication({{ $app->id }})"
-                                                            title="Delete Application">
-                                                        <i class="fas fa-trash-alt"></i>
-                                                    </button>
-                                                @endif
+                                            @endif
+
+                                            @if($this->canDeleteApplication($app))
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-danger border shadow-sm ml-1"
+                                                        wire:click="confirmDeleteApplication({{ $app->id }})"
+                                                        title="Delete Application">
+                                                    <i class="fas fa-trash-alt"></i>
+                                                </button>
                                             @endif
                                         </div>
                                     </td>
@@ -674,7 +675,7 @@
 
         <x-action-modal
             id="modal-delete-application"
-            title="Delete Unassigned Application"
+            title="Delete Application"
             type="danger"
             icon="fas fa-trash-alt"
             size="modal-md"
@@ -691,11 +692,20 @@
                 <div class="alert alert-warning text-left mb-0" role="alert">
                     <p class="mb-2 font-weight-bold">
                         <i class="fas fa-exclamation-triangle mr-1"></i>
-                        This only applies to applications not assigned to a phase
+                        This action cannot be undone from this screen
                     </p>
-                    <p class="mb-0 small">
-                        A SQL backup is saved automatically before deletion. The action is logged in the county audit trail and cannot be undone from this screen.
+                    <p class="mb-2 small">
+                        A SQL backup is saved automatically before deletion. The action is logged in the county audit trail.
                     </p>
+                    @if($this->gracePeriodActive)
+                        <p class="mb-0 small">
+                            Extended delete access is active until <strong>{{ $this->gracePeriodEndsAt }}</strong>, including applications in draft, processing, HQ, or completed phases.
+                        </p>
+                    @else
+                        <p class="mb-0 small">
+                            Only unassigned applications can be deleted after the grace period ends.
+                        </p>
+                    @endif
                 </div>
             </div>
 
