@@ -13,12 +13,13 @@ npm ci
 npm run build
 
 echo "=== 2. LMS: migrate & optimize ==="
-docker exec uwezo-lms-app php artisan migrate --force
-docker exec uwezo-lms-app php artisan optimize:clear
-docker exec uwezo-lms-app php artisan config:cache
-docker exec uwezo-lms-app php artisan route:cache
-docker exec uwezo-lms-app php artisan view:cache
-docker exec uwezo-lms-app php artisan horizon:terminate || true
+docker exec -u www-data uwezo-lms-app php artisan migrate --force
+docker exec -u www-data uwezo-lms-app php artisan optimize:clear
+docker exec -u www-data uwezo-lms-app php artisan config:cache
+docker exec -u www-data uwezo-lms-app php artisan route:cache
+docker exec -u www-data uwezo-lms-app php artisan view:cache
+docker exec -u www-data uwezo-lms-app php artisan horizon:terminate || true
+docker exec uwezo-lms-app chown -R www-data:www-data storage bootstrap/cache
 
 echo "=== 3. Sync Drupal uploaded files staging → prod ==="
 docker run --rm \
