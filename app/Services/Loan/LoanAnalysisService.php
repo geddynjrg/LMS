@@ -416,26 +416,63 @@ class LoanAnalysisService
     }
 
     /**
+     * All constituencies ranked by application volume.
+     *
+     * Counts every portal application (temp_applications, any status/phase) plus
+     * historical group loans in completed phases that are not already linked to
+     * a portal application record.
+     *
      * @param  array{county_code?: string, constituency_code?: string}  $filters
-     * @return list<object{constituency_name: string, application_count: int}>
+     * @return list<object{
+     *     constituency_code: string,
+     *     constituency_name: string,
+     *     county_name: string,
+     *     application_count: int,
+     *     portal_applications: int,
+     *     historical_records: int
+     * }>
      */
-    public function getApplicationsPerConstituency(array $filters = [], int $limit = 20): array
+    public function getApplicationsPerConstituency(array $filters = []): array
     {
-        return DB::table('temp_applications as ta')
-            ->join('constituencies as c', 'ta.constituency_code', '=', 'c.constituency_code')
+        $tempCounts = DB::table('temp_applications')
+            ->select('constituency_code', DB::raw('COUNT(*) as temp_count'))
+            ->whereNotNull('constituency_code')
+            ->groupBy('constituency_code');
+
+        $historicalCounts = DB::table('group_loans as gl')
+            ->join('loan_phases as lp', 'gl.loan_phase_id', '=', 'lp.id')
+            ->leftJoin('phase_applications as pa', function ($join) {
+                $join->on('pa.group_loan_id', '=', 'gl.id')
+                    ->whereNotNull('pa.temp_application_id');
+            })
+            ->whereNull('pa.id')
+            ->select('lp.constituency_code', DB::raw('COUNT(*) as historical_count'))
+            ->groupBy('lp.constituency_code');
+
+        return DB::table('constituencies as c')
+            ->join('counties as co', 'c.county_code', '=', 'co.county_code')
+            ->leftJoinSub($tempCounts, 'ta', 'ta.constituency_code', '=', 'c.constituency_code')
+            ->leftJoinSub($historicalCounts, 'hg', 'hg.constituency_code', '=', 'c.constituency_code')
             ->when(!empty($filters['county_code']), fn ($q) => $q->where('c.county_code', $filters['county_code']))
             ->when(!empty($filters['constituency_code']), fn ($q) => $q->where('c.constituency_code', $filters['constituency_code']))
             ->select(
+                'c.constituency_code',
                 'c.constituency_name',
-                DB::raw('COUNT(*) as application_count'),
+                'co.county_name',
+                DB::raw('COALESCE(ta.temp_count, 0) + COALESCE(hg.historical_count, 0) as application_count'),
+                DB::raw('COALESCE(ta.temp_count, 0) as portal_applications'),
+                DB::raw('COALESCE(hg.historical_count, 0) as historical_records'),
             )
-            ->groupBy('c.constituency_code', 'c.constituency_name')
             ->orderByDesc('application_count')
-            ->limit($limit)
+            ->orderBy('c.constituency_name')
             ->get()
             ->map(fn ($row) => (object) [
+                'constituency_code' => $row->constituency_code,
                 'constituency_name' => $row->constituency_name,
+                'county_name' => $row->county_name,
                 'application_count' => (int) $row->application_count,
+                'portal_applications' => (int) $row->portal_applications,
+                'historical_records' => (int) $row->historical_records,
             ])
             ->all();
     }

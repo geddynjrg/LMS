@@ -70,9 +70,36 @@
     height: 220px;
 }
 
-.application-volume-chart-wrap {
-    position: relative;
-    min-height: 260px;
+.application-volume-table-wrap {
+    max-height: 520px;
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+}
+
+.application-volume-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    border-top: 0;
+}
+
+.application-volume-share-track {
+    height: 8px;
+    background: #eef2f7;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.application-volume-share-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #34d399 0%, #059669 100%);
+    border-radius: 999px;
 }
 
 .application-volume-kpi {

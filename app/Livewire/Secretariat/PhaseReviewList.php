@@ -2,16 +2,16 @@
 
 namespace App\Livewire\Secretariat;
 
+use App\Livewire\Concerns\ManagesApplicationVolumeRanking;
 use App\Models\LoanPhase;
 use App\Services\Loan\LoanAnalysisService;
 use App\Services\Loan\SecretariatApprovalService;
-use Livewire\Attributes\Computed;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 class PhaseReviewList extends Component
 {
-    use WithPagination;
+    use ManagesApplicationVolumeRanking, WithPagination;
 
     protected $paginationTheme = 'bootstrap';
 
@@ -33,44 +33,9 @@ class PhaseReviewList extends Component
         $this->resetPage();
     }
 
-    #[Computed]
-    public function applicationsByConstituency(): array
+    public function updatedApplicationVolumeSearch(): void
     {
-        return $this->analysisService->getApplicationsPerConstituency([], 20);
-    }
-
-    #[Computed]
-    public function applicationVolumeStats(): array
-    {
-        $rows = collect($this->applicationsByConstituency);
-
-        return [
-            'total' => (int) $rows->sum('application_count'),
-            'constituency_count' => $rows->count(),
-            'top_name' => $rows->first()?->constituency_name,
-            'top_count' => (int) ($rows->first()?->application_count ?? 0),
-        ];
-    }
-
-    public function mount(): void
-    {
-        $this->dispatchApplicationVolumeChart();
-    }
-
-    protected function applicationVolumeChartPayload(): array
-    {
-        $rows = collect($this->applicationsByConstituency);
-
-        return [
-            'labels' => $rows->pluck('constituency_name')->all(),
-            'values' => $rows->pluck('application_count')->map(fn ($v) => (int) $v)->all(),
-            'total' => (int) $rows->sum('application_count'),
-        ];
-    }
-
-    protected function dispatchApplicationVolumeChart(): void
-    {
-        $this->dispatch('secretariat-application-volume-updated', chart: $this->applicationVolumeChartPayload());
+        unset($this->filteredApplicationVolumeRows);
     }
 
     public function render()

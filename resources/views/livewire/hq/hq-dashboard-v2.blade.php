@@ -230,43 +230,7 @@
                         <div class="row">
                             <div class="col-12 mb-3">
                                 <div class="hq-panel-card p-3 h-100">
-                                    <div class="d-flex flex-wrap justify-content-between align-items-start mb-3">
-                                        <div>
-                                            <h6 class="font-weight-bold mb-1">
-                                                <i class="fas fa-clipboard-list mr-2 text-success"></i>Applications by constituency
-                                            </h6>
-                                            <p class="text-muted small mb-0">Ranked highest to lowest — horizontal lollipop view with counts</p>
-                                        </div>
-                                        <span class="hq-badge-v2">{{ number_format($this->applicationVolumeStats['total']) }} total applications</span>
-                                    </div>
-
-                                    <div class="row mb-3">
-                                        <div class="col-md-4 mb-2 mb-md-0">
-                                            <div class="application-volume-kpi">
-                                                <div class="kpi-label">National total</div>
-                                                <div class="kpi-value">{{ number_format($this->applicationVolumeStats['total']) }}</div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4 mb-2 mb-md-0">
-                                            <div class="application-volume-kpi">
-                                                <div class="kpi-label">Constituencies</div>
-                                                <div class="kpi-value">{{ number_format($this->applicationVolumeStats['constituency_count']) }}</div>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="application-volume-kpi">
-                                                <div class="kpi-label">Highest volume</div>
-                                                <div class="kpi-value" style="font-size: 1.15rem;">
-                                                    {{ $this->applicationVolumeStats['top_name'] ?? '—' }}
-                                                </div>
-                                                <small class="text-muted">{{ number_format($this->applicationVolumeStats['top_count']) }} applications</small>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="application-volume-chart-wrap" wire:ignore>
-                                        <canvas id="hqApplicationVolumeChart"></canvas>
-                                    </div>
+                                    @include('livewire.partials.application-volume-ranking')
                                 </div>
                             </div>
                         </div>

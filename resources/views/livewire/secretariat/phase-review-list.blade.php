@@ -80,48 +80,19 @@
         </div>
     </div>
 
-    @php
-        $volumeStats = $this->applicationVolumeStats;
-    @endphp
-
     <div class="row mb-4">
         <div class="col-lg-8">
             <div class="card shadow-sm h-100">
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <div>
                         <h3 class="card-title mb-0">Applications by constituency</h3>
-                        <p class="text-muted small mb-0">Ranked highest to lowest with total counts</p>
                     </div>
                     <a href="{{ route('dashboard', ['national' => 1]) }}" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-chart-line mr-1"></i> Full national dashboard
                     </a>
                 </div>
                 <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-4 mb-2 mb-md-0">
-                            <div class="application-volume-kpi">
-                                <div class="kpi-label">National total</div>
-                                <div class="kpi-value">{{ number_format($volumeStats['total']) }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 mb-2 mb-md-0">
-                            <div class="application-volume-kpi">
-                                <div class="kpi-label">Constituencies</div>
-                                <div class="kpi-value">{{ number_format($volumeStats['constituency_count']) }}</div>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="application-volume-kpi">
-                                <div class="kpi-label">Highest volume</div>
-                                <div class="kpi-value" style="font-size: 1.15rem;">{{ $volumeStats['top_name'] ?? '—' }}</div>
-                                <small class="text-muted">{{ number_format($volumeStats['top_count']) }} applications</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="application-volume-chart-wrap" wire:ignore>
-                        <canvas id="secretariatApplicationVolumeChart"></canvas>
-                    </div>
+                    @include('livewire.partials.application-volume-ranking')
                 </div>
             </div>
         </div>

@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Hq;
 
+use App\Livewire\Concerns\ManagesApplicationVolumeRanking;
 use App\Livewire\Hq\Concerns\ManagesHqDashboardData;
 use App\Models\LoanPhase;
 use App\Services\Cache\AppCacheService;
@@ -13,7 +14,7 @@ use Livewire\Component;
 
 class HqDashboardV2 extends Component
 {
-    use ManagesHqDashboardData;
+    use ManagesHqDashboardData, ManagesApplicationVolumeRanking;
 
     /** @var 'overview'|'data'|'analyze'|'tasks' */
     public string $workspace = 'overview';
@@ -61,12 +62,34 @@ class HqDashboardV2 extends Component
 
     public function updated($property): void
     {
-        if (! in_array($property, ['countyFilter', 'constituencyFilter', 'wardFilter'], true)) {
+        if (in_array($property, ['countyFilter', 'constituencyFilter', 'wardFilter'], true)) {
+            $this->invalidateV2Computed();
+            $this->dispatchChartUpdate();
+
             return;
         }
 
-        $this->invalidateV2Computed();
-        $this->dispatchChartUpdate();
+        if ($property === 'applicationVolumeSearch') {
+            unset($this->filteredApplicationVolumeRows);
+        }
+    }
+
+    /**
+     * @return array{county_code?: string, constituency_code?: string}
+     */
+    protected function applicationVolumeFilters(): array
+    {
+        $filters = [];
+
+        if ($this->countyFilter !== '') {
+            $filters['county_code'] = $this->countyFilter;
+        }
+
+        if ($this->constituencyFilter !== '') {
+            $filters['constituency_code'] = $this->constituencyFilter;
+        }
+
+        return $filters;
     }
 
     public function setWorkspace(string $workspace): void
@@ -89,7 +112,8 @@ class HqDashboardV2 extends Component
 
     protected function invalidateV2Computed(): void
     {
-        unset($this->actionInbox, $this->dataRows, $this->chartPayload, $this->analysisTable, $this->applicationVolumeStats);
+        unset($this->actionInbox, $this->dataRows, $this->chartPayload, $this->analysisTable);
+        unset($this->applicationVolumeRows, $this->filteredApplicationVolumeRows, $this->applicationVolumeStats);
     }
 
     protected function dispatchChartUpdate(): void
@@ -246,19 +270,6 @@ class HqDashboardV2 extends Component
     }
 
     #[Computed]
-    public function applicationVolumeStats(): array
-    {
-        $rows = collect($this->getStats['applicationsPerConstituency'] ?? []);
-
-        return [
-            'total' => (int) $rows->sum('application_count'),
-            'constituency_count' => $rows->count(),
-            'top_name' => $rows->first()?->constituency_name,
-            'top_count' => (int) ($rows->first()?->application_count ?? 0),
-        ];
-    }
-
-    #[Computed]
     public function chartPayload(): array
     {
         $demographicRows = collect($this->demographics)->filter(fn ($row) => ! empty($row['cat']));
@@ -291,11 +302,6 @@ class HqDashboardV2 extends Component
             'constituencies' => [
                 'labels' => collect($this->getStats['topPerformingConstituencies'] ?? [])->pluck('constituency_name')->all(),
                 'values' => collect($this->getStats['topPerformingConstituencies'] ?? [])->pluck('recovery_rate')->map(fn ($v) => (float) $v)->all(),
-            ],
-            'applicationVolume' => [
-                'labels' => collect($this->getStats['applicationsPerConstituency'] ?? [])->pluck('constituency_name')->all(),
-                'values' => collect($this->getStats['applicationsPerConstituency'] ?? [])->pluck('application_count')->map(fn ($v) => (int) $v)->all(),
-                'total' => $this->applicationVolumeStats['total'],
             ],
             'activeDimension' => $this->analysisDimension,
         ];
