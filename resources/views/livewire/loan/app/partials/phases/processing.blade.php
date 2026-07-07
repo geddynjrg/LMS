@@ -82,12 +82,53 @@
                         </span>
                     </td>
                     <td class="px-4 py-3">
-                        <a href="{{ route('const.app.app_phase_details', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
-                            class="btn btn-white btn-sm border shadow-sm"
-                            title="Manage Batch"
-                            >
-                                <i class="fas fa-folder-open text-primary mr-1"></i> Manage
-                        </a>
+                        <div x-data="{ open: false }" class="btn-group">
+                            <a href="{{ route('const.app.app_phase_details', [$constituency->county->slug, $constituency->slug, $phase->slug]) }}"
+                                class="btn btn-white btn-sm border shadow-sm"
+                                title="Manage Batch"
+                                >
+                                    <i class="fas fa-folder-open text-primary mr-1"></i> Manage
+                            </a>
+                            @if($this->canEditPhaseDetails($phase) || $this->canDeletePhase($phase))
+                            <button type="button"
+                                    x-ref="trigger"
+                                    @click="open = !open"
+                                    class="btn btn-white btn-sm border shadow-sm dropdown-toggle dropdown-icon">
+                            </button>
+
+                            <template x-teleport="body">
+                                <div x-show="open"
+                                    x-anchor.bottom-end="$refs.trigger"
+                                    @click.away="open = false"
+                                    x-cloak
+                                    x-transition:enter="animate__animated animate__fadeIn animate__faster"
+                                    class="dropdown-menu show shadow-lg border-0 animate__animated animate__fadeIn animate__faster"
+                                    style="z-index: 9999; min-width: 200px; position: fixed;">
+
+                                    @if($this->canEditPhaseDetails($phase))
+                                        <button type="button"
+                                                class="dropdown-item py-2"
+                                                wire:click="openEditPhaseModal({{ $phase->id }})"
+                                                @click="open = false">
+                                            <i class="fas fa-edit text-info mr-2"></i> Edit Details
+                                        </button>
+                                    @endif
+
+                                    @if($this->canEditPhaseDetails($phase) && $this->canDeletePhase($phase))
+                                        <div class="dropdown-divider"></div>
+                                    @endif
+
+                                    @if($this->canDeletePhase($phase))
+                                    <button type="button" class="dropdown-item py-2 text-danger"
+                                            wire:click="deletePhase({{ $phase->id }})"
+                                            @click="open = false">
+                                        <i class="fas fa-trash-alt mr-2"></i> Remove Phase
+                                    </button>
+                                    @endif
+                                </div>
+                            </template>
+                            @endif
+                        </div>
                     </td>
                 </tr>
             @empty

@@ -159,18 +159,19 @@ class PhaseDetailEditService
         $backup = $this->backupService->backup($phase);
         $cascadeCounts['backup_file'] = $backup['path'];
 
-        $snapshot = $phase->only([
-            'id',
-            'constituency_code',
-            'phase',
-            'status',
-            'review_date',
-            'review_venue',
-            'amount_disbursed',
-            'amount_repaid',
-        ]);
+        $snapshot = [
+            'phase' => $phase->phase,
+            'status' => $phase->status,
+            'constituency_code' => $phase->constituency_code,
+            'review_date' => $phase->review_date?->format('Y-m-d'),
+            'review_venue' => $phase->review_venue,
+            'amount_disbursed' => $phase->amount_disbursed,
+            'amount_repaid' => $phase->amount_repaid,
+            'disbursed_at' => $phase->disbursed_at?->format('Y-m-d'),
+            'submitted_to_hq_at' => $phase->submitted_to_hq_at?->format('Y-m-d H:i'),
+        ];
 
-        DB::transaction(function () use ($phase, $user, $snapshot, $cascadeCounts) {
+        DB::transaction(function () use ($phase, $user, $snapshot, $cascadeCounts, $backup) {
             $phaseId = $phase->id;
             $constituencyCode = $phase->constituency_code;
 
@@ -205,7 +206,15 @@ class PhaseDetailEditService
             SecretariatApproval::query()->where('loan_phase_id', $phaseId)->delete();
             HqReview::query()->where('loan_phase_id', $phaseId)->delete();
 
-            $this->logAudit($phase, $user, 'deleted', $snapshot, [], $cascadeCounts);
+            $this->logAudit(
+                $phase,
+                $user,
+                'deleted',
+                $snapshot,
+                [],
+                $cascadeCounts,
+                $backup['path'],
+            );
 
             $phase->delete();
 
@@ -321,46 +330,49 @@ class PhaseDetailEditService
         array $oldValues,
         array $newValues,
         array $cascadeCounts = [],
+        ?string $backupFile = null,
     ): void {
+        $backupFile ??= $cascadeCounts['backup_file'] ?? null;
+
+        $properties = [
+            'action' => $action,
+            'model' => LoanPhase::class,
+            'loan_phase_id' => $phase->id,
+            'constituency_code' => $phase->constituency_code,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'cascade_counts' => $cascadeCounts,
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ];
+
+        if ($backupFile) {
+            $properties['backup_file'] = $backupFile;
+        }
+
+        if ($action === 'updated' && $newValues !== []) {
+            $properties['attributes'] = $newValues;
+            $properties['old'] = $oldValues;
+        }
+
+        if ($action === 'deleted' && $oldValues !== []) {
+            $properties['old'] = $oldValues;
+        }
+
+        $message = match ($action) {
+            'deleted' => sprintf(
+                'Phase "%s" was deleted.%s',
+                $phase->phase,
+                $backupFile ? ' A backup was saved.' : '',
+            ),
+            default => sprintf('Phase "%s" details were updated.', $phase->phase),
+        };
+
         activity('phase_audit')
             ->performedOn($phase)
             ->causedBy($user)
             ->event($action)
-            ->withProperties([
-                'action' => $action,
-                'model' => LoanPhase::class,
-                'loan_phase_id' => $phase->id,
-                'constituency_code' => $phase->constituency_code,
-                'old_values' => $oldValues,
-                'new_values' => $newValues,
-                'cascade_counts' => $cascadeCounts,
-                'ip_address' => request()->ip(),
-                'user_agent' => request()->userAgent(),
-            ])
-            ->log(match ($action) {
-                'deleted' => $this->buildDeleteAuditMessage($phase, $cascadeCounts),
-                default => "Phase \"{$phase->phase}\" details were updated.",
-            });
-    }
-
-    protected function buildDeleteAuditMessage(LoanPhase $phase, array $cascadeCounts): string
-    {
-        $message = "Phase \"{$phase->phase}\" was deleted.";
-
-        if (($cascadeCounts['group_loans'] ?? 0) > 0) {
-            $message .= sprintf(
-                ' Cascade: %d group loan(s), %d member(s), %d group record(s), %d receipt(s).',
-                $cascadeCounts['group_loans'],
-                $cascadeCounts['group_members'] ?? 0,
-                $cascadeCounts['groups'] ?? 0,
-                $cascadeCounts['loan_receipts'] ?? 0,
-            );
-        }
-
-        if (!empty($cascadeCounts['backup_file'])) {
-            $message .= ' A backup was saved.';
-        }
-
-        return $message;
+            ->withProperties($properties)
+            ->log($message);
     }
 }

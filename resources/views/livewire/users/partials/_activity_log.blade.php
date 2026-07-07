@@ -129,6 +129,18 @@
                                     <span class="text-dark font-weight-600">{{ $subjectName }}</span>
                                 </p>
 
+                                @if($isPhaseAudit && $isDanger && ($cascadeCounts = $log->properties->get('cascade_counts')))
+                                    @if(($cascadeCounts['group_loans'] ?? 0) > 0)
+                                        <p class="mb-2 small text-muted">
+                                            Removed
+                                            <strong>{{ $cascadeCounts['group_loans'] }}</strong> group loan(s),
+                                            <strong>{{ $cascadeCounts['group_members'] ?? 0 }}</strong> member(s),
+                                            <strong>{{ $cascadeCounts['groups'] ?? 0 }}</strong> group record(s),
+                                            and <strong>{{ $cascadeCounts['loan_receipts'] ?? 0 }}</strong> receipt(s).
+                                        </p>
+                                    @endif
+                                @endif
+
                                 @if($log->properties->get('ip_address'))
                                     <p class="mb-2 small text-muted">
                                         <i class="fas fa-network-wired mr-1"></i>
