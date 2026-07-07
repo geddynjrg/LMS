@@ -81,8 +81,7 @@
     </div>
 
     @php
-        $applicationRows = $this->applicationsByConstituency;
-        $maxApplications = collect($applicationRows)->max('application_count') ?: 1;
+        $volumeStats = $this->applicationVolumeStats;
     @endphp
 
     <div class="row mb-4">
@@ -91,28 +90,38 @@
                 <div class="card-header bg-white d-flex justify-content-between align-items-center">
                     <div>
                         <h3 class="card-title mb-0">Applications by constituency</h3>
-                        <p class="text-muted small mb-0">National portal submissions, highest to lowest</p>
+                        <p class="text-muted small mb-0">Ranked highest to lowest with total counts</p>
                     </div>
                     <a href="{{ route('dashboard', ['national' => 1]) }}" class="btn btn-sm btn-outline-primary">
                         <i class="fas fa-chart-line mr-1"></i> Full national dashboard
                     </a>
                 </div>
                 <div class="card-body">
-                    @forelse($applicationRows as $row)
-                        <div class="mb-3">
-                            <div class="d-flex justify-content-between small mb-1">
-                                <span class="font-weight-bold text-dark">{{ $row->constituency_name }}</span>
-                                <span class="text-muted">{{ number_format($row->application_count) }}</span>
-                            </div>
-                            <div class="progress" style="height: 10px; border-radius: 999px;">
-                                <div class="progress-bar bg-primary"
-                                     role="progressbar"
-                                     style="width: {{ round(($row->application_count / $maxApplications) * 100, 1) }}%; border-radius: 999px;"></div>
+                    <div class="row mb-3">
+                        <div class="col-md-4 mb-2 mb-md-0">
+                            <div class="application-volume-kpi">
+                                <div class="kpi-label">National total</div>
+                                <div class="kpi-value">{{ number_format($volumeStats['total']) }}</div>
                             </div>
                         </div>
-                    @empty
-                        <p class="text-muted mb-0">No application data available.</p>
-                    @endforelse
+                        <div class="col-md-4 mb-2 mb-md-0">
+                            <div class="application-volume-kpi">
+                                <div class="kpi-label">Constituencies</div>
+                                <div class="kpi-value">{{ number_format($volumeStats['constituency_count']) }}</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="application-volume-kpi">
+                                <div class="kpi-label">Highest volume</div>
+                                <div class="kpi-value" style="font-size: 1.15rem;">{{ $volumeStats['top_name'] ?? '—' }}</div>
+                                <small class="text-muted">{{ number_format($volumeStats['top_count']) }} applications</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="application-volume-chart-wrap" wire:ignore>
+                        <canvas id="secretariatApplicationVolumeChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>

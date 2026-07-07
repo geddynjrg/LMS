@@ -36,7 +36,41 @@ class PhaseReviewList extends Component
     #[Computed]
     public function applicationsByConstituency(): array
     {
-        return $this->analysisService->getApplicationsPerConstituency([], 15);
+        return $this->analysisService->getApplicationsPerConstituency([], 20);
+    }
+
+    #[Computed]
+    public function applicationVolumeStats(): array
+    {
+        $rows = collect($this->applicationsByConstituency);
+
+        return [
+            'total' => (int) $rows->sum('application_count'),
+            'constituency_count' => $rows->count(),
+            'top_name' => $rows->first()?->constituency_name,
+            'top_count' => (int) ($rows->first()?->application_count ?? 0),
+        ];
+    }
+
+    public function mount(): void
+    {
+        $this->dispatchApplicationVolumeChart();
+    }
+
+    protected function applicationVolumeChartPayload(): array
+    {
+        $rows = collect($this->applicationsByConstituency);
+
+        return [
+            'labels' => $rows->pluck('constituency_name')->all(),
+            'values' => $rows->pluck('application_count')->map(fn ($v) => (int) $v)->all(),
+            'total' => (int) $rows->sum('application_count'),
+        ];
+    }
+
+    protected function dispatchApplicationVolumeChart(): void
+    {
+        $this->dispatch('secretariat-application-volume-updated', chart: $this->applicationVolumeChartPayload());
     }
 
     public function render()

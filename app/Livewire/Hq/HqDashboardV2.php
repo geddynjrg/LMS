@@ -89,7 +89,7 @@ class HqDashboardV2 extends Component
 
     protected function invalidateV2Computed(): void
     {
-        unset($this->actionInbox, $this->dataRows, $this->chartPayload, $this->analysisTable);
+        unset($this->actionInbox, $this->dataRows, $this->chartPayload, $this->analysisTable, $this->applicationVolumeStats);
     }
 
     protected function dispatchChartUpdate(): void
@@ -246,6 +246,19 @@ class HqDashboardV2 extends Component
     }
 
     #[Computed]
+    public function applicationVolumeStats(): array
+    {
+        $rows = collect($this->getStats['applicationsPerConstituency'] ?? []);
+
+        return [
+            'total' => (int) $rows->sum('application_count'),
+            'constituency_count' => $rows->count(),
+            'top_name' => $rows->first()?->constituency_name,
+            'top_count' => (int) ($rows->first()?->application_count ?? 0),
+        ];
+    }
+
+    #[Computed]
     public function chartPayload(): array
     {
         $demographicRows = collect($this->demographics)->filter(fn ($row) => ! empty($row['cat']));
@@ -282,6 +295,7 @@ class HqDashboardV2 extends Component
             'applicationVolume' => [
                 'labels' => collect($this->getStats['applicationsPerConstituency'] ?? [])->pluck('constituency_name')->all(),
                 'values' => collect($this->getStats['applicationsPerConstituency'] ?? [])->pluck('application_count')->map(fn ($v) => (int) $v)->all(),
+                'total' => $this->applicationVolumeStats['total'],
             ],
             'activeDimension' => $this->analysisDimension,
         ];
