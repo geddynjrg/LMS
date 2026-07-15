@@ -9,14 +9,12 @@
 
     <link rel="icon" type="image/png" href="{{ asset('images/uwezo_fund_logo.png') }}">
 
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+    <link rel="stylesheet" href="{{ asset('css/animate-lite.css') }}">
 
     <link rel="stylesheet" href="{{asset('plugins/fontawesome-free/css/all.min.css')}}">
 
     <link rel="stylesheet" href="{{asset('dist/css/adminlte.min.css')}}">
     <link rel="stylesheet" href="{{asset('dist/css/custom.css')}}">
-
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
 
     @vite(['resources/css/app.css','resources/js/app.js'])
 
@@ -28,7 +26,7 @@
             --uwezo-gold: #FFCC00;
         }
 
-        body { font-family: 'Source Sans Pro', sans-serif; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
 
         /* Custom Split Screen Styles */
 

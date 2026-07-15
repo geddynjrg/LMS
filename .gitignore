@@ -49,6 +49,7 @@ storage/logs/laravel.log
 # --- Compiled Assets ---
 public/js/*.js
 public/css/*.css
+!public/css/animate-lite.css
 mix-manifest.json
 
 # --- Testing ---
