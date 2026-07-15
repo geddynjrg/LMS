@@ -54,10 +54,11 @@ services:
       - uwezo-network
       - ddev_bridge
 
-  # Redis (no change)
+  # Redis — sessions, cache, and Horizon queues depend on this service
   redis:
     image: redis:alpine
     container_name: uwezo-lms-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:
