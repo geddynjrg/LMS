@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\LoanTemplateExport;
 use App\Exports\MembersTemplateExport;
+use App\Jobs\ProcessMembersTemplateImport;
 use App\Services\Loan\LoanPhaseService;
 use App\Models\Constituency;
 use App\Models\Group;
@@ -44,6 +45,7 @@ class DataUpload extends Component
     public $importMessageGroupLoans = '';
     public $importProgressGroupMembers = 0;
     public $importMessageGroupMembers = '';
+    public $importingGroupMembers = false;
 
     public function boot(LoanPhaseService $loanPhaseService)
     {
@@ -427,7 +429,7 @@ class DataUpload extends Component
 
     public function groupMembersForm()
     {
-        $this->prepareImportEnvironment();
+        $this->groupMembersImportResult = null;
 
         $this->validate([
             'groupMembersData' => 'required|file|mimes:xlsx,xls,csv|max:10240',
@@ -438,42 +440,45 @@ class DataUpload extends Component
 
             $phases = $this->getPhases->pluck('phase')->map(fn($item) => strtolower($item))->toArray();
 
-            $import = new \App\Imports\MembersTemplateImport($this->constituency, $phases);
-            Excel::import($import, $this->groupMembersData->getRealPath());
+            $extension = $this->groupMembersData->getClientOriginalExtension() ?: 'xlsx';
+            $storedRelativePath = $this->groupMembersData->storeAs(
+                'imports/members/' . $this->constituency->constituency_code,
+                uniqid('members_', true) . '.' . $extension,
+                'local',
+            );
+            $storedAbsolutePath = storage_path('app/' . $storedRelativePath);
 
-            $result = $import->getImportResult();
+            $progressKey = "import_progress_{$this->constituency->constituency_code}_members";
+            $resultKey = "import_result_{$this->constituency->constituency_code}_members";
 
-            if ($result['success']) {
-                $this->groupMembersImportResult = [
-                    'success' => true,
-                    'message' => $result['message'],
-                    'stats' => [
-                        'imported' => $result['imported_count'],
-                        'skipped' => 0,
-                        'new' => $result['new_members_created']
-                    ]
-                ];
+            Cache::forget($resultKey);
+            Cache::put($progressKey, [
+                'progress' => 5,
+                'message' => 'Queued for background processing...',
+                'status' => 'running',
+                'updated_at' => now(),
+            ], now()->addHour());
 
-                $this->groupMembersData = null;
+            ProcessMembersTemplateImport::dispatch(
+                $storedAbsolutePath,
+                $this->constituency->constituency_code,
+                $phases,
+                $progressKey,
+                $resultKey,
+            );
 
-                $this->dispatch('swal:toast',
-                    title: 'Members Data Upload 😊',
-                    message: 'Member Data Uploaded Successfully.',
-                    type: 'success'
-                );
+            $this->importProgressGroupMembers = 5;
+            $this->importMessageGroupMembers = 'Import queued — processing in background...';
+            $this->importingGroupMembers = true;
+            $this->groupMembersData = null;
 
-            } else {
-                $this->groupMembersImportResult = [
-                    'success' => false,
-                    'message' => $result['message'],
-                    'errors' => $import->getErrors() ?? [],
-                    'stats' => [
-                        'imported' => 0,
-                        'skipped' => 0,
-                        'new' => 0
-                    ]
-                ];
-            }
+            $this->dispatch('start-members-polling');
+
+            $this->dispatch('swal:toast',
+                title: 'Members import started',
+                message: 'Your file is processing in the background. You can stay on this page to watch progress.',
+                type: 'info'
+            );
 
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();
@@ -485,6 +490,9 @@ class DataUpload extends Component
                 'total_errors' => $parsedErrors['total'],
                 'display_errors' => $parsedErrors['display']
             ];
+            $this->importingGroupMembers = false;
+            $this->importProgressGroupMembers = 0;
+            $this->importMessageGroupMembers = '';
         }
     }
 
@@ -553,6 +561,42 @@ class DataUpload extends Component
         $this->groupsFileName = $fileName['fileName'] ?? '';
     }
 
+    #[On('poll-members-progress')]
+    public function pollMembersProgress()
+    {
+        $progressKey = "import_progress_{$this->constituency->constituency_code}_members";
+        $resultKey = "import_result_{$this->constituency->constituency_code}_members";
+        $progress = Cache::get($progressKey);
+
+        if ($progress) {
+            $this->importProgressGroupMembers = (int) ($progress['progress'] ?? 0);
+            $this->importMessageGroupMembers = (string) ($progress['message'] ?? '');
+            $this->importingGroupMembers = ($progress['status'] ?? '') !== 'done';
+        }
+
+        $result = Cache::get($resultKey);
+        if ($result && (!$progress || ($progress['status'] ?? '') === 'done')) {
+            $this->groupMembersImportResult = $result;
+            $this->importingGroupMembers = false;
+
+            if ($result['success'] ?? false) {
+                $this->dispatch('swal:toast',
+                    title: 'Members Data Upload 😊',
+                    message: 'Member data uploaded successfully.',
+                    type: 'success'
+                );
+            }
+
+            $this->dispatch('stop-members-polling');
+        }
+    }
+
+    private function clearMembersProgress()
+    {
+        $progressKey = "import_progress_{$this->constituency->constituency_code}_members";
+        Cache::forget($progressKey);
+    }
+
     /**
      * Clear groups progress cache
     */
@@ -571,6 +615,10 @@ class DataUpload extends Component
         $this->importProgressGroups = 0;
         $this->importProgressGroupLoans = 0;
         $this->importMessageGroups = '';
+        $this->clearMembersProgress();
+        $this->importProgressGroupMembers = 0;
+        $this->importMessageGroupMembers = '';
+        $this->importingGroupMembers = false;
     }
 
 

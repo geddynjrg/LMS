@@ -21,6 +21,7 @@ class MembersTemplateImport implements
     WithEvents
 {
     private $constituency;
+    private string $progressKey;
 
     private $cacheTag = null;
     private const MEMBER_BATCH_SIZE = 100;
@@ -54,12 +55,15 @@ class MembersTemplateImport implements
     private $skippedCount = 0;
     private $errors = [];
 
-    public function __construct(Constituency $constituency, $phases)
+    public function __construct(Constituency $constituency, $phases, ?string $progressKey = null)
     {
         $this->constituency = $constituency;
         $this->validPhases = is_array($phases) ? $phases : $phases->toArray();
+        $this->progressKey = $progressKey
+            ?? "import_progress_{$constituency->constituency_code}_members";
 
         $this->loadExistingData();
+        $this->updateProgress(5, 'Loaded constituency reference data...');
     }
 
     /**
@@ -88,6 +92,7 @@ class MembersTemplateImport implements
 
             $dataRows = $collection->slice(1);
 
+            $this->totalRows = max($this->totalRows, $dataRows->count());
             $this->nextRowNumber = 1;
         } else {
             $this->nextRowNumber = 2;
@@ -111,6 +116,11 @@ class MembersTemplateImport implements
         }
 
         $this->processedRows += $dataRows->count();
+
+        if ($this->totalRows > 0) {
+            $progress = min(85, (int) round(($this->processedRows / $this->totalRows) * 80) + 10);
+            $this->updateProgress($progress, "Validating rows ({$this->processedRows} processed)...");
+        }
     }
 
     public function registerEvents(): array
@@ -127,7 +137,9 @@ class MembersTemplateImport implements
                     throw new \Exception("Validation errors found:\n" . implode("\n", $this->errors));
                 }
 
+                $this->updateProgress(90, 'Saving members to database...');
                 $this->storeInDB();
+                $this->updateProgress(100, 'Import completed successfully.');
 
                 // clear cache (persist)
                 Cache::tags([$this->cacheTag])->flush();
@@ -138,7 +150,25 @@ class MembersTemplateImport implements
 
     public function chunkSize(): int
     {
-        return 500;
+        return 200;
+    }
+
+    private function updateProgress(int $progress, string $message): void
+    {
+        static $lastProgress = 0;
+
+        if (abs($progress - $lastProgress) < 3 && $progress < 100) {
+            return;
+        }
+
+        Cache::put($this->progressKey, [
+            'progress' => $progress,
+            'message' => $message,
+            'status' => 'running',
+            'updated_at' => now(),
+        ], now()->addHour());
+
+        $lastProgress = $progress;
     }
 
     public function loadExistingData() : void
@@ -170,6 +200,7 @@ class MembersTemplateImport implements
             $validLoansMap = [];
 
             if ($groupLoans->isEmpty()) {
+                $this->validGroupLoans = [];
                 return;
             }
 
@@ -192,6 +223,7 @@ class MembersTemplateImport implements
             // Cache::tags([$this->cacheTag])->put($groupLoansCacheKey, $validLoansMap, now()->addMinutes(2));
 
             $this->validGroupLoans = $validLoansMap;
+            Cache::tags([$this->cacheTag])->put($groupLoansCacheKey, $validLoansMap, now()->addMinutes(10));
 
             $groupLoanIds = $groupLoans->pluck('group_loan_id')->toArray();
 
@@ -199,12 +231,6 @@ class MembersTemplateImport implements
                 \Log::info("No group loans found for constituency {$this->constituency->constituency_code}");
                 return;
             }
-
-            $this->existingMembers = DB::table('members')
-                ->select(['member_Id', 'name', 'number', 'gender', 'disabled'])
-                ->get()
-                ->keyBy('member_Id')
-                ->toArray();
 
             $this->existingGroupMembers = Cache::tags([$this->cacheTag])->get($groupMembersCacheKey);
 
@@ -233,6 +259,7 @@ class MembersTemplateImport implements
                 // Cache::tags([$this->cacheTag])->put($groupMembersCacheKey, $groupMembers, now()->addMinutes(2));
 
                 $this->existingGroupMembers = $groupMembers;
+                Cache::tags([$this->cacheTag])->put($groupMembersCacheKey, $groupMembers, now()->addMinutes(10));
             }
         }
     }
@@ -838,19 +865,38 @@ class MembersTemplateImport implements
     private function collectNewMembers(): array
     {
         $membersToCreate = [];
+        $candidateIds = [];
 
-        foreach ($this->groupLoanMembers as $groupLoanKey => $groupData) {
-
+        foreach ($this->groupLoanMembers as $groupData) {
             foreach ($groupData['members'] as $memberId => $memberData) {
-                if (!isset($this->existingMembers[$memberId])) {
-                    $membersToCreate[$memberId] = [
-                        'member_Id' => $memberId,
+                $candidateIds[(string) $memberId] = true;
+            }
+        }
+
+        if (empty($candidateIds)) {
+            return [];
+        }
+
+        $existingIds = DB::table('members')
+            ->whereIn('member_Id', array_keys($candidateIds))
+            ->pluck('member_Id')
+            ->map(fn ($id) => (string) $id)
+            ->flip()
+            ->all();
+
+        foreach ($this->groupLoanMembers as $groupData) {
+            foreach ($groupData['members'] as $memberId => $memberData) {
+                $memberKey = (string) $memberId;
+
+                if (!isset($existingIds[$memberKey])) {
+                    $membersToCreate[$memberKey] = [
+                        'member_Id' => $memberKey,
                         'name' => $memberData['member_name'],
                         'number' => $memberData['phone'],
                         'gender' => ucfirst($memberData['gender']),
                         'disabled' => $memberData['disabled'] === 'yes' ? 1 : 0,
                         'created_at' => now(),
-                        'updated_at' => now()
+                        'updated_at' => now(),
                     ];
                 }
             }
@@ -947,6 +993,11 @@ class MembersTemplateImport implements
             'new_members_created' => 0,
             'message' => 'No import result available'
         ];
+    }
+
+    public function getErrors(): array
+    {
+        return $this->errors;
     }
 
 

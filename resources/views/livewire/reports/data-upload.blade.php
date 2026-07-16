@@ -1026,7 +1026,22 @@
                                             </div>
                                         </div>
 
-                                        @if($groupMembersData && !is_array($groupMembersData))
+                                        @if($importProgressGroupMembers > 0 && $importingGroupMembers)
+                                            <div class="mt-4 p-3 border rounded bg-light">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <small class="font-weight-bold">{{ $importMessageGroupMembers }}</small>
+                                                    <small class="font-weight-bold text-info">{{ $importProgressGroupMembers }}%</small>
+                                                </div>
+                                                <div class="progress progress-sm rounded-pill shadow-sm">
+                                                    <div class="progress-bar bg-info progress-bar-striped progress-bar-animated"
+                                                        role="progressbar" style="width: {{ $importProgressGroupMembers }}%">
+                                                    </div>
+                                                </div>
+                                                <small class="text-muted d-block mt-2">Large files are processed in the background — this page will update automatically.</small>
+                                            </div>
+                                        @endif
+
+                                        @if($groupMembersData && !is_array($groupMembersData) && !$importingGroupMembers)
                                             <button type="submit" class="btn btn-info btn-block btn-lg mt-3 shadow-sm rounded-pill py-2"
                                                     wire:loading.attr="disabled"
                                                     wire:target="groupMembersData, groupMembersForm">
@@ -1034,7 +1049,7 @@
                                                     <i class="fas fa-upload mr-1"></i> Start Member Import
                                                 </span>
                                                 <span wire:loading wire:target="groupMembersData, groupMembersForm">
-                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Processing...
+                                                    <i class="fas fa-spinner fa-spin mr-1"></i> Uploading...
                                                 </span>
                                             </button>
                                         @endif
@@ -1201,4 +1216,30 @@
             background-color: rgba(102, 16, 242, 0.03);
         }
     </style>
+@endpush
+
+@push('scripts')
+    <script>
+        document.addEventListener('livewire:init', () => {
+            let membersPollTimer = null;
+
+            const stopMembersPolling = () => {
+                if (membersPollTimer) {
+                    clearInterval(membersPollTimer);
+                    membersPollTimer = null;
+                }
+            };
+
+            Livewire.on('start-members-polling', () => {
+                stopMembersPolling();
+                membersPollTimer = setInterval(() => {
+                    Livewire.dispatch('poll-members-progress');
+                }, 2000);
+            });
+
+            Livewire.on('stop-members-polling', () => {
+                stopMembersPolling();
+            });
+        });
+    </script>
 @endpush
