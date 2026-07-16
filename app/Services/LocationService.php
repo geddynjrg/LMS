@@ -132,11 +132,23 @@ class LocationService
 
         $shortName = preg_replace('/^\d+\s+/', '', $normalized) ?? $normalized;
 
-        return Constituency::query()
+        $byShortName = Constituency::query()
             ->where(function ($query) use ($shortName) {
                 $query->whereRaw('UPPER(constituency_name) LIKE ?', ['%' . $shortName])
                     ->orWhereRaw('UPPER(TRIM(SUBSTRING_INDEX(constituency_name, " ", -3))) = ?', [$shortName]);
             })
+            ->first($columns);
+
+        if ($byShortName) {
+            return $byShortName;
+        }
+
+        // Drupal taxonomy labels often include spaces (e.g. "Lunga Lunga") while
+        // IEBC rows may be stored collapsed (e.g. "LUNGALUNGA").
+        $collapsed = preg_replace('/\s+/', '', $normalized) ?? $normalized;
+
+        return Constituency::query()
+            ->whereRaw('REPLACE(UPPER(constituency_name), " ", "") = ?', [$collapsed])
             ->first($columns);
     }
 
