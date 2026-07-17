@@ -29,7 +29,8 @@
                         : 'Overview of key metrics and activities' }}
                 </p>
             </div>
-            <div class="col-md-4 text-md-right mt-3 mt-md-0">
+            <div class="col-md-4 text-md-right mt-3 mt-md-0 d-flex flex-wrap justify-content-md-end align-items-center gap-2">
+                <x-hq-theme-toggle />
                 <span class="badge badge-pill badge-primary px-3 py-2 shadow-sm">
                     <i class="fas fa-calendar-alt mr-1"></i> {{ $currentFY->full }} - {{ $currentFY->quarter_suffix }} Quarter
                 </span>

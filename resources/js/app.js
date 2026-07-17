@@ -52,3 +52,8 @@ import './navbar-search.js';
 import './livewire-global.js';
 import './hq-dashboard-v2.js';
 import './const-dashboard-v2.js';
+import { initDashboardTheme } from './hq-theme.js';
+
+document.addEventListener('DOMContentLoaded', () => {
+    initDashboardTheme();
+});

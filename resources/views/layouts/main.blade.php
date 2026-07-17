@@ -3,6 +3,16 @@
     <head>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        <script>
+            (function () {
+                try {
+                    var theme = localStorage.getItem('uwezo-dashboard-theme');
+                    if (theme === 'dark') {
+                        document.documentElement.setAttribute('data-hq-theme', 'dark');
+                    }
+                } catch (e) {}
+            })();
+        </script>
 
         <title>{{ config('app.name', 'Laravel') }}</title>
 

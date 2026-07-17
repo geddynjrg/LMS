@@ -133,6 +133,7 @@
                             class="text-muted small">
                             <span class="spinner-border spinner-border-sm text-success mr-1"></span> Updating…
                         </div>
+                        <x-hq-theme-toggle class="ml-md-2" />
                     </div>
 
                     {{-- OVERVIEW --}}
@@ -163,19 +164,19 @@
 
                         <div class="row mt-1">
                             <div class="col-lg-4 mb-3">
-                                <div class="hq-panel-card p-3 h-100">
+                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
                                     <h6 class="font-weight-bold mb-3"><i class="fas fa-chart-pie mr-2 text-success"></i>Portfolio mix</h6>
                                     <div class="hq-chart-wrap" wire:ignore><canvas id="hqPortfolioChart"></canvas></div>
                                 </div>
                             </div>
                             <div class="col-lg-4 mb-3">
-                                <div class="hq-panel-card p-3 h-100">
+                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
                                     <h6 class="font-weight-bold mb-3"><i class="fas fa-users mr-2 text-success"></i>Target groups</h6>
                                     <div class="hq-chart-wrap" wire:ignore><canvas id="hqDemographicsChart"></canvas></div>
                                 </div>
                             </div>
                             <div class="col-lg-4 mb-3">
-                                <div class="hq-panel-card p-3 h-100">
+                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
                                     <h6 class="font-weight-bold mb-3"><i class="fas fa-chart-bar mr-2 text-success"></i>Recovery</h6>
                                     <div class="hq-chart-wrap" wire:ignore><canvas id="hqRecoveryChart"></canvas></div>
                                     <div class="mt-2 text-center">
@@ -187,7 +188,7 @@
 
                         <div class="row">
                             <div class="col-lg-7 mb-3">
-                                <div class="hq-panel-card p-3 h-100">
+                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
                                     <h6 class="font-weight-bold mb-3"><i class="fas fa-map-marked-alt mr-2 text-success"></i>Top constituencies (recovery %)</h6>
                                     <div class="hq-chart-wrap-sm" wire:ignore><canvas id="hqConstituencyChart"></canvas></div>
                                 </div>
@@ -274,7 +275,7 @@
 
                         <div class="row">
                             <div class="col-lg-6 mb-3">
-                                <div class="hq-panel-card p-3 h-100">
+                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
                                     <h6 class="font-weight-bold mb-3">Economic sectors</h6>
                                     <div class="hq-chart-wrap-sm" wire:ignore><canvas id="hqSectorChart"></canvas></div>
                                 </div>
@@ -327,7 +328,9 @@
 
                             <div class="row">
                                 <div class="col-lg-5 mb-3 mb-lg-0">
-                                    <div class="hq-chart-wrap" wire:ignore><canvas id="hqAnalyzeChart"></canvas></div>
+                                    <div class="hq-chart-panel p-2">
+                                        <div class="hq-chart-wrap" wire:ignore><canvas id="hqAnalyzeChart"></canvas></div>
+                                    </div>
                                 </div>
                                 <div class="col-lg-7">
                                     <div class="table-responsive">
