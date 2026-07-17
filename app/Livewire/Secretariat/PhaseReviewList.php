@@ -6,6 +6,7 @@ use App\Livewire\Concerns\ManagesApplicationVolumeRanking;
 use App\Models\LoanPhase;
 use App\Services\Loan\LoanAnalysisService;
 use App\Services\Loan\SecretariatApprovalService;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -28,6 +29,24 @@ class PhaseReviewList extends Component
         $this->analysisService = $analysisService;
     }
 
+    public function mount(): void
+    {
+        $requested = request()->query('filter') ?? request()->query('category');
+        if (is_string($requested) && in_array($requested, $this->allowedFilters(), true)) {
+            $this->filter = $requested;
+        }
+    }
+
+    public function setFilter(string $filter): void
+    {
+        if (! in_array($filter, $this->allowedFilters(), true)) {
+            return;
+        }
+
+        $this->filter = $filter;
+        $this->resetPage();
+    }
+
     public function updatingFilter(): void
     {
         $this->resetPage();
@@ -38,41 +57,52 @@ class PhaseReviewList extends Component
         unset($this->filteredApplicationVolumeRows);
     }
 
+    protected function allowedFilters(): array
+    {
+        return [
+            'pending',
+            'pending_training',
+            'training_authorized',
+            'disbursement_authorized',
+            'pending_disbursement',
+            'all',
+            'completed',
+        ];
+    }
+
     public function render()
     {
-        $phasesQuery = LoanPhase::query()
+        $basePhases = LoanPhase::query()
             ->whereIn('status', ['approved', 'in_training', 'pending_disbursement'])
             ->with([
                 'constituency:constituency_code,constituency_name',
                 'secretariatApprovals',
                 'hqOfficer:id,name',
             ])
-            ->orderByDesc('hq_approved_at');
+            ->orderByDesc('hq_approved_at')
+            ->get()
+            ->filter(fn (LoanPhase $phase) => $this->secretariatService->phaseMatchesCategory($phase, $this->filter))
+            ->values();
 
-        if ($this->filter === 'pending') {
-            $phasesQuery->where(function ($query) {
-                $query->whereDoesntHave('secretariatApprovals', fn ($q) => $q
-                    ->where('approval_type', 'post_hq_review')
-                    ->whereNotNull('approved_at'))
-                    ->orWhereDoesntHave('secretariatApprovals', fn ($q) => $q
-                        ->where('approval_type', 'fund_transfer')
-                        ->whereNotNull('approved_at'))
-                    ->orWhereDoesntHave('secretariatApprovals', fn ($q) => $q
-                        ->where('approval_type', 'training_authorization')
-                        ->whereNotNull('approved_at'))
-                    ->orWhereDoesntHave('secretariatApprovals', fn ($q) => $q
-                        ->where('approval_type', 'final_disbursement')
-                        ->whereNotNull('approved_at'));
-            });
-        } elseif ($this->filter === 'completed') {
-            $phasesQuery->whereHas('secretariatApprovals', fn ($q) => $q
-                ->where('approval_type', 'final_disbursement')
-                ->whereNotNull('approved_at'));
-        }
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $perPage = 15;
+
+        $phases = new LengthAwarePaginator(
+            $basePhases->forPage($page, $perPage)->values(),
+            $basePhases->count(),
+            $perPage,
+            $page,
+            [
+                'path' => request()->url(),
+                'query' => request()->query(),
+            ],
+        );
 
         return view('livewire.secretariat.phase-review-list', [
-            'phases' => $phasesQuery->paginate(15),
+            'phases' => $phases,
             'stats' => $this->secretariatService->dashboardStats(),
+            'actionInbox' => $this->secretariatService->buildActionInbox(),
+            'filterLabel' => $this->secretariatService->categoryLabel($this->filter),
         ]);
     }
 }

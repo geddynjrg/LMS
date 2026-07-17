@@ -167,42 +167,7 @@ class HqDashboardV2 extends Component
      */
     protected function buildSecretariatActionInbox(): array
     {
-        $service = app(SecretariatApprovalService::class);
-
-        $pending = LoanPhase::query()
-            ->with(['constituency', 'secretariatApprovals'])
-            ->whereIn('status', ['approved', 'in_training', 'pending_disbursement'])
-            ->orderByDesc('hq_approved_at')
-            ->get()
-            ->filter(fn (LoanPhase $phase) => $service->nextPendingApprovalType($phase) !== null)
-            ->values();
-
-        return [
-            'mode' => 'secretariat',
-            'inbox_title' => 'Authorization inbox',
-            'inbox_badge' => 'Secretariat',
-            'inbox_empty' => 'No phases awaiting secretariat authorization.',
-            'tasks_title' => 'Phases awaiting authorization',
-            'tasks_queue_url' => route('secretariat.phases.index', ['filter' => 'pending']),
-            'tasks_queue_label' => 'Open secretariat queue',
-            'pending_phase_count' => $pending->count(),
-            'pending_phases' => $pending->take(8)->map(function (LoanPhase $phase) use ($service) {
-                $next = $service->nextPendingApprovalType($phase);
-                $progress = $service->approvalProgress($phase);
-
-                return [
-                    'label' => $phase->phase_ref ?? $phase->phase,
-                    'constituency' => $phase->constituency?->constituency_name ?? 'Unknown',
-                    'submitted_at' => $phase->hq_approved_at?->format('M d, Y') ?? 'N/A',
-                    'meta' => $service->approvalTypeLabel($next) . ' · ' . $progress['done'] . '/' . $progress['total'],
-                    'url' => route('secretariat.phases.review', $phase),
-                    'action_label' => $progress['done'] === 0 ? 'Authorize' : 'Continue',
-                    'secondary_url' => route('secretariat.phases.code-list', $phase),
-                    'secondary_label' => 'Code list',
-                ];
-            })->all(),
-            'new_applications' => [],
-        ];
+        return app(SecretariatApprovalService::class)->buildActionInbox();
     }
 
     #[Computed]

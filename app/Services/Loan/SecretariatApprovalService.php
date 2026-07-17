@@ -232,6 +232,83 @@ class SecretariatApprovalService
         ];
     }
 
+    public function phaseMatchesCategory(LoanPhase $phase, string $category): bool
+    {
+        $next = $this->nextPendingApprovalType($phase);
+
+        return match ($category) {
+            'all' => true,
+            'pending' => $next !== null,
+            'pending_training' => $next !== null
+                && in_array($next, SecretariatApproval::trainingGateTypes(), true),
+            'training_authorized' => $this->hasApproval(
+                $phase,
+                SecretariatApproval::TYPE_TRAINING_AUTHORIZATION
+            ),
+            'disbursement_authorized' => $this->hasApproval(
+                $phase,
+                SecretariatApproval::TYPE_FINAL_DISBURSEMENT
+            ),
+            'pending_disbursement' => $next === SecretariatApproval::TYPE_FINAL_DISBURSEMENT,
+            'completed' => $next === null
+                && $this->hasApproval($phase, SecretariatApproval::TYPE_FINAL_DISBURSEMENT),
+            default => true,
+        };
+    }
+
+    public function categoryLabel(string $category): string
+    {
+        return match ($category) {
+            'pending' => 'Pending authorizations',
+            'pending_training' => 'Training gate pending',
+            'training_authorized' => 'Training authorized',
+            'disbursement_authorized' => 'Disbursement authorized',
+            'pending_disbursement' => 'Disbursement authorization pending',
+            'completed' => 'Fully authorized phases',
+            default => 'All phases',
+        };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function buildActionInbox(int $limit = 8): array
+    {
+        $pending = LoanPhase::query()
+            ->with(['constituency', 'secretariatApprovals'])
+            ->whereIn('status', ['approved', 'in_training', 'pending_disbursement'])
+            ->orderByDesc('hq_approved_at')
+            ->get()
+            ->filter(fn (LoanPhase $phase) => $this->nextPendingApprovalType($phase) !== null)
+            ->values();
+
+        return [
+            'mode' => 'secretariat',
+            'inbox_title' => 'Authorization inbox',
+            'inbox_badge' => 'Incoming applications',
+            'inbox_empty' => 'No phases awaiting secretariat authorization.',
+            'tasks_title' => 'Phases awaiting authorization',
+            'tasks_queue_url' => route('secretariat.phases.index', ['filter' => 'pending']),
+            'tasks_queue_label' => 'Open secretariat queue',
+            'pending_phase_count' => $pending->count(),
+            'pending_phases' => $pending->take($limit)->map(function (LoanPhase $phase) {
+                $next = $this->nextPendingApprovalType($phase);
+                $progress = $this->approvalProgress($phase);
+
+                return [
+                    'label' => $phase->phase_ref ?? $phase->phase,
+                    'constituency' => $phase->constituency?->constituency_name ?? 'Unknown',
+                    'submitted_at' => $phase->hq_approved_at?->format('M d, Y') ?? 'N/A',
+                    'meta' => $this->approvalTypeLabel($next) . ' · ' . $progress['done'] . '/' . $progress['total'],
+                    'url' => route('secretariat.phases.review', $phase),
+                    'action_label' => $progress['done'] === 0 ? 'Authorize' : 'Continue',
+                    'secondary_url' => route('secretariat.phases.code-list', $phase),
+                    'secondary_label' => 'Code list',
+                ];
+            })->all(),
+        ];
+    }
+
     public function signatureRequiredForType(string $type): bool
     {
         return $type === SecretariatApproval::TYPE_POST_HQ_REVIEW;

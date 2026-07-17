@@ -8,7 +8,7 @@ use App\Models\PhaseApplication;
 use App\Services\Constituency\ConstituencyAllocationService;
 use App\Services\Exports\ExportService;
 use App\Services\Exports\SignedCodeListPdfService;
-use App\Support\HqAccess;
+use App\Support\PhaseCodeListAccess;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ProcessedCodeListController extends Controller
@@ -16,7 +16,7 @@ class ProcessedCodeListController extends Controller
     protected function authorizeHqPhaseReview(LoanPhase $phase): void
     {
         abort_unless(
-            HqAccess::phaseCanBeViewedBy(auth()->user(), $phase),
+            PhaseCodeListAccess::phaseCanBeViewedBy(auth()->user(), $phase),
             403,
             'You do not have permission to access this phase code list.'
         );
