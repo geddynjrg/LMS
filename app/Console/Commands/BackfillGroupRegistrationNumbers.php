@@ -17,15 +17,18 @@ class BackfillGroupRegistrationNumbers extends Command
     {
         $dryRun = (bool) $this->option('dry-run');
         $updated = 0;
+        $lookup = [];
 
         TempApplication::query()
             ->whereNotNull('group_registration_number')
             ->where('group_registration_number', '!=', '')
             ->whereNotNull('group_name')
+            ->whereNotNull('constituency_code')
             ->orderBy('id')
-            ->chunkById(200, function ($applications) use ($debtCheckService, $dryRun, &$updated) {
+            ->select(['id', 'group_name', 'group_registration_number', 'constituency_code'])
+            ->chunkById(500, function ($applications) use ($debtCheckService, &$lookup) {
                 foreach ($applications as $application) {
-                    $registration = trim((string) $application->group_registration_number);
+                    $registration = strtoupper(trim((string) $application->group_registration_number));
                     if ($registration === '') {
                         continue;
                     }
@@ -35,33 +38,48 @@ class BackfillGroupRegistrationNumbers extends Command
                         continue;
                     }
 
-                    $groups = Group::query()
-                        ->whereHas(
-                            'ward',
-                            fn ($query) => $query->where('constituency_code', $application->constituency_code),
-                        )
-                        ->where(function ($query) {
-                            $query->whereNull('reg_number')->orWhere('reg_number', '');
-                        })
-                        ->get()
-                        ->filter(
-                            fn (Group $group) => $debtCheckService->normalizeGroupNameKey($group->name) === $nameKey,
-                        );
+                    $lookup[$nameKey . '|' . $application->constituency_code] = $registration;
+                }
+            });
 
-                    foreach ($groups as $group) {
-                        $this->line(sprintf(
-                            '%s %s -> %s',
-                            $dryRun ? '[dry-run]' : '[update]',
-                            $group->name,
-                            $registration,
-                        ));
+        $this->info('Built ' . count($lookup) . ' registration mapping(s) from portal applications.');
 
-                        if (!$dryRun) {
-                            $group->update(['reg_number' => strtoupper($registration)]);
-                        }
-
-                        $updated++;
+        Group::query()
+            ->where(function ($query) {
+                $query->whereNull('reg_number')->orWhere('reg_number', '');
+            })
+            ->with('ward:id,constituency_code')
+            ->select(['id', 'name', 'reg_number', 'ward_id'])
+            ->orderBy('id')
+            ->chunkById(200, function ($groups) use ($debtCheckService, $lookup, $dryRun, &$updated) {
+                foreach ($groups as $group) {
+                    $constituencyCode = $group->ward?->constituency_code;
+                    if (!$constituencyCode) {
+                        continue;
                     }
+
+                    $nameKey = $debtCheckService->normalizeGroupNameKey($group->name);
+                    if ($nameKey === '') {
+                        continue;
+                    }
+
+                    $registration = $lookup[$nameKey . '|' . $constituencyCode] ?? null;
+                    if ($registration === null) {
+                        continue;
+                    }
+
+                    $this->line(sprintf(
+                        '%s %s -> %s',
+                        $dryRun ? '[dry-run]' : '[update]',
+                        $group->name,
+                        $registration,
+                    ));
+
+                    if (!$dryRun) {
+                        $group->update(['reg_number' => $registration]);
+                    }
+
+                    $updated++;
                 }
             });
 

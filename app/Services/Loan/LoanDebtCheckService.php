@@ -2,6 +2,7 @@
 
 namespace App\Services\Loan;
 
+use App\Models\Constituency;
 use App\Models\Group;
 use App\Models\GroupLoan;
 use App\Models\GroupMember;
@@ -338,6 +339,20 @@ class LoanDebtCheckService
         $nameKey = $this->normalizeGroupNameKey($groupName);
         if ($nameKey === '') {
             return collect();
+        }
+
+        if (!$constituencyCode && $constituencyName !== null && trim($constituencyName) !== '') {
+            $constituencyKey = $this->normalizeConstituencyKey($constituencyName);
+            if ($constituencyKey !== '') {
+                $constituencyCode = Constituency::query()
+                    ->get(['constituency_code', 'constituency_name'])
+                    ->first(
+                        fn (Constituency $constituency) => $this->normalizeConstituencyKey(
+                            $constituency->constituency_name,
+                        ) === $constituencyKey,
+                    )
+                    ?->constituency_code;
+            }
         }
 
         $constituencyKey = $this->normalizeConstituencyKey($constituencyName);
