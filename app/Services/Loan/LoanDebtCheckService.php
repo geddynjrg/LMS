@@ -5,6 +5,7 @@ namespace App\Services\Loan;
 use App\Models\Group;
 use App\Models\GroupLoan;
 use App\Models\GroupMember;
+use App\Models\TempApplication;
 use Illuminate\Support\Collection;
 
 class LoanDebtCheckService
@@ -50,28 +51,42 @@ class LoanDebtCheckService
         return $this->formatDebtResult($loan, 'member', $normalizedId);
     }
 
-    public function checkGroupByRegistrationNumber(string $regNumber): array
-    {
-        return $this->getGroupEligibilityByRegistrationNumber($regNumber);
+    public function checkGroupByRegistrationNumber(
+        string $regNumber,
+        ?string $groupName = null,
+        ?string $constituencyName = null,
+    ): array {
+        return $this->getGroupEligibilityByRegistrationNumber(
+            $regNumber,
+            $groupName,
+            $constituencyName,
+        );
     }
 
-    public function getGroupEligibilityByRegistrationNumber(string $regNumber): array
-    {
+    public function getGroupEligibilityByRegistrationNumber(
+        string $regNumber,
+        ?string $groupName = null,
+        ?string $constituencyName = null,
+    ): array {
         $normalized = $this->normalizeRegNumber($regNumber);
         if ($normalized === '') {
             return $this->emptyEligibilityResult();
         }
 
-        $groups = Group::query()
-            ->whereRaw('UPPER(TRIM(reg_number)) = ?', [$normalized])
-            ->get();
+        $groups = $this->findGroupsForEligibility($normalized, $groupName, $constituencyName);
 
         if ($groups->isEmpty()) {
             return $this->emptyEligibilityResult($normalized);
         }
 
-        $groupIds = $groups->pluck('id');
         $primaryGroup = $groups->first();
+
+        if ($primaryGroup && blank($primaryGroup->reg_number)) {
+            $primaryGroup->update(['reg_number' => $normalized]);
+            $primaryGroup->refresh();
+        }
+
+        $groupIds = $groups->pluck('id');
 
         $latestLoan = GroupLoan::query()
             ->whereIn('group_id', $groupIds)
@@ -92,7 +107,7 @@ class LoanDebtCheckService
         }
 
         $status = $this->getDebtStatusForGroupLoan($latestLoan);
-        $loanCleared = $status['outstanding_balance'] <= 0;
+        $loanCleared = $status['outstanding_balance'] <= 0.01;
         $hasBlockingDebt = $status['blocks_proceed'];
         $lastIssued = (float) $latestLoan->amount_issued;
         $endelezaMax = (int) min(max($lastIssued * 2, self::ENDELEZA_MIN_AMOUNT), self::ENDELEZA_MAX_CEILING);
@@ -119,7 +134,7 @@ class LoanDebtCheckService
         $outstanding = max($issued - $repaid, 0);
         $repaymentPercentage = $issued > 0 ? round(($repaid / $issued) * 100, 2) : 100;
         $minimumPaymentRequired = max(0, round(($issued * (self::REPAYMENT_THRESHOLD_PERCENT / 100)) - $repaid, 2));
-        $blocksProceed = $outstanding > 0 && $repaymentPercentage < self::REPAYMENT_THRESHOLD_PERCENT;
+        $blocksProceed = $outstanding > 0.01 && $repaymentPercentage < self::REPAYMENT_THRESHOLD_PERCENT;
 
         return [
             'amount_issued' => $issued,
@@ -196,6 +211,160 @@ class LoanDebtCheckService
         $value = trim(preg_replace('/\s+/', ' ', $regNumber) ?? '');
 
         return strtoupper($value);
+    }
+
+    private function compactRegNumber(string $regNumber): string
+    {
+        return strtoupper(preg_replace('/[\s\/]+/', '', trim($regNumber)) ?? '');
+    }
+
+    public function normalizeGroupNameKey(string $name): string
+    {
+        $value = strtoupper(trim($name));
+        $value = preg_replace('/\bSELF HELP GROUP\b|\bSHG\b|\bGROUP\b/', '', $value) ?? $value;
+
+        return preg_replace('/[^A-Z0-9]/', '', $value) ?? '';
+    }
+
+    private function normalizeConstituencyKey(?string $name): string
+    {
+        if ($name === null || trim($name) === '') {
+            return '';
+        }
+
+        return preg_replace('/[^A-Z0-9]/', '', strtoupper(trim($name))) ?? '';
+    }
+
+    private function findGroupsForEligibility(
+        string $normalizedReg,
+        ?string $groupName,
+        ?string $constituencyName,
+    ): Collection {
+        $groups = Group::query()
+            ->where(function ($query) use ($normalizedReg) {
+                $compact = $this->compactRegNumber($normalizedReg);
+                $query->whereRaw('UPPER(TRIM(reg_number)) = ?', [$normalizedReg]);
+
+                if ($compact !== $normalizedReg) {
+                    $query->orWhereRaw(
+                        "UPPER(REPLACE(REPLACE(REPLACE(TRIM(reg_number), ' ', ''), '/', ''), '-', '')) = ?",
+                        [$compact],
+                    );
+                }
+            })
+            ->get();
+
+        if ($groups->isNotEmpty()) {
+            return $groups;
+        }
+
+        $groups = $this->findGroupsLinkedToRegistrationApplications($normalizedReg);
+        if ($groups->isNotEmpty()) {
+            return $groups;
+        }
+
+        if ($groupName !== null && trim($groupName) !== '') {
+            return $this->findGroupsByNameAndConstituency($groupName, $constituencyName);
+        }
+
+        return collect();
+    }
+
+    private function findGroupsLinkedToRegistrationApplications(string $normalizedReg): Collection
+    {
+        $compact = $this->compactRegNumber($normalizedReg);
+
+        $applications = TempApplication::query()
+            ->whereNotNull('group_registration_number')
+            ->where(function ($query) use ($normalizedReg, $compact) {
+                $query->whereRaw('UPPER(TRIM(group_registration_number)) = ?', [$normalizedReg]);
+
+                if ($compact !== $normalizedReg) {
+                    $query->orWhereRaw(
+                        "UPPER(REPLACE(REPLACE(REPLACE(TRIM(group_registration_number), ' ', ''), '/', ''), '-', '')) = ?",
+                        [$compact],
+                    );
+                }
+            })
+            ->get(['id', 'group_name', 'group_registration_number', 'constituency_code']);
+
+        if ($applications->isEmpty()) {
+            return collect();
+        }
+
+        $groups = collect();
+
+        foreach ($applications as $application) {
+            $linkedGroups = $this->findGroupsByNameAndConstituency(
+                $application->group_name,
+                null,
+                $application->constituency_code,
+            );
+
+            $groups = $groups->merge($linkedGroups);
+        }
+
+        $loanGroupIds = GroupLoan::query()
+            ->whereHas('phaseApplication.tempApplication', function ($query) use ($normalizedReg, $compact) {
+                $query->where(function ($registrationQuery) use ($normalizedReg, $compact) {
+                    $registrationQuery->whereRaw(
+                        'UPPER(TRIM(group_registration_number)) = ?',
+                        [$normalizedReg],
+                    );
+
+                    if ($compact !== $normalizedReg) {
+                        $registrationQuery->orWhereRaw(
+                            "UPPER(REPLACE(REPLACE(REPLACE(TRIM(group_registration_number), ' ', ''), '/', ''), '-', '')) = ?",
+                            [$compact],
+                        );
+                    }
+                });
+            })
+            ->pluck('group_id')
+            ->filter();
+
+        if ($loanGroupIds->isNotEmpty()) {
+            $groups = $groups->merge(Group::query()->whereIn('id', $loanGroupIds)->get());
+        }
+
+        return $groups->unique('id')->values();
+    }
+
+    private function findGroupsByNameAndConstituency(
+        string $groupName,
+        ?string $constituencyName = null,
+        ?string $constituencyCode = null,
+    ): Collection {
+        $nameKey = $this->normalizeGroupNameKey($groupName);
+        if ($nameKey === '') {
+            return collect();
+        }
+
+        $constituencyKey = $this->normalizeConstituencyKey($constituencyName);
+
+        return Group::query()
+            ->with('ward.constituency')
+            ->when($constituencyCode, fn ($query) => $query->whereHas(
+                'ward',
+                fn ($wardQuery) => $wardQuery->where('constituency_code', $constituencyCode),
+            ))
+            ->get()
+            ->filter(function (Group $group) use ($nameKey, $constituencyKey) {
+                if ($this->normalizeGroupNameKey($group->name) !== $nameKey) {
+                    return false;
+                }
+
+                if ($constituencyKey === '') {
+                    return true;
+                }
+
+                $groupConstituency = $this->normalizeConstituencyKey(
+                    $group->ward?->constituency?->constituency_name,
+                );
+
+                return $groupConstituency === $constituencyKey;
+            })
+            ->values();
     }
 
     private function pickBlockingLoan(Collection $loans): ?GroupLoan

@@ -9,6 +9,7 @@ use App\Models\GroupMember;
 use App\Models\HqReview;
 use App\Models\LoanPhase;
 use App\Models\LoanReceipts;
+use App\Models\PhaseApplication;
 use App\Models\PhaseApplicationDocument;
 use App\Models\PhaseComment;
 use App\Models\PhaseDocument;
@@ -180,7 +181,7 @@ class PhaseDetailEditService
                     app(TempApplicationDeleteService::class)
                         ->deleteWithAudit($phaseApplication->tempApplication, $user);
                 } else {
-                    $phaseApplication->delete();
+                    $this->deleteOrphanPhaseApplication($phaseApplication);
                 }
             }
 
@@ -258,6 +259,41 @@ class PhaseDetailEditService
             $this->phaseService->invalidatePhaseCache($phaseId);
             $this->cacheService->flushGroupLoansCache($constituencyCode);
         });
+    }
+
+    protected function deleteOrphanPhaseApplication(PhaseApplication $phaseApplication): void
+    {
+        $groupLoanId = $phaseApplication->group_loan_id;
+
+        PhaseApplicationDocument::query()
+            ->where('phase_application_id', $phaseApplication->id)
+            ->delete();
+
+        PhaseComment::query()
+            ->where('phase_application_id', $phaseApplication->id)
+            ->delete();
+
+        $phaseApplication->delete();
+
+        if (!$groupLoanId) {
+            return;
+        }
+
+        LoanReceipts::query()->where('group_loans_id', $groupLoanId)->delete();
+        GroupMember::query()->where('group_loans_id', $groupLoanId)->delete();
+
+        $groupLoan = GroupLoan::query()->find($groupLoanId);
+
+        if (!$groupLoan) {
+            return;
+        }
+
+        $groupId = $groupLoan->group_id;
+        $groupLoan->delete();
+
+        if ($groupId && !GroupLoan::query()->where('group_id', $groupId)->exists()) {
+            Group::query()->whereKey($groupId)->delete();
+        }
     }
 
     /**
