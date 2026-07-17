@@ -53,7 +53,9 @@ import './livewire-global.js';
 import './hq-dashboard-v2.js';
 import './const-dashboard-v2.js';
 import { initDashboardTheme } from './hq-theme.js';
+import { initDashboardMotion } from './hq-dashboard-motion.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     initDashboardTheme();
+    initDashboardMotion();
 });

@@ -100,6 +100,7 @@
     height: 100%;
     background: linear-gradient(90deg, #34d399 0%, #059669 100%);
     border-radius: 999px;
+    transition: width 0.75s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .application-volume-kpi {
@@ -402,4 +403,46 @@
 :root[data-hq-theme='dark'] .secretariat-review-page .secretariat-step.is-current {
     background: #312e81;
     border-color: #6366f1;
+}
+
+/* Staggered inbox feed */
+.hq-inbox-feed-item {
+    opacity: 0;
+    transform: translateY(14px);
+}
+
+.hq-inbox-feed-item.hq-inbox-feed-item--visible {
+    animation: hqInboxReveal 0.55s ease forwards;
+    animation-delay: calc(var(--hq-stagger-index, 0) * 70ms);
+}
+
+@keyframes hqInboxReveal {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.hq-count-up {
+    font-variant-numeric: tabular-nums;
+    display: inline-block;
+    min-width: 1.5ch;
+}
+
+.hq-stat-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hq-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.1) !important;
+}
+
+:root[data-hq-theme='dark'] .hq-stat-card:hover {
+    box-shadow: 0 12px 28px rgba(14, 165, 233, 0.12) !important;
 }

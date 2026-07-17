@@ -141,12 +141,14 @@
                         <div class="row">
                             @foreach($this->kpis as $kpi)
                                 <div class="col-md-6 col-xl-3 mb-3">
-                                    <div class="card hq-kpi-card h-100">
+                                    <div class="card hq-kpi-card hq-stat-card h-100">
                                         <div class="card-body">
                                             <div class="d-flex justify-content-between align-items-start">
                                                 <div>
                                                     <span class="text-muted small text-uppercase font-weight-bold">{{ $kpi['title'] }}</span>
-                                                    <h4 class="font-weight-bold mb-0 mt-1">KES {{ number_format($kpi['val']) }}</h4>
+                                                    <h4 class="font-weight-bold mb-0 mt-1">
+                                                        <span class="hq-count-up" data-count-up="{{ $kpi['val'] }}" data-count-prefix="KES ">0</span>
+                                                    </h4>
                                                     <small class="text-muted">{{ $kpi['desc'] }}</small>
                                                 </div>
                                                 <div class="icon-circle bg-light-{{ $kpi['color'] }} text-{{ $kpi['color'] }}">
@@ -200,7 +202,7 @@
                                         <span class="badge badge-{{ $this->actionInbox['mode'] === 'secretariat' ? 'primary' : 'warning' }}">{{ $this->actionInbox['pending_phase_count'] }} pending</span>
                                     </div>
                                     @forelse($this->actionInbox['pending_phases'] as $phase)
-                                        <div class="hq-inbox-item mb-2">
+                                        <div class="hq-inbox-item hq-inbox-feed-item hq-inbox-feed-item--visible mb-2" style="--hq-stagger-index: {{ $loop->index }}">
                                             <div class="d-flex justify-content-between">
                                                 <strong>{{ $phase['label'] }}</strong>
                                                 <small class="text-muted">{{ $phase['submitted_at'] }}</small>
@@ -391,7 +393,7 @@
                                         <a href="{{ $this->actionInbox['tasks_queue_url'] }}" class="btn btn-sm btn-success">{{ $this->actionInbox['tasks_queue_label'] }}</a>
                                     </div>
                                     @forelse($this->actionInbox['pending_phases'] as $phase)
-                                        <div class="hq-inbox-item mb-2 d-flex justify-content-between align-items-center">
+                                        <div class="hq-inbox-item hq-inbox-feed-item hq-inbox-feed-item--visible mb-2 d-flex justify-content-between align-items-center" style="--hq-stagger-index: {{ $loop->index }}">
                                             <div>
                                                 <strong>{{ $phase['label'] }}</strong>
                                                 <small class="d-block text-muted">{{ $phase['constituency'] }} · {{ $phase['submitted_at'] }}</small>

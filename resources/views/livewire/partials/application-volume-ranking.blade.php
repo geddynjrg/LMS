@@ -22,27 +22,27 @@
         <div class="col-md-3 col-6 mb-2 mb-md-0">
             <div class="application-volume-kpi">
                 <div class="kpi-label">National total</div>
-                <div class="kpi-value">{{ number_format($stats['total']) }}</div>
+                <div class="kpi-value hq-count-up" data-count-up="{{ $stats['total'] }}">0</div>
             </div>
         </div>
         <div class="col-md-3 col-6 mb-2 mb-md-0">
             <div class="application-volume-kpi">
                 <div class="kpi-label">With records</div>
-                <div class="kpi-value">{{ number_format($stats['active_constituencies']) }}</div>
-                <small class="text-muted">of {{ number_format($stats['constituency_count']) }}</small>
+                <div class="kpi-value hq-count-up" data-count-up="{{ $stats['active_constituencies'] }}">0</div>
+                <small class="text-muted">of <span class="hq-count-up" data-count-up="{{ $stats['constituency_count'] }}">0</span></small>
             </div>
         </div>
         <div class="col-md-3 col-6 mb-2 mb-md-0">
             <div class="application-volume-kpi">
                 <div class="kpi-label">Highest volume</div>
                 <div class="kpi-value" style="font-size: 1rem;">{{ $stats['top_name'] ?? '—' }}</div>
-                <small class="text-muted">{{ number_format($stats['top_count']) }}</small>
+                <small class="text-muted"><span class="hq-count-up" data-count-up="{{ $stats['top_count'] }}">0</span></small>
             </div>
         </div>
         <div class="col-md-3 col-6">
             <div class="application-volume-kpi">
                 <div class="kpi-label">Showing</div>
-                <div class="kpi-value">{{ number_format(count($rows)) }}</div>
+                <div class="kpi-value hq-count-up" data-count-up="{{ count($rows) }}">0</div>
                 <small class="text-muted">constituencies</small>
             </div>
         </div>
@@ -85,6 +85,7 @@
                             <div class="d-flex align-items-center">
                                 <div class="application-volume-share-track flex-grow-1 mr-2">
                                     <div class="application-volume-share-fill"
+                                         data-share-width="{{ $row->application_count > 0 ? max($share, 2) : 0 }}%"
                                          style="width: {{ $row->application_count > 0 ? max($share, 2) : 0 }}%;"></div>
                                 </div>
                                 <small class="text-muted text-nowrap">{{ number_format($share, 0) }}%</small>

@@ -39,42 +39,42 @@
 
     <div class="row mb-4">
         <div class="col-md-3 col-sm-6">
-            <button type="button" wire:click="setFilter('pending')" class="info-box shadow-sm w-100 text-left border-0 p-0 {{ $filter === 'pending' ? 'border border-warning' : '' }}" style="background: transparent; cursor: pointer;">
+            <button type="button" wire:click="setFilter('pending')" class="info-box hq-stat-card shadow-sm w-100 text-left border-0 p-0 {{ $filter === 'pending' ? 'border border-warning' : '' }}" style="background: transparent; cursor: pointer;">
                 <span class="info-box-icon bg-warning"><i class="fas fa-hourglass-half"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Pending authorizations</span>
-                    <span class="info-box-number">{{ $stats['pending_phases'] }}</span>
+                    <span class="info-box-number hq-count-up" data-count-up="{{ $stats['pending_phases'] }}">0</span>
                     <small class="text-muted">Phases awaiting your action</small>
                 </div>
             </button>
         </div>
         <div class="col-md-3 col-sm-6">
-            <button type="button" wire:click="setFilter('pending_training')" class="info-box shadow-sm w-100 text-left border-0 p-0 {{ $filter === 'pending_training' ? 'border border-info' : '' }}" style="background: transparent; cursor: pointer;">
+            <button type="button" wire:click="setFilter('pending_training')" class="info-box hq-stat-card shadow-sm w-100 text-left border-0 p-0 {{ $filter === 'pending_training' ? 'border border-info' : '' }}" style="background: transparent; cursor: pointer;">
                 <span class="info-box-icon bg-info"><i class="fas fa-chalkboard-teacher"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Training gate pending</span>
-                    <span class="info-box-number">{{ $stats['pending_training'] }}</span>
+                    <span class="info-box-number hq-count-up" data-count-up="{{ $stats['pending_training'] }}">0</span>
                     <small class="text-muted">Before constituency can schedule training</small>
                 </div>
             </button>
         </div>
         <div class="col-md-3 col-sm-6">
-            <button type="button" wire:click="setFilter('training_authorized')" class="info-box shadow-sm w-100 text-left border-0 p-0 {{ $filter === 'training_authorized' ? 'border border-success' : '' }}" style="background: transparent; cursor: pointer;">
+            <button type="button" wire:click="setFilter('training_authorized')" class="info-box hq-stat-card shadow-sm w-100 text-left border-0 p-0 {{ $filter === 'training_authorized' ? 'border border-success' : '' }}" style="background: transparent; cursor: pointer;">
                 <span class="info-box-icon bg-success"><i class="fas fa-check-circle"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Training authorized</span>
-                    <span class="info-box-number">{{ $stats['completed_training'] }}</span>
+                    <span class="info-box-number hq-count-up" data-count-up="{{ $stats['completed_training'] }}">0</span>
                     <small class="text-muted">Phases cleared for training</small>
                 </div>
             </button>
         </div>
         <div class="col-md-3 col-sm-6">
-            <button type="button" wire:click="setFilter('disbursement_authorized')" class="info-box shadow-sm w-100 text-left border-0 p-0 {{ $filter === 'disbursement_authorized' ? 'border border-primary' : '' }}" style="background: transparent; cursor: pointer;">
+            <button type="button" wire:click="setFilter('disbursement_authorized')" class="info-box hq-stat-card shadow-sm w-100 text-left border-0 p-0 {{ $filter === 'disbursement_authorized' ? 'border border-primary' : '' }}" style="background: transparent; cursor: pointer;">
                 <span class="info-box-icon bg-primary"><i class="fas fa-money-check-alt"></i></span>
                 <div class="info-box-content">
                     <span class="info-box-text">Disbursement authorized</span>
-                    <span class="info-box-number">{{ $stats['completed_disbursement'] }}</span>
-                    <small class="text-muted">{{ $stats['pending_disbursement'] }} still pending</small>
+                    <span class="info-box-number hq-count-up" data-count-up="{{ $stats['completed_disbursement'] }}">0</span>
+                    <small class="text-muted"><span class="hq-count-up" data-count-up="{{ $stats['pending_disbursement'] }}">0</span> still pending</small>
                 </div>
             </button>
         </div>
@@ -91,7 +91,7 @@
                 </div>
                 <div class="card-body">
                     @forelse($actionInbox['pending_phases'] as $phase)
-                        <div class="border rounded p-3 mb-3">
+                        <div class="border rounded p-3 mb-3 hq-inbox-feed-item hq-inbox-feed-item--visible card-hover" style="--hq-stagger-index: {{ $loop->index }}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
                                     <strong>{{ $phase['label'] }}</strong>
