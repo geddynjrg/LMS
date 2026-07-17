@@ -111,10 +111,22 @@ function animateShareBars(root = document) {
     });
 }
 
+function animateProgressBars(root = document) {
+    root.querySelectorAll('.nat-kpi-progress-fill').forEach((bar) => {
+        const target = Number(bar.dataset.progress || 0);
+        bar.style.width = '0%';
+
+        requestAnimationFrame(() => {
+            bar.style.width = `${Math.min(100, Math.max(0, target))}%`;
+        });
+    });
+}
+
 export function initDashboardMotion() {
     animateDashboardCounts();
     restartInboxReveal();
     animateShareBars();
+    animateProgressBars();
 
     document.addEventListener('hq-dashboard-theme-changed', () => {
         animateDashboardCounts();
@@ -140,6 +152,7 @@ document.addEventListener('livewire:init', () => {
             animateDashboardCounts(el);
             restartInboxReveal(el);
             animateShareBars(el);
+            animateProgressBars(el);
         });
     });
 });

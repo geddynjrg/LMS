@@ -1,9 +1,9 @@
-<section class="content">
+<section class="content national-analytics-center">
     <div class="container-fluid px-0">
-        <div class="hq-workspace-shell">
+        <div class="hq-workspace-shell nat-workspace-shell">
             <div class="row no-gutters">
-                {{-- SPSS-style variable / filter pane --}}
-                <div class="col-lg-3 col-xl-2 border-right bg-white p-3">
+                {{-- Filter sidebar --}}
+                <div class="col-lg-3 col-xl-2 nat-sidebar p-3">
                     <div class="d-flex align-items-center justify-content-between mb-3">
                         <span class="hq-sidebar-label mb-0">Data scope</span>
                         <span class="hq-badge-v2">Live</span>
@@ -136,28 +136,57 @@
                         <x-hq-theme-toggle class="ml-md-2" />
                     </div>
 
+                    {{-- Excel Visual–style KPI hero --}}
+                    <div class="nat-hero mb-4 hq-inbox-feed-item hq-inbox-feed-item--visible">
+                        <div class="nat-hero-glow"></div>
+                        <div class="d-flex flex-wrap align-items-end justify-content-between">
+                            <div>
+                                <span class="sec-hero-badge"><i class="fas fa-chart-line mr-1"></i> National portfolio KPIs</span>
+                                <h2 class="nat-hero-title mb-1">
+                                    <span class="hq-count-up" data-count-up="{{ $this->performance['recovery_rate'] }}" data-count-decimals="1" data-count-suffix="%">0</span>
+                                    recovery rate
+                                </h2>
+                                <p class="nat-hero-sub mb-0">Animated dashboard — filter by county, explore charts, and track authorization tasks.</p>
+                            </div>
+                            <div class="nat-hero-stats d-flex flex-wrap mt-3 mt-md-0">
+                                <div class="nat-hero-stat">
+                                    <span class="nat-hero-stat__label">Expected</span>
+                                    <span class="nat-hero-stat__value hq-count-up" data-count-up="{{ $this->performance['due'] }}" data-count-prefix="KES " data-count-compact="true">0</span>
+                                </div>
+                                <div class="nat-hero-stat">
+                                    <span class="nat-hero-stat__label">Collected</span>
+                                    <span class="nat-hero-stat__value hq-count-up" data-count-up="{{ $this->performance['repaid'] }}" data-count-prefix="KES " data-count-compact="true">0</span>
+                                </div>
+                                <div class="nat-hero-stat">
+                                    <span class="nat-hero-stat__label">At risk</span>
+                                    <span class="nat-hero-stat__value hq-count-up" data-count-up="{{ $this->riskProfile['count'] }}">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div wire:loading.delay wire:target="refreshData,resetFilters,updatedCountyFilter,updatedConstituencyFilter,updatedWardFilter,setWorkspace,setAnalysisDimension"
+                        class="nat-loading-bar mb-3">
+                        <div class="nat-loading-bar__fill"></div>
+                    </div>
+
                     {{-- OVERVIEW --}}
                     @if($workspace === 'overview')
-                        <div class="row">
+                        <div class="hq-workspace-pane">
+                        <div class="row nat-kpi-grid mb-2">
+                            @php
+                                $kpiTones = ['primary' => 'violet', 'info' => 'sky', 'danger' => 'emerald', 'dark' => 'amber', 'success' => 'emerald', 'warning' => 'amber'];
+                            @endphp
                             @foreach($this->kpis as $kpi)
+                                @php $tone = $kpiTones[$kpi['color']] ?? 'violet'; @endphp
                                 <div class="col-md-6 col-xl-3 mb-3">
-                                    <div class="card hq-kpi-card hq-stat-card h-100">
-                                        <div class="card-body">
-                                            <div class="d-flex justify-content-between align-items-start">
-                                                <div>
-                                                    <span class="text-muted small text-uppercase font-weight-bold">{{ $kpi['title'] }}</span>
-                                                    <h4 class="font-weight-bold mb-0 mt-1">
-                                                        <span class="hq-count-up" data-count-up="{{ $kpi['val'] }}" data-count-prefix="KES ">0</span>
-                                                    </h4>
-                                                    <small class="text-muted">{{ $kpi['desc'] }}</small>
-                                                </div>
-                                                <div class="icon-circle bg-light-{{ $kpi['color'] }} text-{{ $kpi['color'] }}">
-                                                    <i class="fas {{ $kpi['icon'] }}"></i>
-                                                </div>
-                                            </div>
-                                            <div class="progress mt-3" style="height: 4px;">
-                                                <div class="progress-bar bg-{{ $kpi['color'] }}" style="width: {{ min(100, $kpi['prog']) }}%"></div>
-                                            </div>
+                                    <div class="nat-kpi-tile nat-kpi-tile--{{ $tone }} hq-inbox-feed-item hq-inbox-feed-item--visible h-100" style="--hq-stagger-index: {{ $loop->index }}">
+                                        <span class="nat-kpi-tile__icon"><i class="fas {{ $kpi['icon'] }}"></i></span>
+                                        <span class="nat-kpi-tile__label">{{ $kpi['title'] }}</span>
+                                        <span class="nat-kpi-tile__value hq-count-up" data-count-up="{{ $kpi['val'] }}" data-count-prefix="KES " data-count-compact="true">0</span>
+                                        <span class="nat-kpi-tile__hint">{{ $kpi['desc'] }}</span>
+                                        <div class="nat-kpi-progress mt-3">
+                                            <div class="nat-kpi-progress-fill" data-progress="{{ min(100, round($kpi['prog'])) }}"></div>
                                         </div>
                                     </div>
                                 </div>
@@ -166,23 +195,37 @@
 
                         <div class="row mt-1">
                             <div class="col-lg-4 mb-3">
-                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
-                                    <h6 class="font-weight-bold mb-3"><i class="fas fa-chart-pie mr-2 text-success"></i>Portfolio mix</h6>
-                                    <div class="hq-chart-wrap" wire:ignore><canvas id="hqPortfolioChart"></canvas></div>
+                                <div class="sec-panel hq-chart-panel h-100">
+                                    <div class="sec-panel__header py-2">
+                                        <h6 class="sec-panel__title mb-0"><i class="fas fa-chart-pie mr-2"></i>Portfolio mix</h6>
+                                    </div>
+                                    <div class="sec-panel__body">
+                                        <div class="hq-chart-wrap" wire:ignore><canvas id="hqPortfolioChart"></canvas></div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-lg-4 mb-3">
-                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
-                                    <h6 class="font-weight-bold mb-3"><i class="fas fa-users mr-2 text-success"></i>Target groups</h6>
-                                    <div class="hq-chart-wrap" wire:ignore><canvas id="hqDemographicsChart"></canvas></div>
+                                <div class="sec-panel hq-chart-panel h-100">
+                                    <div class="sec-panel__header py-2">
+                                        <h6 class="sec-panel__title mb-0"><i class="fas fa-users mr-2"></i>Target groups</h6>
+                                    </div>
+                                    <div class="sec-panel__body">
+                                        <div class="hq-chart-wrap" wire:ignore><canvas id="hqDemographicsChart"></canvas></div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-lg-4 mb-3">
-                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
-                                    <h6 class="font-weight-bold mb-3"><i class="fas fa-chart-bar mr-2 text-success"></i>Recovery</h6>
-                                    <div class="hq-chart-wrap" wire:ignore><canvas id="hqRecoveryChart"></canvas></div>
-                                    <div class="mt-2 text-center">
-                                        <span class="badge badge-success px-3 py-2">{{ $this->performance['recovery_rate'] }}% recovery rate</span>
+                                <div class="sec-panel hq-chart-panel h-100">
+                                    <div class="sec-panel__header py-2">
+                                        <h6 class="sec-panel__title mb-0"><i class="fas fa-chart-bar mr-2"></i>Recovery</h6>
+                                    </div>
+                                    <div class="sec-panel__body">
+                                        <div class="hq-chart-wrap" wire:ignore><canvas id="hqRecoveryChart"></canvas></div>
+                                        <div class="mt-2 text-center">
+                                            <span class="sec-pill sec-pill--live">
+                                                <span class="hq-count-up" data-count-up="{{ $this->performance['recovery_rate'] }}" data-count-decimals="1" data-count-suffix="%">0</span> recovery
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -190,57 +233,71 @@
 
                         <div class="row">
                             <div class="col-lg-7 mb-3">
-                                <div class="hq-panel-card hq-chart-panel p-3 h-100">
-                                    <h6 class="font-weight-bold mb-3"><i class="fas fa-map-marked-alt mr-2 text-success"></i>Top constituencies (recovery %)</h6>
-                                    <div class="hq-chart-wrap-sm" wire:ignore><canvas id="hqConstituencyChart"></canvas></div>
+                                <div class="sec-panel hq-chart-panel h-100">
+                                    <div class="sec-panel__header py-2">
+                                        <h6 class="sec-panel__title mb-0"><i class="fas fa-map-marked-alt mr-2"></i>Top constituencies (recovery %)</h6>
+                                    </div>
+                                    <div class="sec-panel__body">
+                                        <div class="hq-chart-wrap-sm" wire:ignore><canvas id="hqConstituencyChart"></canvas></div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-lg-5 mb-3">
-                                <div class="hq-panel-card p-3 h-100">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="font-weight-bold mb-0"><i class="fas fa-inbox mr-2 text-success"></i>{{ $this->actionInbox['inbox_title'] }}</h6>
-                                        <span class="badge badge-{{ $this->actionInbox['mode'] === 'secretariat' ? 'primary' : 'warning' }}">{{ $this->actionInbox['pending_phase_count'] }} pending</span>
+                                <div class="sec-panel h-100">
+                                    <div class="sec-panel__header">
+                                        <h6 class="sec-panel__title mb-0"><i class="fas fa-inbox mr-2"></i>{{ $this->actionInbox['inbox_title'] }}</h6>
+                                        <span class="sec-pill sec-pill--live">{{ $this->actionInbox['pending_phase_count'] }} pending</span>
                                     </div>
+                                    <div class="sec-panel__body sec-feed-scroll">
                                     @forelse($this->actionInbox['pending_phases'] as $phase)
-                                        <div class="hq-inbox-item hq-inbox-feed-item hq-inbox-feed-item--visible mb-2" style="--hq-stagger-index: {{ $loop->index }}">
-                                            <div class="d-flex justify-content-between">
-                                                <strong>{{ $phase['label'] }}</strong>
-                                                <small class="text-muted">{{ $phase['submitted_at'] }}</small>
+                                        <div class="sec-feed-card hq-inbox-feed-item hq-inbox-feed-item--visible mb-2" style="--hq-stagger-index: {{ $loop->index }}">
+                                            <div class="sec-feed-card__top">
+                                                <div>
+                                                    <div class="sec-feed-card__title">{{ $phase['label'] }}</div>
+                                                    <div class="sec-feed-card__meta">{{ $phase['constituency'] }}</div>
+                                                    @if(!empty($phase['meta']))
+                                                        <div class="sec-feed-card__tag">{{ $phase['meta'] }}</div>
+                                                    @endif
+                                                </div>
+                                                <small class="sec-feed-card__time">{{ $phase['submitted_at'] }}</small>
                                             </div>
-                                            <small class="text-muted">{{ $phase['constituency'] }}</small>
-                                            @if(!empty($phase['meta']))
-                                                <small class="d-block text-purple">{{ $phase['meta'] }}</small>
-                                            @endif
-                                            <div class="mt-2 d-flex flex-wrap">
-                                                <a href="{{ $phase['url'] }}" class="btn btn-sm btn-{{ $this->actionInbox['mode'] === 'secretariat' ? 'primary' : 'outline-success' }} mr-1 mb-1">
+                                            <div class="sec-feed-card__actions">
+                                                <a href="{{ $phase['url'] }}" class="btn btn-sm sec-btn-primary">
                                                     {{ $phase['action_label'] }}
                                                 </a>
                                                 @if(!empty($phase['secondary_url']))
-                                                    <a href="{{ $phase['secondary_url'] }}" class="btn btn-sm btn-outline-secondary mb-1">
+                                                    <a href="{{ $phase['secondary_url'] }}" class="btn btn-sm sec-btn-ghost">
                                                         {{ $phase['secondary_label'] }}
                                                     </a>
                                                 @endif
                                             </div>
                                         </div>
                                     @empty
-                                        <p class="text-muted mb-0">{{ $this->actionInbox['inbox_empty'] }}</p>
+                                        <div class="sec-empty-state py-3">
+                                            <p class="mb-0">{{ $this->actionInbox['inbox_empty'] }}</p>
+                                        </div>
                                     @endforelse
-                                    <a href="{{ $this->actionInbox['tasks_queue_url'] }}" class="btn btn-link btn-sm px-0 mt-2">{{ $this->actionInbox['tasks_queue_label'] }} →</a>
+                                    <a href="{{ $this->actionInbox['tasks_queue_url'] }}" class="sec-link-arrow">{{ $this->actionInbox['tasks_queue_label'] }} →</a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="row">
                             <div class="col-12 mb-3">
-                                <div class="hq-panel-card p-3 h-100">
+                                <div class="sec-panel">
+                                    <div class="sec-panel__body">
                                     @include('livewire.partials.application-volume-ranking')
+                                    </div>
                                 </div>
                             </div>
+                        </div>
                         </div>
                     @endif
 
                     {{-- DATA --}}
                     @if($workspace === 'data')
+                        <div class="hq-workspace-pane">
                         <div class="hq-panel-card p-3 mb-3">
                             <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
                                 <div>
@@ -288,41 +345,43 @@
                                     <ul class="list-unstyled mb-0">
                                         <li class="d-flex justify-content-between py-2 border-bottom">
                                             <span>Total groups</span>
-                                            <strong>{{ number_format($this->getStats['totalGroups'] ?? 0) }}</strong>
+                                            <strong class="hq-count-up" data-count-up="{{ $this->getStats['totalGroups'] ?? 0 }}">0</strong>
                                         </li>
                                         <li class="d-flex justify-content-between py-2 border-bottom">
                                             <span>Disbursed</span>
-                                            <strong>KES {{ number_format($this->getStats['totalAmountIssued'] ?? 0) }}</strong>
+                                            <strong><span class="hq-count-up" data-count-up="{{ $this->getStats['totalAmountIssued'] ?? 0 }}" data-count-prefix="KES " data-count-compact="true">0</span></strong>
                                         </li>
                                         <li class="d-flex justify-content-between py-2 border-bottom">
                                             <span>Repaid</span>
-                                            <strong>KES {{ number_format($this->getStats['totalAmountRepaid'] ?? 0) }}</strong>
+                                            <strong><span class="hq-count-up" data-count-up="{{ $this->getStats['totalAmountRepaid'] ?? 0 }}" data-count-prefix="KES " data-count-compact="true">0</span></strong>
                                         </li>
                                         <li class="d-flex justify-content-between py-2">
                                             <span>Groups at risk</span>
-                                            <strong class="text-danger">{{ number_format($this->riskProfile['count']) }}</strong>
+                                            <strong class="text-danger hq-count-up" data-count-up="{{ $this->riskProfile['count'] }}">0</strong>
                                         </li>
                                     </ul>
                                 </div>
                             </div>
                         </div>
+                        </div>
                     @endif
 
                     {{-- ANALYZE --}}
                     @if($workspace === 'analyze')
+                        <div class="hq-workspace-pane">
                         <div class="hq-panel-card p-3 mb-3">
                             <div class="d-flex flex-wrap align-items-center mb-3">
                                 <h5 class="font-weight-bold mb-2 mb-md-0 mr-md-3">Cross-tab analysis</h5>
-                                <div class="btn-group btn-group-sm">
+                                <div class="sec-filter-pills mb-3">
                                     @foreach([
-                                        'demographics' => 'Demographics',
-                                        'sectors' => 'Sectors',
-                                        'recovery' => 'Recovery',
-                                    ] as $dim => $label)
+                                        'demographics' => ['Demographics', 'fa-users'],
+                                        'sectors' => ['Sectors', 'fa-industry'],
+                                        'recovery' => ['Recovery', 'fa-chart-line'],
+                                    ] as $dim => [$label, $icon])
                                         <button type="button"
                                             wire:click="setAnalysisDimension('{{ $dim }}')"
-                                            class="btn btn-outline-secondary hq-dimension-btn {{ $analysisDimension === $dim ? 'active' : '' }}">
-                                            {{ $label }}
+                                            class="sec-filter-pill {{ $analysisDimension === $dim ? 'is-active' : '' }}">
+                                            <i class="fas {{ $icon }} mr-1"></i>{{ $label }}
                                         </button>
                                     @endforeach
                                 </div>
@@ -363,28 +422,30 @@
 
                         <div class="row">
                             <div class="col-md-4 mb-3">
-                                <div class="hq-panel-card p-3 text-center h-100">
-                                    <small class="text-muted text-uppercase">Expected</small>
-                                    <h4 class="font-weight-bold">KES {{ number_format($this->performance['due']) }}</h4>
+                                <div class="nat-kpi-tile nat-kpi-tile--sky text-center h-100">
+                                    <span class="nat-kpi-tile__label">Expected</span>
+                                    <span class="nat-kpi-tile__value hq-count-up" data-count-up="{{ $this->performance['due'] }}" data-count-prefix="KES " data-count-compact="true">0</span>
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <div class="hq-panel-card p-3 text-center h-100">
-                                    <small class="text-muted text-uppercase">Collected</small>
-                                    <h4 class="font-weight-bold text-success">KES {{ number_format($this->performance['repaid']) }}</h4>
+                                <div class="nat-kpi-tile nat-kpi-tile--emerald text-center h-100">
+                                    <span class="nat-kpi-tile__label">Collected</span>
+                                    <span class="nat-kpi-tile__value hq-count-up" data-count-up="{{ $this->performance['repaid'] }}" data-count-prefix="KES " data-count-compact="true">0</span>
                                 </div>
                             </div>
                             <div class="col-md-4 mb-3">
-                                <div class="hq-panel-card p-3 text-center h-100">
-                                    <small class="text-muted text-uppercase">Gap</small>
-                                    <h4 class="font-weight-bold text-danger">KES {{ number_format($this->performance['deficit']) }}</h4>
+                                <div class="nat-kpi-tile nat-kpi-tile--amber text-center h-100">
+                                    <span class="nat-kpi-tile__label">Gap</span>
+                                    <span class="nat-kpi-tile__value hq-count-up" data-count-up="{{ $this->performance['deficit'] }}" data-count-prefix="KES " data-count-compact="true">0</span>
                                 </div>
                             </div>
+                        </div>
                         </div>
                     @endif
 
                     {{-- TASKS --}}
                     @if($workspace === 'tasks')
+                        <div class="hq-workspace-pane">
                         <div class="row">
                             <div class="col-lg-7 mb-3">
                                 <div class="hq-panel-card p-3 h-100">
@@ -452,6 +513,7 @@
                                 </div>
                                 @endif
                             </div>
+                        </div>
                         </div>
                     @endif
                 </div>
