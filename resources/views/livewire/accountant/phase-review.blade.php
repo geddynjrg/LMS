@@ -78,7 +78,7 @@
                                        class="btn btn-sm btn-outline-info mr-1">
                                         <i class="fas fa-eye mr-1"></i> View
                                     </a>
-                                    <a href="{{ route('phase.doc.serve', ['id' => $codeListDoc->id, 'action' => 'view']) }}"
+                                    <a href="{{ route('phase.doc.preview', $codeListDoc->id) }}"
                                        target="_blank"
                                        class="btn btn-sm btn-outline-secondary mr-1"
                                        title="Open uploaded file">

@@ -83,10 +83,29 @@ class PhaseApplicationDocument extends Model
         return number_format($this->size / 1024, 1) . ' KB';
     }
 
-    public function getCanViewInlineAttribute()
+    public function getCanViewInlineAttribute(): bool
     {
-        $extension = strtolower(pathinfo($this->filename, PATHINFO_EXTENSION));
-        return in_array($extension, ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp']);
+        if ($this->mime_type === 'application/pdf' || str_starts_with((string) $this->mime_type, 'image/')) {
+            return true;
+        }
+
+        return in_array($this->resolvedExtension(), ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp'], true);
+    }
+
+    public function resolvedExtension(): string
+    {
+        foreach ([$this->filename, $this->original_filename, $this->path] as $candidate) {
+            if (!$candidate) {
+                continue;
+            }
+
+            $extension = strtolower(pathinfo((string) $candidate, PATHINFO_EXTENSION));
+            if ($extension !== '') {
+                return $extension;
+            }
+        }
+
+        return '';
     }
 
     public function getStatementPeriodLabelAttribute(): ?string

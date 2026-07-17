@@ -222,8 +222,11 @@
                             </td>
                             <td>{{ $progress['done'] }} / {{ $progress['total'] }}</td>
                             <td class="text-nowrap">
-                                <a href="{{ route('secretariat.phases.code-list', $phase) }}" class="btn btn-sm btn-outline-secondary">
+                                <a href="{{ route('secretariat.phases.processed_code_list.preview', $phase) }}" target="_blank" class="btn btn-sm btn-outline-info">
                                     Code list
+                                </a>
+                                <a href="{{ route('secretariat.phases.code-list', $phase) }}" class="btn btn-sm btn-outline-secondary" title="Download Excel">
+                                    <i class="fas fa-download"></i>
                                 </a>
                                 <a href="{{ route('secretariat.phases.review', $phase) }}" class="btn btn-sm {{ $nextType ? 'btn-primary' : 'btn-outline-primary' }}">
                                     {{ $reviewLabel }}

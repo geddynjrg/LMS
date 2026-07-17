@@ -29,6 +29,19 @@
                                     <a href="{{ route('secretariat.phases.review', $phase) }}" style="color:#4f46e5;">Phase review</a>
                                 </li>
                             @endif
+                        @elseif(auth()->user()?->hasAnyRole(['hq_officer', 'admin', 'super-admin']))
+                            <li class="breadcrumb-item">
+                                <a href="{{ route('hq.submissions.apps.index') }}" class="text-teal">HQ Submissions</a>
+                            </li>
+                            @if($phase)
+                                <li class="breadcrumb-item">
+                                    <a href="{{ route('hq.submissions.phase.review', $phase->slug) }}" class="text-teal">Phase review</a>
+                                </li>
+                            @endif
+                        @elseif(auth()->user()?->hasRole('constituency_officer') && $phase?->constituency)
+                            <li class="breadcrumb-item">
+                                <a href="{{ route('const.app.app_phase_details', [$phase->constituency->county->slug, $phase->constituency->slug, $phase->slug]) }}" class="text-teal">Phase details</a>
+                            </li>
                         @endif
                         <li class="breadcrumb-item active" aria-current="page">Document preview</li>
                     </ol>
@@ -56,7 +69,21 @@
 
 <section class="content pb-4">
     <div class="container-fluid">
-        @if($canEmbed)
+        @if(!empty($fileMissing))
+            <div class="card shadow-sm border-0" style="border-radius: 16px;">
+                <div class="card-body text-center py-5 px-4">
+                    <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width: 72px; height: 72px;">
+                        <i class="fas fa-file-exclamation fa-2x text-warning"></i>
+                    </div>
+                    <h5 class="font-weight-bold text-navy mb-2">Document file not found</h5>
+                    <p class="text-muted mb-0 mx-auto" style="max-width: 32rem;">
+                        The document record exists but the uploaded file is missing from storage. Ask the constituency or HQ officer to re-upload
+                        <strong>{{ $doc->original_filename }}</strong>.
+                    </p>
+                </div>
+            </div>
+        @elseif($canEmbed)
             <div class="card shadow-sm border-0 overflow-hidden" style="border-radius: 16px;">
                 <div class="card-body p-0 bg-light">
                     <iframe

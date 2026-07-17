@@ -819,7 +819,7 @@
                                                                 <i class="fas fa-eye"></i>
                                                             </a>
                                                         @elseif($doc->can_view_inline)
-                                                            <a href="{{ route('phase.doc.serve', ['id' => $doc->id, 'action' => 'view']) }}"
+                                                            <a href="{{ route('phase.doc.preview', $doc->id) }}"
                                                             target="_blank"
                                                             class="btn btn-xs btn-outline-info"
                                                             title="View in Browser">

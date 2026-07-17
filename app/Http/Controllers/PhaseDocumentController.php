@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\PhaseApplicationDocument;
 use App\Services\Loan\PhaseDocumentResolver;
 use App\Support\HqAccess;
-use Illuminate\Support\Facades\Storage;
 
 class PhaseDocumentController extends Controller
 {
@@ -44,29 +43,33 @@ class PhaseDocumentController extends Controller
         }
 
         $mimeType = $doc->mime_type
-            ?: (Storage::disk('local')->exists($doc->path) ? Storage::disk('local')->mimeType($doc->path) : null)
+            ?: mime_content_type($fullPath)
             ?: 'application/octet-stream';
 
         if ($action === 'view') {
             return response()->file($fullPath, [
                 'Content-Type' => $mimeType,
                 'Content-Disposition' => 'inline; filename="' . addslashes($doc->original_filename) . '"',
+                'X-Frame-Options' => 'SAMEORIGIN',
             ]);
         }
 
         return response()->download($fullPath, $doc->original_filename);
     }
 
-    public function preview(int $id)
+    public function preview(int $id, PhaseDocumentResolver $resolver)
     {
         $doc = PhaseApplicationDocument::with(['loanPhase.constituency'])->findOrFail($id);
 
         $this->authorizePhaseDocumentAccess($doc);
 
+        $fullPath = $resolver->resolveReadablePath($doc);
+
         return view('documents.phase-document-preview', [
             'doc' => $doc,
             'phase' => $doc->loanPhase,
-            'canEmbed' => $doc->can_view_inline,
+            'canEmbed' => $doc->can_view_inline && $fullPath !== null,
+            'fileMissing' => $fullPath === null,
             'embedUrl' => route('phase.doc.serve', ['id' => $doc->id, 'action' => 'view']),
             'downloadUrl' => route('phase.doc.serve', ['id' => $doc->id, 'action' => 'download']),
         ]);

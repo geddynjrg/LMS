@@ -1166,7 +1166,7 @@
                                                 <td class="text-right align-middle pr-3" style="width: 25%;">
                                                     <div class="btn-group">
                                                         @if($doc->can_view_inline)
-                                                            <a href="{{ route('phase.doc.serve', ['id' => $doc->id, 'action' => 'view']) }}"
+                                                            <a href="{{ route('phase.doc.preview', $doc->id) }}"
                                                             target="_blank"
                                                             class="btn btn-xs btn-outline-info"
                                                             title="View in Browser">

@@ -302,7 +302,7 @@ class SecretariatApprovalService
                     'meta' => $this->approvalTypeLabel($next) . ' · ' . $progress['done'] . '/' . $progress['total'],
                     'url' => route('secretariat.phases.review', $phase),
                     'action_label' => $progress['done'] === 0 ? 'Authorize' : 'Continue',
-                    'secondary_url' => route('secretariat.phases.code-list', $phase),
+                    'secondary_url' => route('secretariat.phases.processed_code_list.preview', $phase),
                     'secondary_label' => 'Code list',
                 ];
             })->all(),
