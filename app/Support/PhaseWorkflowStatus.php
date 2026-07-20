@@ -62,26 +62,13 @@ class PhaseWorkflowStatus
     {
         $phase->loadMissing('secretariatApprovals');
 
-        $hasTrainingAuth = app(SecretariatApprovalService::class)
-            ->hasApproval($phase, SecretariatApproval::TYPE_TRAINING_AUTHORIZATION);
-
         return match ($phase->status) {
             'submitted_to_hq' => [
                 'label' => 'At HQ Review',
                 'value' => 'at_hq_review',
                 'class' => 'bg-blue-50 border-blue-200 text-blue-700',
             ],
-            'approved' => $hasTrainingAuth
-                ? [
-                    'label' => 'Schedule Training',
-                    'value' => 'schedule_training',
-                    'class' => 'bg-indigo-50 border-indigo-200 text-indigo-700',
-                ]
-                : [
-                    'label' => 'Awaiting Head of Secretariat Approval',
-                    'value' => 'awaiting_secretariat',
-                    'class' => 'bg-amber-50 border-amber-200 text-amber-700',
-                ],
+            'approved' => self::approvedPhaseDisplay($phase),
             'in_training' => [
                 'label' => 'Training',
                 'value' => 'training',
@@ -108,5 +95,36 @@ class PhaseWorkflowStatus
                 'class' => 'bg-gray-50 border-gray-200 text-gray-700',
             ],
         };
+    }
+
+    /**
+     * @return array{label: string, value: string, class: string}
+     */
+    private static function approvedPhaseDisplay(LoanPhase $phase): array
+    {
+        $service = app(SecretariatApprovalService::class);
+
+        if ($service->hasApproval($phase, SecretariatApproval::TYPE_TRAINING_AUTHORIZATION)) {
+            return [
+                'label' => 'Schedule Training',
+                'value' => 'schedule_training',
+                'class' => 'bg-indigo-50 border-indigo-200 text-indigo-700',
+            ];
+        }
+
+        $next = $service->nextPendingApprovalType($phase);
+
+        $label = match ($next) {
+            SecretariatApproval::TYPE_POST_HQ_REVIEW => 'Awaiting Head of Secretariat Approval',
+            SecretariatApproval::TYPE_FUND_TRANSFER => 'Awaiting Fund Transfer Authorization',
+            SecretariatApproval::TYPE_TRAINING_AUTHORIZATION => 'Awaiting Training Authorization',
+            default => 'Awaiting Secretariat Authorization',
+        };
+
+        return [
+            'label' => $label,
+            'value' => 'awaiting_secretariat',
+            'class' => 'bg-amber-50 border-amber-200 text-amber-700',
+        ];
     }
 }
