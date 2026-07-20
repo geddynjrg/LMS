@@ -10,6 +10,7 @@ class PhaseCodeListAccess
     public static function phaseCanBeViewedBy(?User $user, LoanPhase $phase): bool
     {
         return HqAccess::phaseCanBeViewedBy($user, $phase)
-            || SecretariatAccess::phaseCanBeViewedBy($user, $phase);
+            || SecretariatAccess::phaseCanBeViewedBy($user, $phase)
+            || AccountantAccess::phaseCanBeViewedBy($user, $phase);
     }
 }
