@@ -378,6 +378,23 @@ class DataUpload extends Component
         ];
     }
 
+    private function normalizeImportResultErrors(array $result): array
+    {
+        if (($result['success'] ?? true) || empty($result['errors'])) {
+            return $result;
+        }
+
+        $firstError = $result['errors'][0] ?? null;
+        if (!is_array($firstError)) {
+            $parsed = $this->parseValidationErrors(implode("\n", $result['errors']));
+            $result['errors'] = $parsed['errors'];
+            $result['total_errors'] = $parsed['total'];
+            $result['display_errors'] = $parsed['display'];
+        }
+
+        return $result;
+    }
+
     public function groupLoansForm()
     {
         $this->prepareImportEnvironment();
@@ -576,6 +593,7 @@ class DataUpload extends Component
 
         $result = Cache::get($resultKey);
         if ($result && (!$progress || ($progress['status'] ?? '') === 'done')) {
+            $result = $this->normalizeImportResultErrors($result);
             $this->groupMembersImportResult = $result;
             $this->importingGroupMembers = false;
 
