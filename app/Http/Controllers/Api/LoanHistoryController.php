@@ -32,11 +32,7 @@ class LoanHistoryController extends Controller
 
     public function checkGroup(Request $request, string $registrationNumber): JsonResponse
     {
-        $result = $this->debtCheckService->checkGroupByRegistrationNumber(
-            $registrationNumber,
-            $request->query('group_name'),
-            $request->query('constituency_name'),
-        );
+        $result = $this->debtCheckService->checkGroupByRegistrationNumber($registrationNumber);
 
         return response()->json([
             'success' => true,

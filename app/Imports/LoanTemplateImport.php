@@ -136,6 +136,7 @@ class LoanTemplateImport implements
                     throw new \Exception("Validation errors found:\n" . implode("\n", $this->errors));
                 }
                 // database validation on all collected data
+                $this->validateConsistentGfsCodeForGroupName();
                 $this->validateAgainstDatabaseAfterDoc();
 
                 if (!empty($this->errors)) {
@@ -592,6 +593,49 @@ class LoanTemplateImport implements
             'rowNumber' => $rowNumber,
             'group_code' => $groupCode,
         ];
+    }
+
+    private function validateConsistentGfsCodeForGroupName(): void
+    {
+        if (empty($this->docEntries)) {
+            return;
+        }
+
+        $namesToCodes = [];
+
+        foreach ($this->docEntries as $entry) {
+            $nameKey = strtolower(trim($entry['group_name'] ?? ''));
+            $groupCode = trim($entry['group_code'] ?? '');
+
+            if ($nameKey === '' || $groupCode === '') {
+                continue;
+            }
+
+            if (!isset($namesToCodes[$nameKey])) {
+                $namesToCodes[$nameKey] = [
+                    'group_name' => $entry['group_name'],
+                    'codes' => [],
+                ];
+            }
+
+            $namesToCodes[$nameKey]['codes'][$groupCode][] = $entry['rowNumber'];
+        }
+
+        foreach ($namesToCodes as $data) {
+            if (count($data['codes']) <= 1) {
+                continue;
+            }
+
+            $details = [];
+            foreach ($data['codes'] as $code => $rows) {
+                $details[] = "GFS suffix '{$code}' (rows: " . implode(', ', $rows) . ')';
+            }
+
+            $this->errors[] = "Group '{$data['group_name']}' appears with multiple GFS code suffixes in this document. "
+                . 'All rows for the same group must use the same GFS code. Found: '
+                . implode('; ', $details)
+                . '. Example: Phase 5 refinancing must keep the same GFS suffix as Phase 1.';
+        }
     }
 
     private function validateAgainstDatabaseAfterDoc(): void
