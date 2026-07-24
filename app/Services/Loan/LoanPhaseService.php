@@ -876,6 +876,11 @@ class LoanPhaseService
         return (int) round(($vettedCount / $total) * 100);
     }
 
+    public function invalidateCodeListReportCache(string $constituencyCode): void
+    {
+        Cache::forget("code_list_report_{$constituencyCode}");
+    }
+
     public function invalidatePhasesCache(string $constituencyCode): void
     {
         $phases_detailed = config('cache.tags.phases.constituency_detailed') . $constituencyCode;
@@ -884,6 +889,7 @@ class LoanPhaseService
         // Clear all cache entries associated with this tags
         Cache::tags([$phases_detailed])->flush();
         Cache::tags([$phases_summary])->flush();
+        $this->invalidateCodeListReportCache($constituencyCode);
     }
 
     public function uploadPhaseTypedDocument($phase, $uploadDocumentFile, $filePayload) : void

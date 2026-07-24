@@ -6,6 +6,7 @@ namespace App\Imports;
 use App\Models\GroupLoan;
 use App\Models\LoanPhase;
 use App\Models\Group;
+use App\Services\Loan\LoanPhaseService;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Maatwebsite\Excel\Concerns\WithChunkReading;
@@ -232,6 +233,8 @@ class GroupLoansImport implements ToCollection, WithChunkReading, WithBatchInser
         if ($this->importedCount === 0) {
             throw new \Exception('No new group loans were imported. All loans already exist or data was invalid.');
         }
+
+        app(LoanPhaseService::class)->invalidateCodeListReportCache($this->constituencyCode);
     }
 
     /**

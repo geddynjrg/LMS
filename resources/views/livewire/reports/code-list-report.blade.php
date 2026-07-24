@@ -151,7 +151,7 @@
                     @foreach ($loanPhases as $phase)
                         @foreach ($levelOrder as $level)
                             @php
-                                $levelLoans = $phase->grouploans->filter(fn ($grouploan) => ($grouploan->loan_type ?? $grouploan->level ?? null) === $level);
+                                $levelLoans = $phase->grouploans->filter(fn ($grouploan) => ($grouploan->resolved_loan_type ?? $grouploan->loan_type ?? null) === $level);
                             @endphp
 
                             @if($levelLoans->isNotEmpty())

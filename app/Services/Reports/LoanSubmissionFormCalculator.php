@@ -83,6 +83,7 @@ class LoanSubmissionFormCalculator
     public function decorateLoan($loan): mixed
     {
         $analysis = $this->analyzeLoan($loan);
+        $loan->resolved_loan_type = $this->resolveLoanType($loan);
         $loan->variance = $this->variance($loan);
         $loan->amount_due = $analysis['amount_due'];
         $loan->arrears = $analysis['arrears'];
@@ -93,19 +94,35 @@ class LoanSubmissionFormCalculator
         return $loan;
     }
 
+    public function sortPhases($phases)
+    {
+        return $phases->sortBy(fn ($phase) => $this->phaseSortKey($phase->phase))->values();
+    }
+
     public function preparePhases($phases)
     {
-        return $phases->map(function ($phase) {
+        return $this->sortPhases($phases)->map(function ($phase) {
             $phase->grouploans = $phase->grouploans
                 ->whereIn('loan_status', ['financed', 'cancelled'])
                 ->sortBy(function ($grouploan) {
                     $loanType = $this->resolveLoanType($grouploan);
+                    $index = array_search($loanType, self::LOAN_TYPE_ORDER, true);
 
-                    return array_search($loanType, self::LOAN_TYPE_ORDER);
+                    return $index === false ? count(self::LOAN_TYPE_ORDER) : $index;
                 })
+                ->values()
                 ->map(fn ($grouploan) => $this->decorateLoan($grouploan));
 
             return $phase;
         });
+    }
+
+    private function phaseSortKey(string $phaseName): string
+    {
+        if (preg_match('/(\d+)/', $phaseName, $matches)) {
+            return str_pad($matches[1], 4, '0', STR_PAD_LEFT) . strtolower($phaseName);
+        }
+
+        return '9999' . strtolower($phaseName);
     }
 }

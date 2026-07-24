@@ -201,6 +201,8 @@ class DataUpload extends Component
             $this->loanPhasesData = null;
             unset($this->getPhases);
 
+            $this->loanPhaseService->invalidateCodeListReportCache($this->constituency->constituency_code);
+
             $this->dispatch('swal:toast',
                 title: 'Data Upload 😊',
                 message: 'Phase Data Successfully Uploaded.',
@@ -426,6 +428,8 @@ class DataUpload extends Component
 
             $this->groupLoansData = null;
             $this->dispatch('stop-groups-polling');
+
+            $this->loanPhaseService->invalidateCodeListReportCache($this->constituency->constituency_code);
 
         } catch (\Exception $e) {
             $errorMessage = $e->getMessage();

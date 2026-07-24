@@ -4,6 +4,7 @@
 namespace App\Imports;
 
 use App\Models\LoanPhase;
+use App\Services\Loan\LoanPhaseService;
 use Maatwebsite\Excel\Concerns\ToCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -113,6 +114,10 @@ class LoanPhasesImport implements ToCollection
 
         // Clear the progress cache when done
         $this->clearProgress();
+
+        if ($this->importedCount > 0) {
+            app(LoanPhaseService::class)->invalidateCodeListReportCache($this->constituencyCode);
+        }
 
         if ($this->importedCount === 0 && $this->skippedCount === 0) {
             throw new \Exception('No valid phase data found in the file.');
