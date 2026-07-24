@@ -60,7 +60,7 @@ class CodeListReport extends Component
             $phase->grouploans = $phase->grouploans
                 ->whereIn('loan_status', ['financed', 'cancelled'])
                 ->sortBy(function ($grouploan) {
-                    return array_search($grouploan->level, ['New', 'Resubmission', 'Refinancing', 'Reallocation']);
+                    return array_search($grouploan->loan_type, ['New', 'Resubmission', 'Refinancing', 'Reallocation']);
                 })
                 ->map(function ($grouploan) {
                     // Add calculated fields to each grouploan
@@ -167,34 +167,12 @@ class CodeListReport extends Component
 
     private function calculateRepaymentCompletionDate($loan, $analysis)
     {
-        // Handle cancelled loans or loans with no disbursement date
         if (!$loan->disbursement_date || $loan->loan_status === 'cancelled') {
             return null;
         }
 
-        // Calculate expected completion date
-        $disbursementDate = Carbon::parse($loan->disbursement_date);
-        $gracePeriodEnd = $disbursementDate->copy()->addMonths(6);
-
-        // If still in grace period, completion is 30 months from disbursement
-        if (Carbon::now()->lte($gracePeriodEnd)) {
-            return $disbursementDate->copy()->addMonths(30)->format('Y-m-d');
-        }
-
-        // Calculate remaining months based on current repayment rate
-        $remainingAmount = $loan->amount_issued - $loan->amount_repaid;
-
-        if ($analysis['monthly_installment'] > 0) {
-            $remainingMonths = ceil($remainingAmount / $analysis['monthly_installment']);
-            $completionDate = Carbon::now()->addMonths($remainingMonths);
-
-            // Cap at maximum loan period (30 months from disbursement)
-            $maxCompletionDate = $disbursementDate->copy()->addMonths(30);
-
-            return $completionDate->min($maxCompletionDate)->format('Y-m-d');
-        }
-
-        return 'Not Available';
+        // Statutory completion date: 6-month grace + 24-month repayment = 30 months from disbursement.
+        return Carbon::parse($loan->disbursement_date)->addMonths(30)->format('Y-m-d');
     }
 
     public function render()

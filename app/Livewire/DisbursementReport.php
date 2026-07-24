@@ -2,31 +2,46 @@
 
 namespace App\Livewire;
 
+use App\Exports\ConstituencyDisbursementExport;
 use App\Models\Constituency;
 use App\Models\County;
-use Livewire\Component;
-use App\Models\Group;
+use App\Models\GroupLoan;
 use Carbon\Carbon;
-use App\Exports\GroupInstInfor;
+use Livewire\Component;
 use Maatwebsite\Excel\Facades\Excel;
 
 class DisbursementReport extends Component
 {
-
-    public Group $group;
     public $date;
     public County $county;
     public Constituency $constituency;
+    public $disbursements;
+    public $totalAmountIssued = 0;
 
-    public function mount (County $county, Constituency $constituency)
+    public function mount(County $county, Constituency $constituency)
     {
-        $constituency->load([
-            'wards.groups'
-        ]);
         $this->county = $county;
-        $this->constituency = $constituency;
+        $this->constituency = $constituency->load('county');
         $this->date = $this->fy(Carbon::now()->isoFormat('Do MMMM YYYY'));
-        $this->group = $this->constituency->wards[0]->groups[0];
+        $this->loadDisbursements();
+    }
+
+    private function loadDisbursements(): void
+    {
+        $this->disbursements = GroupLoan::query()
+            ->where('loan_status', 'financed')
+            ->whereHas('group.ward', function ($query) {
+                $query->where('constituency_code', $this->constituency->constituency_code);
+            })
+            ->with([
+                'group.ward',
+                'loanPhase' => fn ($query) => $query->select('id', 'phase', 'constituency_code'),
+            ])
+            ->orderByDesc('disbursement_date')
+            ->orderBy('loan_type')
+            ->get();
+
+        $this->totalAmountIssued = $this->disbursements->sum('amount_issued');
     }
 
     private function fy($date)
@@ -34,7 +49,6 @@ class DisbursementReport extends Component
         $date = Carbon::parse($date);
         $year = $date->year;
 
-        // Financial year starts on 1st July and ends on 30th June
         if ($date->month > 6) {
             $financialYear = $year . '/' . ($year + 1);
         } else {
@@ -46,13 +60,19 @@ class DisbursementReport extends Component
 
     public function export()
     {
-        return Excel::download(new GroupInstInfor($this->group, $this->constituency), $this->group->name.'_institutional_information.xlsx');
+        $fileName = ucwords(strtolower($this->constituency->constituency_name))
+            . '_Disbursement_Report_'
+            . now()->format('Y-m-d')
+            . '.xlsx';
+
+        return Excel::download(
+            new ConstituencyDisbursementExport($this->constituency, $this->disbursements),
+            $fileName
+        );
     }
 
     public function render()
     {
-
-
         return view('livewire.reports.disbursement-report');
     }
 }

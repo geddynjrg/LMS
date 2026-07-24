@@ -489,45 +489,8 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
             return 'N/A';
         }
 
-        // If loan is fully repaid
-        // if ($grouploan->amount_repaid >= $grouploan->amount_issued) {
-        //     return 'Fully Repaid';
-        // }
-
-        $disbursementDate = Carbon::parse($grouploan->disbursement_date);
-
-        // If still in grace period
-        $gracePeriodEnd = $disbursementDate->copy()->addMonths(6);
-        if (Carbon::now()->lte($gracePeriodEnd)) {
-            return $disbursementDate->copy()->addMonths(30)->format('Y-m-d');
-        }
-
-        // Calculate based on current repayment rate
-        $remainingAmount = $grouploan->amount_issued - $grouploan->amount_repaid;
-
-        if ($analysis['amount_due'] > 0 && $analysis['months_in_repayment'] > 0) {
-            // Calculate monthly repayment rate based on actual performance
-            $monthlyRepaymentRate = $analysis['amount_due'] / $analysis['months_in_repayment'];
-
-            if ($monthlyRepaymentRate > 0) {
-                $remainingMonths = ceil($remainingAmount / $monthlyRepaymentRate);
-                $completionDate = Carbon::now()->addMonths($remainingMonths);
-                $maxCompletionDate = $disbursementDate->copy()->addMonths(30);
-
-                return $completionDate->min($maxCompletionDate)->format('Y-m-d');
-            }
-        }
-
-        // Fallback: use the monthly installment for calculation
-        if ($analysis['monthly_installment'] > 0) {
-            $remainingMonths = ceil($remainingAmount / $analysis['monthly_installment']);
-            $completionDate = Carbon::now()->addMonths($remainingMonths);
-            $maxCompletionDate = $disbursementDate->copy()->addMonths(30);
-
-            return $completionDate->min($maxCompletionDate)->format('Y-m-d');
-        }
-
-        return 'Not Available';
+        // Statutory completion date: 6-month grace + 24-month repayment = 30 months from disbursement.
+        return Carbon::parse($grouploan->disbursement_date)->addMonths(30)->format('Y-m-d');
     }
 
     private function addLogo(AfterSheet $event)
