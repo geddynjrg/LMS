@@ -7,7 +7,6 @@ use App\Models\GroupLoan;
 use App\Models\GroupMember;
 use App\Models\LoanPhase;
 use App\Models\LoanReceipts;
-use App\Models\PhaseApplicationDocument;
 use App\Models\PhaseComment;
 use App\Models\TempApplication;
 use App\Models\User;
@@ -161,10 +160,6 @@ class TempApplicationDeleteService
 
         $phase = $phaseApplication->loanPhase;
         $groupLoanId = $phaseApplication->group_loan_id;
-
-        PhaseApplicationDocument::query()
-            ->where('phase_application_id', $phaseApplication->id)
-            ->delete();
 
         PhaseComment::query()
             ->where('phase_application_id', $phaseApplication->id)

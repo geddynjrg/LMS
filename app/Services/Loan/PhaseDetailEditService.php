@@ -265,10 +265,6 @@ class PhaseDetailEditService
     {
         $groupLoanId = $phaseApplication->group_loan_id;
 
-        PhaseApplicationDocument::query()
-            ->where('phase_application_id', $phaseApplication->id)
-            ->delete();
-
         PhaseComment::query()
             ->where('phase_application_id', $phaseApplication->id)
             ->delete();

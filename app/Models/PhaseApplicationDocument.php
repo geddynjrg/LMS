@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 class PhaseApplicationDocument extends Model
 {
     protected $fillable = [
-        'phase_application_id',
+        'loan_phase_id',
         'document_source',
         'title',
         'document_type',
