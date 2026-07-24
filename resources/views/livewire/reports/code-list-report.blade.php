@@ -148,10 +148,10 @@
                         $levelOrder = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
                     @endphp
 
-                    @foreach ($phases as $phase)
+                    @foreach ($loanPhases as $phase)
                         @foreach ($levelOrder as $level)
                             @php
-                                $levelLoans = $phase->grouploans->where('loan_type', $level);
+                                $levelLoans = $phase->grouploans->filter(fn ($grouploan) => ($grouploan->loan_type ?? $grouploan->level ?? null) === $level);
                             @endphp
 
                             @if($levelLoans->isNotEmpty())

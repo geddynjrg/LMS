@@ -3,13 +3,12 @@
 namespace App\Livewire;
 
 use App\Exports\LoanSubmExport;
-use Maatwebsite\Excel\Facades\Excel;
-use Livewire\Component;
-use App\Models\LoanPhase;
 use App\Models\Constituency;
 use App\Models\County;
+use App\Services\Reports\LoanSubmissionFormCalculator;
 use Illuminate\Support\Facades\Cache;
-use Carbon\Carbon;
+use Livewire\Component;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CodeListReport extends Component
 {
@@ -26,58 +25,47 @@ class CodeListReport extends Component
     public Constituency $constituency;
     public $phases;
 
-    // Cache configuration
-    protected $cacheTtl = 3600; // 1 hour
+    protected $cacheTtl = 3600;
 
-    public function mount(County $county, Constituency $constituency)
+    protected LoanSubmissionFormCalculator $calculator;
+
+    public function mount(County $county, Constituency $constituency): void
     {
+        $this->calculator = app(LoanSubmissionFormCalculator::class);
         $this->county = $county;
         $this->constituency = $constituency;
         $this->loadData();
     }
 
-    private function loadData()
+    private function cacheKey(): string
     {
-        $cacheKey = "code_list_report_{$this->constituency->constituency_code}";
+        return "code_list_report_{$this->constituency->constituency_code}";
+    }
 
-        $data = Cache::remember($cacheKey, $this->cacheTtl, function () {
+    private function loadData(bool $forceRefresh = false): void
+    {
+        if ($forceRefresh) {
+            Cache::forget($this->cacheKey());
+        }
+
+        $data = Cache::remember($this->cacheKey(), $this->cacheTtl, function () {
             return $this->constituency->load([
                 'phases.grouploans' => function ($query) {
                     $query->whereIn('loan_status', ['financed', 'cancelled'])
-                          ->with('group');
-                }
+                        ->with('group');
+                },
             ]);
         });
 
         $this->constituency = $data;
         $this->phases = $this->constituency->phases;
-        $this->getLoanPhases();
+        $this->applyCalculations();
     }
 
-    private function getLoanPhases()
+    private function applyCalculations(): void
     {
-        $this->loanPhases = $this->phases->map(function ($phase) {
-            $phase->grouploans = $phase->grouploans
-                ->whereIn('loan_status', ['financed', 'cancelled'])
-                ->sortBy(function ($grouploan) {
-                    return array_search($grouploan->loan_type, ['New', 'Resubmission', 'Refinancing', 'Reallocation']);
-                })
-                ->map(function ($grouploan) {
-                    // Add calculated fields to each grouploan
-                    $analysis = $this->analyzeSingleLoan($grouploan);
-                    $grouploan->variance = $grouploan->amount_approved - $grouploan->amount_issued;
-                    $grouploan->amount_due = $analysis['amount_due'];
-                    $grouploan->arrears = $analysis['arrears'];
-                    $grouploan->outstanding_balance = $grouploan->amount_issued - $grouploan->amount_repaid;
-                    $grouploan->repayment_completion_date = $this->calculateRepaymentCompletionDate($grouploan, $analysis);
-                    $grouploan->analysis = $analysis;
+        $this->loanPhases = $this->calculator->preparePhases($this->phases);
 
-                    return $grouploan;
-                });
-            return $phase;
-        });
-
-        // Calculate totals using collections
         $allGroupLoans = $this->loanPhases->pluck('grouploans')->flatten();
 
         $this->totalAmountApproved = $allGroupLoans->sum('amount_approved');
@@ -89,92 +77,6 @@ class CodeListReport extends Component
         $this->totalOutstandingBalance = $allGroupLoans->sum('outstanding_balance');
     }
 
-    private function analyzeSingleLoan($loan)
-    {
-        // Handle cancelled loans with null disbursement date
-        if (!$loan->disbursement_date || $loan->loan_status === 'cancelled') {
-            return [
-                'is_active' => false,
-                'is_defaulted' => false,
-                'amount_due' => 0,
-                'arrears' => 0,
-                'months_defaulted' => 0,
-                'months_in_repayment' => 0,
-                'monthly_installment' => 0,
-            ];
-        }
-
-        $disbursementDate = Carbon::parse($loan->disbursement_date);
-        $today = Carbon::now();
-
-        // Calculate total months since disbursement
-        $totalMonthsSinceDisbursement = $disbursementDate->diffInMonths($today);
-
-        // Grace period: 6 months
-        $gracePeriodEnd = $disbursementDate->copy()->addMonths(6);
-
-        // Check if still in grace period
-        if ($today->lte($gracePeriodEnd)) {
-            return [
-                'is_active' => true,
-                'is_defaulted' => false,
-                'amount_due' => 0,
-                'arrears' => 0,
-                'months_defaulted' => 0,
-                'months_in_repayment' => 0,
-                'monthly_installment' => $loan->amount_issued / 24,
-            ];
-        }
-
-        // Repayment period calculation
-        $repaymentStart = $gracePeriodEnd->copy()->addDay();
-        $monthsInRepayment = $repaymentStart->diffInMonths($today);
-
-        // Cap at 24 months for amount due calculation
-        $monthsInRepaymentForDue = min($monthsInRepayment, 24);
-
-        // Monthly installment
-        $monthlyInstallment = $loan->amount_issued / 24;
-
-        // Amount due (what should have been paid by now)
-        $amountDue = $monthlyInstallment * $monthsInRepaymentForDue;
-
-        // Arrears (amount due minus amount repaid)
-        $arrears = max($amountDue - $loan->amount_repaid, 0);
-
-        // Check if defaulted (arrears > 0)
-        $isDefaulted = $arrears > 0;
-
-        // Calculate months defaulted
-        $monthsDefaulted = 0;
-        if ($isDefaulted && $monthlyInstallment > 0) {
-            $monthsDefaulted = floor($arrears / $monthlyInstallment);
-        }
-
-        // Loan is active if still within repayment period or has arrears
-        $isActive = $totalMonthsSinceDisbursement <= 30 || $arrears > 0;
-
-        return [
-            'is_active' => $isActive,
-            'is_defaulted' => $isDefaulted,
-            'amount_due' => $amountDue,
-            'arrears' => $arrears,
-            'months_defaulted' => $monthsDefaulted,
-            'months_in_repayment' => $monthsInRepaymentForDue,
-            'monthly_installment' => $monthlyInstallment,
-        ];
-    }
-
-    private function calculateRepaymentCompletionDate($loan, $analysis)
-    {
-        if (!$loan->disbursement_date || $loan->loan_status === 'cancelled') {
-            return null;
-        }
-
-        // Statutory completion date: 6-month grace + 24-month repayment = 30 months from disbursement.
-        return Carbon::parse($loan->disbursement_date)->addMonths(30)->format('Y-m-d');
-    }
-
     public function render()
     {
         return view('livewire.reports.code-list-report');
@@ -182,15 +84,22 @@ class CodeListReport extends Component
 
     public function export()
     {
-        Cache::forget("code_list_report_{$this->constituency->constituency_code}");
-        $fileName = ucwords(strtolower($this->constituency->constituency_name)) .'_Loan_Submission_Report_'. date('Y-m-d') . '.xlsx';
-        return Excel::download(new LoanSubmExport($this->constituency, $this->phases), $fileName);
+        $this->loadData(true);
+
+        $fileName = ucwords(strtolower($this->constituency->constituency_name))
+            . '_Loan_Submission_Report_'
+            . now()->format('Y-m-d_His')
+            . '.xlsx';
+
+        return Excel::download(
+            new LoanSubmExport($this->constituency, $this->loanPhases, $this->calculator),
+            $fileName
+        );
     }
 
-    public function clearCache()
+    public function clearCache(): void
     {
-        Cache::forget("code_list_report_{$this->constituency->constituency_code}");
-        $this->loadData();
+        $this->loadData(true);
         session()->flash('message', 'Cache cleared successfully.');
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Constituency;
+use App\Services\Reports\LoanSubmissionFormCalculator;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithTitle;
@@ -15,19 +16,20 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithStyles, WithColumnWidths, WithEvents
 {
     protected $constituency;
     protected $phases;
+    protected $calculator;
     protected $levelOrder;
 
-    public function __construct(Constituency $constituency, $phases)
+    public function __construct(Constituency $constituency, $phases, ?LoanSubmissionFormCalculator $calculator = null)
     {
         $this->constituency = $constituency;
         $this->phases = $phases;
-        $this->levelOrder = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
+        $this->calculator = $calculator ?? app(LoanSubmissionFormCalculator::class);
+        $this->levelOrder = LoanSubmissionFormCalculator::LOAN_TYPE_ORDER;
     }
 
     public function collection()
@@ -37,7 +39,9 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
 
         foreach ($this->phases as $phase) {
             foreach ($this->levelOrder as $level) {
-                $levelLoans = $phase->grouploans->where('loan_type', $level);
+                $levelLoans = $phase->grouploans->filter(function ($grouploan) use ($level) {
+                    return $this->calculator->resolveLoanType($grouploan) === $level;
+                });
 
                 if ($levelLoans->isNotEmpty()) {
                     $data->push([
@@ -58,7 +62,9 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                     ]);
 
                     foreach ($levelLoans as $grouploan) {
-                        $analysis = $this->analyzeSingleLoan($grouploan);
+                        $analysis = $this->calculator->analyzeLoan($grouploan);
+                        $amountIssued = $grouploan->amount_issued ?: 0;
+                        $amountRepaid = $grouploan->amount_repaid ?: 0;
 
                         $data->push([
                             'S/N' => $i++,
@@ -68,14 +74,13 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                             'Sector' => $grouploan->sector ?? 'N/A',
                             'Category' => $grouploan->category ?? 'N/A',
                             'Amount Approved' => $grouploan->amount_approved ?: '0',
-                            'Actual Amount Issued' => $grouploan->amount_issued ?: '0',
-                            'Variance' => (($grouploan->amount_approved ?: 0) - ($grouploan->amount_issued ?: 0)) ?: '0',
-                            //'Variance' => ($levelLoans->sum('amount_approved') ?? 0) - ($levelLoans->sum('amount_issued') ?? 0),
-                            'Amount Due' => $analysis['amount_due'] ?: '0',
-                            'Cummulative Amount repaid' => $grouploan->amount_repaid ?: '0',
-                            'Amount in arrears' => $analysis['arrears'] ?: '0',
-                            'Outstanding Loan Balance' => (($grouploan->amount_issued ?: 0) - ($grouploan->amount_repaid ?: 0)) ?: '0',
-                            'Date of Repayment completion' => $this->calculateRepaymentCompletionDate($grouploan, $analysis),
+                            'Actual Amount Issued' => $amountIssued ?: '0',
+                            'Variance' => (($grouploan->amount_approved ?: 0) - $amountIssued) ?: '0',
+                            'Amount Due' => round($analysis['amount_due'], 2) ?: '0',
+                            'Cummulative Amount repaid' => $amountRepaid ?: '0',
+                            'Amount in arrears' => round($analysis['arrears'], 2) ?: '0',
+                            'Outstanding Loan Balance' => ($amountIssued - $amountRepaid) ?: '0',
+                            'Date of Repayment completion' => $this->calculator->repaymentCompletionDate($grouploan) ?? 'N/A',
                         ]);
                     }
 
@@ -90,15 +95,13 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                         'Amount Approved' => $levelLoans->sum('amount_approved') ?: '0',
                         'Actual Amount Issued' => $levelLoans->sum('amount_issued') ?: '0',
                         'Variance' => ($levelLoans->sum('amount_approved') - $levelLoans->sum('amount_issued')) ?: '0',
-                        'Amount Due' => $levelLoans->sum(function($loan) {
-                            $analysis = $this->analyzeSingleLoan($loan);
-                            return $analysis['amount_due'];
-                        })?: '0',
-                        'Cummulative Amount repaid' => $levelLoans->sum('amount_repaid')?: '0',
-                        'Amount in arrears' => $levelLoans->sum(function($loan) {
-                            $analysis = $this->analyzeSingleLoan($loan);
-                            return $analysis['arrears'];
-                        })?: '0',
+                        'Amount Due' => $levelLoans->sum(function ($loan) {
+                            return $this->calculator->analyzeLoan($loan)['amount_due'];
+                        }) ?: '0',
+                        'Cummulative Amount repaid' => $levelLoans->sum('amount_repaid') ?: '0',
+                        'Amount in arrears' => $levelLoans->sum(function ($loan) {
+                            return $this->calculator->analyzeLoan($loan)['arrears'];
+                        }) ?: '0',
                         'Outstanding Loan Balance' => ($levelLoans->sum('amount_issued') - $levelLoans->sum('amount_repaid'))?: '0',
                         'Date of Repayment completion' => '',
                     ]);
@@ -118,14 +121,12 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
             'Amount Approved' => $allLoans->sum('amount_approved'),
             'Actual Amount Issued' => $allLoans->sum('amount_issued'),
             'Variance' => $allLoans->sum('amount_approved') - $allLoans->sum('amount_issued'),
-            'Amount Due' => $allLoans->sum(function($loan) {
-                $analysis = $this->analyzeSingleLoan($loan);
-                return $analysis['amount_due'];
+            'Amount Due' => $allLoans->sum(function ($loan) {
+                return $this->calculator->analyzeLoan($loan)['amount_due'];
             }),
             'Cummulative Amount repaid' => $allLoans->sum('amount_repaid'),
-            'Amount in arrears' => $allLoans->sum(function($loan) {
-                $analysis = $this->analyzeSingleLoan($loan);
-                return $analysis['arrears'];
+            'Amount in arrears' => $allLoans->sum(function ($loan) {
+                return $this->calculator->analyzeLoan($loan)['arrears'];
             }),
             'Outstanding Loan Balance' => $allLoans->sum('amount_issued') - $allLoans->sum('amount_repaid'),
             'Date of Repayment completion' => '',
@@ -430,67 +431,6 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                 ]);
             },
         ];
-    }
-
-    private function analyzeSingleLoan($loan)
-    {
-        if (!$loan->disbursement_date || $loan->loan_status === 'cancelled') {
-            return [
-                'amount_due' => 0,
-                'arrears' => 0,
-                'months_in_repayment' => 0,
-                'monthly_installment' => 0,
-            ];
-        }
-
-        $disbursementDate = Carbon::parse($loan->disbursement_date);
-        $today = Carbon::now();
-
-        // Grace period: 6 months
-        $gracePeriodEnd = $disbursementDate->copy()->addMonths(6);
-
-        // Check if still in grace period
-        if ($today->lte($gracePeriodEnd)) {
-            return [
-                'amount_due' => 0,
-                'arrears' => 0,
-                'months_in_repayment' => 0,
-                'monthly_installment' => $loan->amount_issued / 24,
-            ];
-        }
-
-        // Repayment period calculation
-        $repaymentStart = $gracePeriodEnd->copy()->addDay();
-        $monthsInRepayment = $repaymentStart->diffInMonths($today);
-
-        // Cap at 24 months for amount due calculation
-        $monthsInRepaymentForDue = min($monthsInRepayment, 24);
-
-        // Monthly installment
-        $monthlyInstallment = $loan->amount_issued / 24;
-
-        // Amount due (what should have been paid by now)
-        $amountDue = $monthlyInstallment * $monthsInRepaymentForDue;
-
-        // Arrears (amount due minus amount repaid)
-        $arrears = max($amountDue - $loan->amount_repaid, 0);
-
-        return [
-            'amount_due' => $amountDue,
-            'arrears' => $arrears,
-            'months_in_repayment' => $monthsInRepaymentForDue,
-            'monthly_installment' => $monthlyInstallment,
-        ];
-    }
-
-    private function calculateRepaymentCompletionDate($grouploan, $analysis)
-    {
-        if (!$grouploan->disbursement_date || $grouploan->loan_status === 'cancelled') {
-            return 'N/A';
-        }
-
-        // Statutory completion date: 6-month grace + 24-month repayment = 30 months from disbursement.
-        return Carbon::parse($grouploan->disbursement_date)->addMonths(30)->format('Y-m-d');
     }
 
     private function addLogo(AfterSheet $event)
