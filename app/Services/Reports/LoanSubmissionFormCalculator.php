@@ -19,24 +19,26 @@ class LoanSubmissionFormCalculator
             ];
         }
 
-        $disbursementDate = Carbon::parse($loan->disbursement_date);
+        $disbursementDate = $this->resolveDisbursementDate($loan);
         $today = Carbon::now();
-        $gracePeriodEnd = $disbursementDate->copy()->addMonths(6);
+        $amountIssued = $loan->amount_issued ?: 0;
+        $monthlyInstallment = $amountIssued / 24;
 
-        if ($today->lte($gracePeriodEnd)) {
+        $monthsElapsed = max(0, $disbursementDate->diffInMonths($today) - 6);
+
+        if ($monthsElapsed <= 0) {
             return [
                 'amount_due' => 0,
                 'arrears' => 0,
                 'months_in_repayment' => 0,
-                'monthly_installment' => ($loan->amount_issued ?: 0) / 24,
+                'monthly_installment' => $monthlyInstallment,
             ];
         }
 
-        $repaymentStart = $gracePeriodEnd->copy()->addDay();
-        $monthsInRepayment = $repaymentStart->diffInMonths($today);
-        $monthsInRepaymentForDue = min($monthsInRepayment, 24);
-        $monthlyInstallment = ($loan->amount_issued ?: 0) / 24;
-        $amountDue = $monthlyInstallment * $monthsInRepaymentForDue;
+        $monthsInRepaymentForDue = min($monthsElapsed, 24);
+        $amountDue = $monthsInRepaymentForDue >= 24
+            ? $amountIssued
+            : $monthlyInstallment * $monthsInRepaymentForDue;
         $amountRepaid = $loan->amount_repaid ?: 0;
         $arrears = max($amountDue - $amountRepaid, 0);
 
@@ -54,7 +56,7 @@ class LoanSubmissionFormCalculator
             return null;
         }
 
-        return Carbon::parse($loan->disbursement_date)->addMonths(30)->format('Y-m-d');
+        return $this->resolveDisbursementDate($loan)->copy()->addMonths(30)->format('Y-m-d');
     }
 
     public function outstandingBalance($loan): float
@@ -78,6 +80,29 @@ class LoanSubmissionFormCalculator
         $legacyLevel = trim((string) ($loan->level ?? ''));
 
         return $legacyLevel !== '' ? $legacyLevel : null;
+    }
+
+    public function resolveDisbursementDate($loan): Carbon
+    {
+        $disbursement = Carbon::parse($loan->disbursement_date)->startOfDay();
+        $phase = $loan->relationLoaded('loanPhase') ? $loan->loanPhase : null;
+
+        if (!$phase) {
+            return $disbursement;
+        }
+
+        $phaseYear = $this->extractPhaseYear($phase);
+
+        if (
+            $phaseYear
+            && $phase->created_at
+            && $disbursement->year === $phaseYear - 1
+            && $disbursement->lt($phase->created_at->copy()->startOfDay())
+        ) {
+            return $disbursement->copy()->year($phaseYear);
+        }
+
+        return $disbursement;
     }
 
     public function decorateLoan($loan): mixed
@@ -111,10 +136,23 @@ class LoanSubmissionFormCalculator
                     return $index === false ? count(self::LOAN_TYPE_ORDER) : $index;
                 })
                 ->values()
-                ->map(fn ($grouploan) => $this->decorateLoan($grouploan));
+                ->map(function ($grouploan) use ($phase) {
+                    $grouploan->setRelation('loanPhase', $phase);
+
+                    return $this->decorateLoan($grouploan);
+                });
 
             return $phase;
         });
+    }
+
+    private function extractPhaseYear($phase): ?int
+    {
+        if (!empty($phase->phase_ref) && preg_match('/\/(20\d{2})\//', $phase->phase_ref, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return null;
     }
 
     private function phaseSortKey(string $phaseName): string

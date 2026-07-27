@@ -51,7 +51,7 @@ class CodeListReport extends Component
             return $this->constituency->load([
                 'phases.grouploans' => function ($query) {
                     $query->whereIn('loan_status', ['financed', 'cancelled'])
-                        ->with('group');
+                        ->with(['group', 'loanPhase']);
                 },
             ]);
         });
