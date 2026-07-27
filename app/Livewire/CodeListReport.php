@@ -27,11 +27,10 @@ class CodeListReport extends Component
 
     protected $cacheTtl = 3600;
 
-    protected LoanSubmissionFormCalculator $calculator;
+    protected ?LoanSubmissionFormCalculator $calculator = null;
 
     public function mount(County $county, Constituency $constituency): void
     {
-        $this->calculator = app(LoanSubmissionFormCalculator::class);
         $this->county = $county;
         $this->constituency = $constituency;
         $this->loadData();
@@ -64,6 +63,8 @@ class CodeListReport extends Component
 
     private function applyCalculations(): void
     {
+        $this->calculator ??= app(LoanSubmissionFormCalculator::class);
+
         $this->loanPhases = $this->calculator->preparePhases($this->phases);
 
         $allGroupLoans = $this->loanPhases->pluck('grouploans')->flatten();
