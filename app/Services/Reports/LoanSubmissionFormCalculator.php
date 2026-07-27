@@ -8,7 +8,7 @@ class LoanSubmissionFormCalculator
 {
     public const LOAN_TYPE_ORDER = ['New', 'Resubmission', 'Refinancing', 'Reallocation'];
 
-    public function analyzeLoan($loan): array
+    public function analyzeLoan($loan, $phase = null): array
     {
         if (!$loan->disbursement_date || $loan->loan_status === 'cancelled') {
             return [
@@ -19,7 +19,7 @@ class LoanSubmissionFormCalculator
             ];
         }
 
-        $disbursementDate = $this->resolveDisbursementDate($loan);
+        $disbursementDate = $this->resolveDisbursementDate($loan, $phase);
         $today = Carbon::now();
         $amountIssued = $loan->amount_issued ?: 0;
         $monthlyInstallment = $amountIssued / 24;
@@ -50,13 +50,13 @@ class LoanSubmissionFormCalculator
         ];
     }
 
-    public function repaymentCompletionDate($loan): ?string
+    public function repaymentCompletionDate($loan, $phase = null): ?string
     {
         if (!$loan->disbursement_date || $loan->loan_status === 'cancelled') {
             return null;
         }
 
-        return $this->resolveDisbursementDate($loan)->copy()->addMonths(30)->format('Y-m-d');
+        return $this->resolveDisbursementDate($loan, $phase)->copy()->addMonths(30)->format('Y-m-d');
     }
 
     public function outstandingBalance($loan): float
@@ -82,10 +82,10 @@ class LoanSubmissionFormCalculator
         return $legacyLevel !== '' ? $legacyLevel : null;
     }
 
-    public function resolveDisbursementDate($loan): Carbon
+    public function resolveDisbursementDate($loan, $phase = null): Carbon
     {
         $disbursement = Carbon::parse($loan->disbursement_date)->startOfDay();
-        $phase = $loan->relationLoaded('loanPhase') ? $loan->loanPhase : null;
+        $phase ??= $loan->relationLoaded('loanPhase') ? $loan->loanPhase : null;
 
         if (!$phase) {
             return $disbursement;
@@ -105,15 +105,15 @@ class LoanSubmissionFormCalculator
         return $disbursement;
     }
 
-    public function decorateLoan($loan): mixed
+    public function decorateLoan($loan, $phase = null): mixed
     {
-        $analysis = $this->analyzeLoan($loan);
+        $analysis = $this->analyzeLoan($loan, $phase);
         $loan->resolved_loan_type = $this->resolveLoanType($loan);
         $loan->variance = $this->variance($loan);
         $loan->amount_due = $analysis['amount_due'];
         $loan->arrears = $analysis['arrears'];
         $loan->outstanding_balance = $this->outstandingBalance($loan);
-        $loan->repayment_completion_date = $this->repaymentCompletionDate($loan);
+        $loan->repayment_completion_date = $this->repaymentCompletionDate($loan, $phase);
         $loan->analysis = $analysis;
 
         return $loan;
@@ -136,11 +136,7 @@ class LoanSubmissionFormCalculator
                     return $index === false ? count(self::LOAN_TYPE_ORDER) : $index;
                 })
                 ->values()
-                ->map(function ($grouploan) use ($phase) {
-                    $grouploan->setRelation('loanPhase', $phase);
-
-                    return $this->decorateLoan($grouploan);
-                });
+                ->map(fn ($grouploan) => $this->decorateLoan($grouploan, $phase));
 
             return $phase;
         });

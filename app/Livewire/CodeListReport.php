@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class CodeListReport extends Component
 {
-    public $loanPhases;
+    protected $loanPhases;
     public $totalAmountApproved;
     public $totalAmountIssued;
     public $totalVariance;
@@ -23,7 +23,7 @@ class CodeListReport extends Component
 
     public County $county;
     public Constituency $constituency;
-    public $phases;
+    protected $phases;
 
     protected $cacheTtl = 3600;
 
@@ -80,7 +80,9 @@ class CodeListReport extends Component
 
     public function render()
     {
-        return view('livewire.reports.code-list-report');
+        return view('livewire.reports.code-list-report', [
+            'loanPhases' => $this->loanPhases,
+        ]);
     }
 
     public function export()
