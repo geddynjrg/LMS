@@ -80,6 +80,10 @@ class CodeListReport extends Component
 
     public function render()
     {
+        if ($this->phases && !$this->loanPhases) {
+            $this->applyCalculations();
+        }
+
         return view('livewire.reports.code-list-report', [
             'loanPhases' => $this->loanPhases,
         ]);

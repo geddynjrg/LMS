@@ -20,13 +20,12 @@ class LoanSubmissionFormCalculator
         }
 
         $disbursementDate = $this->resolveDisbursementDate($loan, $phase);
-        $today = Carbon::now();
+        $today = Carbon::now()->startOfDay();
         $amountIssued = $loan->amount_issued ?: 0;
         $monthlyInstallment = $amountIssued / 24;
+        $gracePeriodEnd = $disbursementDate->copy()->addMonths(6)->endOfDay();
 
-        $monthsElapsed = max(0, $disbursementDate->diffInMonths($today) - 6);
-
-        if ($monthsElapsed <= 0) {
+        if ($today->lte($gracePeriodEnd)) {
             return [
                 'amount_due' => 0,
                 'arrears' => 0,
@@ -35,7 +34,8 @@ class LoanSubmissionFormCalculator
             ];
         }
 
-        $monthsInRepaymentForDue = min($monthsElapsed, 24);
+        $repaymentStart = $gracePeriodEnd->copy()->addDay()->startOfDay();
+        $monthsInRepaymentForDue = min($repaymentStart->diffInMonths($today), 24);
         $amountDue = $monthsInRepaymentForDue >= 24
             ? $amountIssued
             : $monthlyInstallment * $monthsInRepaymentForDue;
@@ -86,6 +86,10 @@ class LoanSubmissionFormCalculator
     {
         $disbursement = Carbon::parse($loan->disbursement_date)->startOfDay();
         $phase ??= $loan->relationLoaded('loanPhase') ? $loan->loanPhase : null;
+
+        if (!$phase && !empty($loan->loan_phase_id)) {
+            $phase = $loan->loanPhase ?? null;
+        }
 
         if (!$phase) {
             return $disbursement;
@@ -146,6 +150,14 @@ class LoanSubmissionFormCalculator
     {
         if (!empty($phase->phase_ref) && preg_match('/\/(20\d{2})\//', $phase->phase_ref, $matches)) {
             return (int) $matches[1];
+        }
+
+        if (!empty($phase->phase_ref) && preg_match('/(20\d{2})/', $phase->phase_ref, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if ($phase->created_at) {
+            return (int) $phase->created_at->format('Y');
         }
 
         return null;

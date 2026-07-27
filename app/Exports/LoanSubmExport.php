@@ -62,9 +62,10 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                     ]);
 
                     foreach ($levelLoans as $grouploan) {
-                        $analysis = $this->calculator->analyzeLoan($grouploan);
                         $amountIssued = $grouploan->amount_issued ?: 0;
                         $amountRepaid = $grouploan->amount_repaid ?: 0;
+                        $amountDue = $grouploan->amount_due ?? $this->calculator->analyzeLoan($grouploan, $phase)['amount_due'];
+                        $arrears = $grouploan->arrears ?? $this->calculator->analyzeLoan($grouploan, $phase)['arrears'];
 
                         $data->push([
                             'S/N' => $i++,
@@ -76,11 +77,13 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                             'Amount Approved' => $grouploan->amount_approved ?: '0',
                             'Actual Amount Issued' => $amountIssued ?: '0',
                             'Variance' => (($grouploan->amount_approved ?: 0) - $amountIssued) ?: '0',
-                            'Amount Due' => round($analysis['amount_due'], 2) ?: '0',
+                            'Amount Due' => round($amountDue, 2) ?: '0',
                             'Cummulative Amount repaid' => $amountRepaid ?: '0',
-                            'Amount in arrears' => round($analysis['arrears'], 2) ?: '0',
+                            'Amount in arrears' => round($arrears, 2) ?: '0',
                             'Outstanding Loan Balance' => ($amountIssued - $amountRepaid) ?: '0',
-                            'Date of Repayment completion' => $this->calculator->repaymentCompletionDate($grouploan) ?? 'N/A',
+                            'Date of Repayment completion' => $grouploan->repayment_completion_date
+                                ?? $this->calculator->repaymentCompletionDate($grouploan, $phase)
+                                ?? 'N/A',
                         ]);
                     }
 
@@ -95,13 +98,9 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
                         'Amount Approved' => $levelLoans->sum('amount_approved') ?: '0',
                         'Actual Amount Issued' => $levelLoans->sum('amount_issued') ?: '0',
                         'Variance' => ($levelLoans->sum('amount_approved') - $levelLoans->sum('amount_issued')) ?: '0',
-                        'Amount Due' => $levelLoans->sum(function ($loan) {
-                            return $this->calculator->analyzeLoan($loan)['amount_due'];
-                        }) ?: '0',
+                        'Amount Due' => $levelLoans->sum(fn ($loan) => $loan->amount_due ?? $this->calculator->analyzeLoan($loan, $phase)['amount_due']) ?: '0',
                         'Cummulative Amount repaid' => $levelLoans->sum('amount_repaid') ?: '0',
-                        'Amount in arrears' => $levelLoans->sum(function ($loan) {
-                            return $this->calculator->analyzeLoan($loan)['arrears'];
-                        }) ?: '0',
+                        'Amount in arrears' => $levelLoans->sum(fn ($loan) => $loan->arrears ?? $this->calculator->analyzeLoan($loan, $phase)['arrears']) ?: '0',
                         'Outstanding Loan Balance' => ($levelLoans->sum('amount_issued') - $levelLoans->sum('amount_repaid'))?: '0',
                         'Date of Repayment completion' => '',
                     ]);
@@ -122,11 +121,15 @@ class LoanSubmExport implements FromCollection, WithHeadings, WithTitle, WithSty
             'Actual Amount Issued' => $allLoans->sum('amount_issued'),
             'Variance' => $allLoans->sum('amount_approved') - $allLoans->sum('amount_issued'),
             'Amount Due' => $allLoans->sum(function ($loan) {
-                return $this->calculator->analyzeLoan($loan)['amount_due'];
+                $loanPhase = $this->phases->first(fn ($item) => $item->grouploans->contains('id', $loan->id));
+
+                return $loan->amount_due ?? $this->calculator->analyzeLoan($loan, $loanPhase)['amount_due'];
             }),
             'Cummulative Amount repaid' => $allLoans->sum('amount_repaid'),
             'Amount in arrears' => $allLoans->sum(function ($loan) {
-                return $this->calculator->analyzeLoan($loan)['arrears'];
+                $loanPhase = $this->phases->first(fn ($item) => $item->grouploans->contains('id', $loan->id));
+
+                return $loan->arrears ?? $this->calculator->analyzeLoan($loan, $loanPhase)['arrears'];
             }),
             'Outstanding Loan Balance' => $allLoans->sum('amount_issued') - $allLoans->sum('amount_repaid'),
             'Date of Repayment completion' => '',
