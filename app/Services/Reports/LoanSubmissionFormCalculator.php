@@ -19,7 +19,7 @@ class LoanSubmissionFormCalculator
             ];
         }
 
-        $disbursementDate = $this->resolveDisbursementDate($loan, $phase);
+        $disbursementDate = Carbon::parse($loan->disbursement_date)->startOfDay();
         $today = Carbon::now()->startOfDay();
         $amountIssued = $loan->amount_issued ?: 0;
         $monthlyInstallment = $amountIssued / 24;
@@ -56,7 +56,7 @@ class LoanSubmissionFormCalculator
             return null;
         }
 
-        return $this->resolveDisbursementDate($loan, $phase)->copy()->addMonths(30)->format('Y-m-d');
+        return Carbon::parse($loan->disbursement_date)->startOfDay()->addMonths(30)->format('Y-m-d');
     }
 
     public function outstandingBalance($loan): float
@@ -80,33 +80,6 @@ class LoanSubmissionFormCalculator
         $legacyLevel = trim((string) ($loan->level ?? ''));
 
         return $legacyLevel !== '' ? $legacyLevel : null;
-    }
-
-    public function resolveDisbursementDate($loan, $phase = null): Carbon
-    {
-        $disbursement = Carbon::parse($loan->disbursement_date)->startOfDay();
-        $phase ??= $loan->relationLoaded('loanPhase') ? $loan->loanPhase : null;
-
-        if (!$phase && !empty($loan->loan_phase_id)) {
-            $phase = $loan->loanPhase ?? null;
-        }
-
-        if (!$phase) {
-            return $disbursement;
-        }
-
-        $phaseYear = $this->extractPhaseYear($phase);
-
-        if (
-            $phaseYear
-            && $phase->created_at
-            && $disbursement->year === $phaseYear - 1
-            && $disbursement->lt($phase->created_at->copy()->startOfDay())
-        ) {
-            return $disbursement->copy()->year($phaseYear);
-        }
-
-        return $disbursement;
     }
 
     public function decorateLoan($loan, $phase = null): mixed
@@ -144,23 +117,6 @@ class LoanSubmissionFormCalculator
 
             return $phase;
         });
-    }
-
-    private function extractPhaseYear($phase): ?int
-    {
-        if (!empty($phase->phase_ref) && preg_match('/\/(20\d{2})\//', $phase->phase_ref, $matches)) {
-            return (int) $matches[1];
-        }
-
-        if (!empty($phase->phase_ref) && preg_match('/(20\d{2})/', $phase->phase_ref, $matches)) {
-            return (int) $matches[1];
-        }
-
-        if ($phase->created_at) {
-            return (int) $phase->created_at->format('Y');
-        }
-
-        return null;
     }
 
     private function phaseSortKey(string $phaseName): string
