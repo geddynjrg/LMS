@@ -6,6 +6,7 @@ use App\Models\LoanPhase;
 use App\Models\SecretariatApproval;
 use App\Models\ConstituencyAllocationProfile;
 use App\Support\ConstituencyAllocationFields;
+use App\Support\CodeListRecordMapper;
 use App\Support\PhaseDocumentType;
 use App\Services\Loan\SecretariatApprovalService;
 use App\Services\Constituency\ConstituencyAllocationService;
@@ -42,34 +43,10 @@ class SignedCodeListPdfService
 
         foreach ($query->get() as $app) {
             $rowNumber++;
-            $businessType = $app->tempApplication->business_type ?? null;
-            $currentActivity = is_array($businessType) ? ($businessType[0] ?? 'N/A') : ($businessType ?? 'N/A');
-
-            $prevAmount = 0;
-            $loanLevel = 'L1';
-
-            if ($app->linkedGroup && $app->linkedGroup->currentLoan) {
-                $prevAmount = (float) ($app->linkedGroup->currentLoan->amount_issued ?? 0);
-                $loanLevel = 'L' . ($app->loan_level ?? 1);
-            }
-
-            $applied = (float) ($app->amount_applied ?? 0);
-            $recommended = (float) ($app->amount_approved ?? 0);
-            $totalApplied += $applied;
-            $totalRecommended += $recommended;
-
-            $rows[] = [
-                'sno' => $rowNumber,
-                'code' => $app->group_code,
-                'group_name' => Str::upper($app->tempApplication->group_name ?? 'N/A'),
-                'gfs_code' => $app->gfs_code ?? 'N/A',
-                'applied' => $applied,
-                'activity' => Str::upper($currentActivity),
-                'previous_loan' => $prevAmount,
-                'loan_level' => $loanLevel,
-                'recommended' => $recommended,
-                'status' => Str::upper($app->tempApplication->nature_of_business ?? 'N/A'),
-            ];
+            $row = CodeListRecordMapper::pdfRow($app, $rowNumber);
+            $totalApplied += $row['applied'];
+            $totalRecommended += $row['recommended'];
+            $rows[] = $row;
         }
 
         return [

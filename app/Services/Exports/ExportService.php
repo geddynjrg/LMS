@@ -3,6 +3,7 @@
 namespace App\Services\Exports;
 
 
+use App\Models\GroupLoan;
 use App\Models\PhaseApplication;
 use App\Exports\CodeListExport;
 use Illuminate\Contracts\Database\Eloquent\Builder;
@@ -19,14 +20,42 @@ class ExportService
      */
     public function exportConstituencyCodeList(int $phaseId): Builder
     {
+        if ($this->isHistoricalCodeListPhase($phaseId)) {
+            return $this->historicalCodeListQuery($phaseId);
+        }
+
         return $this->codeListBaseQuery($phaseId)
             ->whereNotIn('status', ['rejected', 'deferred']);
     }
 
     public function exportCodeList($phaseId, ?string $constituency = null): Builder
     {
+        if ($this->isHistoricalCodeListPhase($phaseId)) {
+            return $this->historicalCodeListQuery($phaseId);
+        }
+
         return $this->codeListBaseQuery($phaseId)
             ->whereNotIn('status', ['rejected', 'deferred', 'pending']);
+    }
+
+    public function isHistoricalCodeListPhase(int $phaseId): bool
+    {
+        return LoanPhase::query()->findOrFail($phaseId)->isHistoricalUpload();
+    }
+
+    private function historicalCodeListQuery(int $phaseId): Builder
+    {
+        return GroupLoan::query()
+            ->where('loan_phase_id', $phaseId)
+            ->where('loan_status', 'financed')
+            ->with([
+                'group:id,name,identifier,code',
+                'loanPhase:id,phase,constituency_code',
+                'loanPhase.constituency:id,constituency_code,constituency_name,county_code',
+                'loanPhase.constituency.county:id,county_name,county_code',
+            ])
+            ->orderBy('loan_level')
+            ->orderBy('id');
     }
 
     private function codeListBaseQuery(int $phaseId): Builder

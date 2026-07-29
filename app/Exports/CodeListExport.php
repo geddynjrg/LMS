@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use App\Models\ConstituencyAllocationProfile;
 use App\Models\LoanPhase;
+use App\Support\CodeListRecordMapper;
 use App\Support\ConstituencyAllocationFields;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\Exportable;
@@ -120,33 +121,19 @@ class CodeListExport extends DefaultValueBinder implements
     public function map($app): array
     {
         $this->rowNumber++;
-        $businessType = $app->tempApplication->business_type;
-        $currentActivity = is_array($businessType) ? ($businessType[0] ?? 'N/A') : $businessType;
-
-        $prevAmount = 0;
-        $loanLevel = 'L1';
-
-        if ($app->linkedGroup && $app->linkedGroup->currentLoan) {
-            $prevAmount = $app->linkedGroup->currentLoan->amount_issued ?? 0;
-            $loanLevel = 'L' . ($app->loan_level ?? 1);
-        }
-
-        $boardRemarks = in_array($app->status, ['approved', 'pending_submission_to_hq', 'pending_hq_approval', 'in_training'], true)
-            ? 'APPROVED'
-            : strtoupper(str_replace('_', ' ', (string) $app->status));
 
         return [
             $this->rowNumber,
-            $app->group_code,
-            Str::upper($app->tempApplication->group_name ?? 'N/A'),
-            $app->gfs_code ?? 'N/A',
-            (float) ($app->amount_applied ?? $app->tempApplication?->loan_amount ?? 0),
-            Str::upper((string) $currentActivity),
-            (float) $prevAmount,
-            $loanLevel,
-            (float) ($app->amount_approved ?? 0),
-            Str::upper($app->tempApplication->nature_of_business ?? 'N/A'),
-            $boardRemarks,
+            CodeListRecordMapper::groupCode($app),
+            CodeListRecordMapper::groupName($app),
+            CodeListRecordMapper::gfsCode($app),
+            CodeListRecordMapper::amountApplied($app),
+            CodeListRecordMapper::currentActivity($app),
+            CodeListRecordMapper::previousLoanAmount($app),
+            CodeListRecordMapper::loanLevel($app),
+            CodeListRecordMapper::amountApproved($app),
+            CodeListRecordMapper::currentStatus($app),
+            CodeListRecordMapper::boardRemarks($app),
         ];
     }
 
@@ -161,7 +148,12 @@ class CodeListExport extends DefaultValueBinder implements
                     return;
                 }
 
-                $phase = $firstRecord->reviewPhase;
+                $phase = CodeListRecordMapper::resolvePhase($firstRecord);
+                if (! $phase) {
+                    return;
+                }
+
+                $phase->loadMissing('constituency.county');
                 $constituencyName = $phase->constituency->constituency_name ?? 'N/A';
                 $constCode = $phase->constituency_code ?? 'N/A';
                 $countyName = $phase->constituency->county->county_name ?? 'N/A';

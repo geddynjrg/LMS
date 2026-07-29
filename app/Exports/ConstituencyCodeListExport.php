@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\LoanPhase;
+use App\Support\CodeListRecordMapper;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\FromQuery;
@@ -111,32 +112,18 @@ class ConstituencyCodeListExport extends DefaultValueBinder implements
     public function map($app): array
     {
         $this->rowNumber++;
-        $temp = $app->tempApplication;
-        $businessType = $temp?->business_type;
-        $currentActivity = is_array($businessType) ? ($businessType[0] ?? 'N/A') : ($businessType ?? 'N/A');
-
-        $prevAmount = '0';
-        $loanLevel = 'L1';
-
-        if ($app->linkedGroup && $app->linkedGroup->currentLoan) {
-            $prevAmount = $app->linkedGroup->currentLoan->amount_issued ?? '0';
-            $loanLevel = 'L' . ($app->loan_level ?? 1);
-        }
-
-        $applied = $app->amount_applied ?? $temp?->loan_amount ?? '0';
-        $recommended = $app->amount_approved ?? '0';
 
         return [
             $this->rowNumber,
-            $app->group_code ?? '',
-            Str::upper($temp->group_name ?? 'N/A'),
-            $app->gfs_code ?? 'N/A',
-            $applied,
-            Str::upper((string) $currentActivity),
-            $prevAmount,
-            $loanLevel,
-            $recommended,
-            Str::upper($temp->nature_of_business ?? 'N/A'),
+            CodeListRecordMapper::groupCode($app),
+            CodeListRecordMapper::groupName($app),
+            CodeListRecordMapper::gfsCode($app),
+            CodeListRecordMapper::amountApplied($app),
+            CodeListRecordMapper::currentActivity($app),
+            CodeListRecordMapper::previousLoanAmount($app),
+            CodeListRecordMapper::loanLevel($app),
+            CodeListRecordMapper::amountApproved($app),
+            CodeListRecordMapper::currentStatus($app),
         ];
     }
 
@@ -224,6 +211,18 @@ class ConstituencyCodeListExport extends DefaultValueBinder implements
                 'constituency_name' => $phase->constituency->constituency_name ?? 'N/A',
                 'constituency_code' => $phase->constituency_code ?? 'N/A',
                 'county_name' => $phase->constituency->county->county_name ?? 'N/A',
+            ];
+        }
+
+        $historicalPhase = CodeListRecordMapper::resolvePhase($firstRecord);
+        if ($historicalPhase) {
+            $historicalPhase->loadMissing('constituency.county');
+
+            return [
+                'phase' => $historicalPhase->phase ?? 'N/A',
+                'constituency_name' => $historicalPhase->constituency->constituency_name ?? 'N/A',
+                'constituency_code' => $historicalPhase->constituency_code ?? 'N/A',
+                'county_name' => $historicalPhase->constituency->county->county_name ?? 'N/A',
             ];
         }
 
