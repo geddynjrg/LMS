@@ -15,11 +15,17 @@
                 <div class="modal-body">
                     <div class="alert alert-light border mb-3">
                         <strong>Recipient:</strong>
-                        @if($recipientType === 'member')
+                        @if(in_array($recipientType, ['member', 'application_member']))
                             <span class="text-capitalize">{{ $memberName ?? 'Member' }}</span>
                             @if($memberPhone)
                                 <br><small class="text-muted"><i class="fas fa-phone mr-1"></i>{{ $memberPhone }}</small>
                             @endif
+                        @elseif($recipientType === 'application_group')
+                            Application group: <strong>{{ $groupName ?? 'N/A' }}</strong>
+                            @if($applicationId)
+                                <br><small class="text-muted"><i class="fas fa-file-alt mr-1"></i>{{ $applicationId }}</small>
+                            @endif
+                            <br><small class="text-muted">Message will be sent to all members with contact numbers.</small>
                         @else
                             Group: <strong>{{ $groupName ?? 'N/A' }}</strong>
                             <br><small class="text-muted">Message will be sent to all members with contact numbers.</small>

@@ -1301,6 +1301,8 @@
         </x-slot>
     </x-action-modal>
 
+    @livewire('send-custom-sms')
+
 @push('styles')
 
 @endpush

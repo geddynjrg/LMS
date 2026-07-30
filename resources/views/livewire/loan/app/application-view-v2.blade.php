@@ -236,4 +236,6 @@
     </div>
 
     @include('livewire.loan.app.partials.application-review-modals')
+
+    @livewire('send-custom-sms')
 </section>

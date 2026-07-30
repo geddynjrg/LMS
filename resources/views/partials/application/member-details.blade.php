@@ -13,7 +13,21 @@
             <small class="text-muted">{{ $this->application->groupMembers->count() }} total members</small>
         </div>
 
-        <div class="search-wrapper" style="width: 100%; max-width: 350px;">
+        <div class="d-flex align-items-center flex-wrap" style="gap: 8px;">
+            @if(auth()->user()->hasAnyRole(['constituency_officer', 'intern', 'super-admin']))
+                <button type="button"
+                        wire:click="sendSmsToApplicationGroup"
+                        class="btn btn-info btn-sm shadow-sm"
+                        title="Send SMS to all members with phone numbers">
+                    <span wire:loading.remove wire:target="sendSmsToApplicationGroup">
+                        <i class="fas fa-sms mr-1"></i> Send SMS to Group
+                    </span>
+                    <span wire:loading wire:target="sendSmsToApplicationGroup">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </span>
+                </button>
+            @endif
+            <div class="search-wrapper" style="width: 100%; max-width: 350px;">
             <div class="input-group input-group-merge shadow-sm">
                 <div class="input-group-prepend">
                     <span class="input-group-text bg-white border-right-0">
@@ -114,14 +128,29 @@
                              </div>
                         </td>
                         <td class="pl-4 py-3">
-                            <x-modal-trigger
-                                target="viewMember({{ $member->id }})"
-                                label=""
-                                title="View"
-                                icon="fas fa-eye"
-                                variant="outline-primary"
-                                defaultLabel=""
-                            />
+                            <div class="btn-group" role="group">
+                                <x-modal-trigger
+                                    target="viewMember({{ $member->id }})"
+                                    label=""
+                                    title="View"
+                                    icon="fas fa-eye"
+                                    variant="outline-primary"
+                                    defaultLabel=""
+                                />
+                                @if(auth()->user()->hasAnyRole(['constituency_officer', 'intern', 'super-admin']) && !empty($member->phone_number))
+                                    <button type="button"
+                                            wire:click="sendSmsToApplicationMember({{ $member->id }})"
+                                            class="btn btn-outline-info btn-sm"
+                                            title="Send SMS">
+                                        <span wire:loading.remove wire:target="sendSmsToApplicationMember({{ $member->id }})">
+                                            <i class="fas fa-sms"></i>
+                                        </span>
+                                        <span wire:loading wire:target="sendSmsToApplicationMember({{ $member->id }})">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                        </span>
+                                    </button>
+                                @endif
+                            </div>
                         </td>
                     </tr>
                     @endforeach

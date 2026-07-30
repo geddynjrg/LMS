@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Group;
 use App\Models\GroupMember;
 use App\Models\Member;
+use App\Models\TempApplication;
+use App\Models\TempGroupMember;
 use App\Models\User;
 use App\Support\SystemRoles;
 use Illuminate\Support\Facades\Log;
@@ -51,6 +53,11 @@ class CustomSmsService
 
         return $group->ward
             && $group->ward->constituency_code === $constituencyCode;
+    }
+
+    public function applicationBelongsToConstituency(TempApplication $application, string $constituencyCode): bool
+    {
+        return $application->constituency_code === $constituencyCode;
     }
 
     /**
@@ -140,6 +147,99 @@ class CustomSmsService
             'user_id' => $user->id,
             'group_id' => $group->id,
             'group_loan_id' => $groupLoanId,
+            'constituency_code' => $constituencyCode,
+            'sms_sent' => $sent,
+            'sms_failed' => $failed,
+            'skipped' => $skipped,
+        ]);
+
+        return [
+            'sms_sent' => $sent,
+            'sms_failed' => $failed,
+            'skipped' => $skipped,
+        ];
+    }
+
+    /**
+     * @return array{sms_sent: int, sms_failed: int, skipped: int}
+     */
+    public function sendToApplicationMember(
+        User $user,
+        int $tempGroupMemberId,
+        string $constituencyCode,
+        string $message,
+    ): array {
+        $this->assertCanSend($user, $constituencyCode);
+
+        $member = TempGroupMember::with('application')->find($tempGroupMemberId);
+        if (!$member || !$member->application) {
+            throw new \InvalidArgumentException('Application member not found.');
+        }
+
+        if (!$this->applicationBelongsToConstituency($member->application, $constituencyCode)) {
+            throw new \InvalidArgumentException('Application is not in your constituency scope.');
+        }
+
+        if (empty($member->phone_number)) {
+            throw new \InvalidArgumentException('Member has no contact number on file.');
+        }
+
+        $formattedMessage = $this->formatMessage($message);
+        $sent = $this->smsService->send($member->phone_number, $formattedMessage);
+
+        Log::info('Custom SMS sent to application member', [
+            'user_id' => $user->id,
+            'temp_group_member_id' => $tempGroupMemberId,
+            'application_id' => $member->application->application_id,
+            'constituency_code' => $constituencyCode,
+            'success' => $sent,
+        ]);
+
+        return [
+            'sms_sent' => $sent ? 1 : 0,
+            'sms_failed' => $sent ? 0 : 1,
+            'skipped' => 0,
+        ];
+    }
+
+    /**
+     * @return array{sms_sent: int, sms_failed: int, skipped: int}
+     */
+    public function sendToApplicationGroup(
+        User $user,
+        TempApplication $application,
+        string $constituencyCode,
+        string $message,
+    ): array {
+        $this->assertCanSend($user, $constituencyCode);
+
+        if (!$this->applicationBelongsToConstituency($application, $constituencyCode)) {
+            throw new \InvalidArgumentException('Application is not in your constituency scope.');
+        }
+
+        $application->loadMissing('groupMembers');
+        $formattedMessage = $this->formatMessage($message);
+
+        $sent = 0;
+        $failed = 0;
+        $skipped = 0;
+
+        foreach ($application->groupMembers as $member) {
+            if (empty($member->phone_number)) {
+                $skipped++;
+                continue;
+            }
+
+            if ($this->smsService->send($member->phone_number, $formattedMessage)) {
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
+
+        Log::info('Custom SMS sent to application group', [
+            'user_id' => $user->id,
+            'application_id' => $application->application_id,
             'constituency_code' => $constituencyCode,
             'sms_sent' => $sent,
             'sms_failed' => $failed,

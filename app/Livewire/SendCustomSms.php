@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Group;
+use App\Models\TempApplication;
 use App\Services\CustomSmsService;
 use Livewire\Attributes\On;
 use Livewire\Component;
@@ -18,6 +19,8 @@ class SendCustomSms extends Component
     public ?int $groupId = null;
     public ?string $groupName = null;
     public ?int $groupLoanId = null;
+    public ?int $tempGroupMemberId = null;
+    public ?string $applicationId = null;
     public string $constituencyCode = '';
     public bool $sending = false;
     public ?string $statusMessage = null;
@@ -40,6 +43,8 @@ class SendCustomSms extends Component
         ?int $groupId = null,
         ?string $groupName = null,
         ?int $groupLoanId = null,
+        ?int $tempGroupMemberId = null,
+        ?string $applicationId = null,
     ): void {
         if (!$this->customSmsService->userCanSendCustomSms(auth()->user())) {
             $this->dispatch('swal:toast',
@@ -60,6 +65,8 @@ class SendCustomSms extends Component
         $this->groupId = $groupId;
         $this->groupName = $groupName;
         $this->groupLoanId = $groupLoanId;
+        $this->tempGroupMemberId = $tempGroupMemberId;
+        $this->applicationId = $applicationId;
         $this->statusType = 'info';
         $this->isOpen = true;
     }
@@ -82,13 +89,22 @@ class SendCustomSms extends Component
         try {
             $user = auth()->user();
 
-            if ($this->recipientType === 'member') {
-                $result = $this->customSmsService->sendToMember(
-                    $user,
-                    $this->memberId,
-                    $this->constituencyCode,
-                    $this->message,
-                );
+            if ($this->recipientType === 'member' || $this->recipientType === 'application_member') {
+                if ($this->recipientType === 'application_member') {
+                    $result = $this->customSmsService->sendToApplicationMember(
+                        $user,
+                        $this->tempGroupMemberId,
+                        $this->constituencyCode,
+                        $this->message,
+                    );
+                } else {
+                    $result = $this->customSmsService->sendToMember(
+                        $user,
+                        $this->memberId,
+                        $this->constituencyCode,
+                        $this->message,
+                    );
+                }
 
                 if ($result['sms_sent'] > 0) {
                     $this->statusType = 'success';
@@ -97,6 +113,36 @@ class SendCustomSms extends Component
                 } else {
                     $this->statusType = 'danger';
                     $this->statusMessage = 'Failed to send SMS. Please try again or check the contact number.';
+                }
+            } elseif ($this->recipientType === 'application_group') {
+                $application = TempApplication::query()
+                    ->where('application_id', $this->applicationId)
+                    ->where('constituency_code', $this->constituencyCode)
+                    ->firstOrFail();
+
+                $result = $this->customSmsService->sendToApplicationGroup(
+                    $user,
+                    $application,
+                    $this->constituencyCode,
+                    $this->message,
+                );
+
+                if ($result['sms_sent'] > 0) {
+                    $this->statusType = 'success';
+                    $skipNote = $result['skipped'] > 0
+                        ? " ({$result['skipped']} member(s) skipped — no phone number)"
+                        : '';
+                    $failNote = $result['sms_failed'] > 0
+                        ? " {$result['sms_failed']} failed."
+                        : '';
+                    $this->statusMessage = "SMS sent to {$result['sms_sent']} member(s).{$failNote}{$skipNote}";
+                    $this->message = '';
+                } elseif ($result['skipped'] > 0 && $result['sms_failed'] === 0) {
+                    $this->statusType = 'warning';
+                    $this->statusMessage = 'No members have contact numbers on file.';
+                } else {
+                    $this->statusType = 'danger';
+                    $this->statusMessage = 'Failed to send SMS to group members.';
                 }
             } else {
                 $group = Group::findOrFail($this->groupId);

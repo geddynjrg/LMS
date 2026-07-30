@@ -1312,6 +1312,32 @@ public function downloadMemberFile($memberId, $field)
         $this->dispatch('open-modal', name: 'memberModal');
     }
 
+    public function sendSmsToApplicationMember(int $memberId): void
+    {
+        $member = $this->application->groupMembers->where('id', $memberId)->first();
+        if (!$member) {
+            return;
+        }
+
+        $this->dispatch('open-send-sms-modal',
+            recipientType: 'application_member',
+            constituencyCode: $this->constituency->constituency_code,
+            tempGroupMemberId: $member->id,
+            memberName: $member->name,
+            memberPhone: $member->phone_number,
+        )->to(SendCustomSms::class);
+    }
+
+    public function sendSmsToApplicationGroup(): void
+    {
+        $this->dispatch('open-send-sms-modal',
+            recipientType: 'application_group',
+            constituencyCode: $this->constituency->constituency_code,
+            applicationId: $this->application->application_id,
+            groupName: $this->application->group_name,
+        )->to(SendCustomSms::class);
+    }
+
     public function exportInstitutionalInfo(){
 
         try {
