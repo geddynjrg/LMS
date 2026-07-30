@@ -227,7 +227,7 @@
                     KES {{ number_format($this->application->loan_amount, 2) }}
                 </h1>
 
-                <div class="d-flex justify-content-center mt-3" style="gap: 12px;">
+                <div class="d-flex justify-content-center mt-3 flex-wrap" style="gap: 12px;">
                     <span class="badge badge-light border text-dark px-3 py-2 font-weight-medium">
                         <i class="far fa-clock mr-1 text-primary"></i> {{ $this->application->proposed_repayment_period }} Months
                     </span>
@@ -235,6 +235,8 @@
                         <i class="fas fa-percent mr-1 text-primary"></i> 0% Interest
                     </span>
                 </div>
+
+                @include('partials.application.send-group-sms-button', ['class' => 'mt-3'])
 
                 {{-- Approved State --}}
                 @if($this->application->phaseApplication && !in_array($this->application->phaseApplication?->status, ['pending', 'submitted', 'rejected']))

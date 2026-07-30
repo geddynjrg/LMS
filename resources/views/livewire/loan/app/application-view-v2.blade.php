@@ -46,6 +46,7 @@
                                 <i class="fas fa-times-circle mr-1"></i> Not disbursed
                             </button>
                         @endif
+                        @include('partials.application.send-group-sms-button')
                         <x-loading-button target="exportInstitutionalInfo" class="btn-refresh-premium btn-sm" icon="fas fa-file-excel" label="Export" />
                         <x-loading-button target="refreshData" class="btn-refresh-premium btn-sm" icon="fas fa-sync-alt" label="Refresh" />
                     </div>

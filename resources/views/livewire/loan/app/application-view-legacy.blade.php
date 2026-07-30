@@ -66,6 +66,7 @@
                                     </button>
                                 @endif
 
+                                @include('partials.application.send-group-sms-button')
                                 <x-loading-button
                                     target="exportInstitutionalInfo"
                                     class="btn-refresh-premium"
@@ -226,10 +227,10 @@
                     </div>
                 </div>
 
-                <div class="col-md-3 order-first order-md-last d-flex flex-column">
+                @can('review application')
+                <div class="col-md-3 d-flex flex-column">
                     <div class="sticky-top" style="top: 50px; z-index: 1020;">
                         {{-- phase assignement --}}
-                        @can('review application')
                             <div class="card card-custom-hover shadow-sm mb-3"
                                 wire:ignore.self
                                 x-data="{ open: {{ is_null($this->application->phaseApplication) ? 'true' : 'false' }} }"
@@ -468,10 +469,10 @@
                                 </div>
                             </div>
                             @endif
-                        @endcan
 
                     </div>
                 </div>
+                @endcan
             </div>
         </div>
     </div>
