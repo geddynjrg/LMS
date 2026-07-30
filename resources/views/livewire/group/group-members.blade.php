@@ -203,6 +203,8 @@
         </div>
     </div>
 
+    @livewire('send-custom-sms')
+
     <!-- View Member Modal -->
     <div class="modal fade" id="view-group-member-modal" tabindex="-1" role="dialog" aria-labelledby="viewMemberModalLabel" aria-hidden="true" wire:ignore.self>
         <div class="modal-dialog modal-lg" role="document">
@@ -214,7 +216,7 @@
                     </button>
                 </div>
                 <div class="modal-body">
-                    @livewire('view-group-member', key('view-group-member'))
+                    @livewire('view-group-member', ['constituencyCode' => $constituency->constituency_code], key('view-group-member'))
                 </div>
             </div>
         </div>

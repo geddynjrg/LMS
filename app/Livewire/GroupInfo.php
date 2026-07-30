@@ -156,6 +156,30 @@ class GroupInfo extends Component
         $this->dispatch('show-deleteMember-modal');
     }
 
+    public function sendSmsToMember($groupMember): void
+    {
+        $member = is_string($groupMember) ? json_decode($groupMember) : $groupMember;
+
+        $this->dispatch('open-send-sms-modal',
+            recipientType: 'member',
+            constituencyCode: $this->constituency->constituency_code,
+            memberId: $member->member_Id,
+            memberName: $member->member->name ?? null,
+            memberPhone: $member->member->number ?? null,
+        )->to(SendCustomSms::class);
+    }
+
+    public function sendSmsToGroup(?int $groupLoanId = null): void
+    {
+        $this->dispatch('open-send-sms-modal',
+            recipientType: 'group',
+            constituencyCode: $this->constituency->constituency_code,
+            groupId: $this->group->id,
+            groupName: $this->group->name,
+            groupLoanId: $groupLoanId,
+        )->to(SendCustomSms::class);
+    }
+
     #[On('refreshData')]
     public function refreshData($message)
     {

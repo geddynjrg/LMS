@@ -99,6 +99,11 @@
                                 onclick="confirm('Are you sure you want to delete this member?') && $wire.deleteMember()">
                             <i class="fas fa-trash mr-1"></i>Delete Member
                         </button> --}}
+                        @if(auth()->user()->hasAnyRole(['constituency_officer', 'intern', 'super-admin']) && $constituencyCode && $number)
+                            <button type="button" class="btn btn-info mr-2" wire:click="sendSms">
+                                <i class="fas fa-sms mr-1"></i>Send SMS
+                            </button>
+                        @endif
                         <button type="submit" class="btn btn-primary">
                             <i class="fas fa-save mr-1"></i>Update Member
                         </button>

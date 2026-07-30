@@ -217,6 +217,16 @@
                             </span>
                         </button> --}}
                     @endcan
+                    @if(auth()->user()->hasAnyRole(['constituency_officer', 'intern', 'super-admin']))
+                        <button wire:click="sendSmsToGroup()" class="btn btn-info btn-block btn-sm mt-3 shadow-sm">
+                            <span wire:loading.remove wire:target="sendSmsToGroup">
+                                <i class="fas fa-sms mr-1"></i> Send SMS to Group
+                            </span>
+                            <span wire:loading wire:target="sendSmsToGroup">
+                                <i class="fas fa-spinner fa-spin"></i>
+                            </span>
+                        </button>
+                    @endif
                 </div>
             </div>
 
@@ -351,6 +361,11 @@
                                                         defaultLabel="loading..."
                                                     />
                                                 @endcan
+                                                @if(auth()->user()->hasAnyRole(['constituency_officer', 'intern', 'super-admin']))
+                                                    <button type="button" wire:click="sendSmsToGroup({{ $individualLoan->id }})" class="btn btn-sm btn-info shadow-sm ml-2" title="Send SMS to all members in this phase">
+                                                        <i class="fas fa-sms mr-1"></i> Send SMS
+                                                    </button>
+                                                @endif
                                             </div>
                                         </div>
 
@@ -385,8 +400,13 @@
                                                             {!! $groupMember->member->disabled ? '<span class="text-warning"><i class="fas fa-wheelchair"></i></span>' : '<span class="text-muted">No</span>' !!}
                                                         </td>
                                                         <td class="text-right">
-                                                            <div class="btn-group">
-                                                                @can('update member')
+                                            <div class="btn-group">
+                                                @if(auth()->user()->hasAnyRole(['constituency_officer', 'intern', 'super-admin']) && !empty($groupMember->member->number))
+                                                    <button type="button" wire:click="sendSmsToMember('{{ $groupMember }}')" class="btn btn-xs btn-outline-info" title="Send SMS">
+                                                        <i class="fas fa-sms"></i>
+                                                    </button>
+                                                @endif
+                                                @can('update member')
                                                                     <button type="button" wire:click="editMember('{{ $groupMember }}')" class="btn btn-xs btn-outline-primary" title="Edit">
                                                                         <i class="fas fa-edit"></i>
                                                                     </button>
@@ -638,6 +658,8 @@
     <!-- /.modal-dialog -->
   </div>
   <!-- /.delete member modal -->
+
+  @livewire('send-custom-sms')
 </section>
 @push('styles')
     <link rel="stylesheet" href="{{asset('plugins/toastr/toastr.min.css')}}">

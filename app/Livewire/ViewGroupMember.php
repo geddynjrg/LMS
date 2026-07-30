@@ -14,6 +14,7 @@ class ViewGroupMember extends Component
     public $groups = [];
     public $activeTab = 'edit';
     public $loading = true;
+    public ?string $constituencyCode = null;
 
     // Member fields for editing
     public $name;
@@ -118,6 +119,21 @@ class ViewGroupMember extends Component
     public function switchTab($tab)
     {
         $this->activeTab = $tab;
+    }
+
+    public function sendSms(): void
+    {
+        if (!$this->member || !$this->constituencyCode) {
+            return;
+        }
+
+        $this->dispatch('open-send-sms-modal',
+            recipientType: 'member',
+            constituencyCode: $this->constituencyCode,
+            memberId: $this->member->member_Id,
+            memberName: $this->member->name,
+            memberPhone: $this->member->number,
+        )->to(SendCustomSms::class);
     }
 
     public function updateMember()
