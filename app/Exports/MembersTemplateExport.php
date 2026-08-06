@@ -182,10 +182,10 @@ class MembersTemplateExport implements WithHeadings, WithEvents
             ->setShowErrorMessage(true)
             ->setErrorStyle(DataValidation::STYLE_STOP)
             ->setPromptTitle('Member ID')
-            ->setPrompt('National ID: 7-8 digits only (maximum 10 characters). No letters.')
+            ->setPrompt('National ID: 6-8 digits only. No letters.')
             ->setErrorTitle('Invalid Member ID')
-            ->setError('National ID must be 7-8 digits only, with a maximum of 10 characters.')
-            ->setFormula1('AND(LEN(G2)<=10,LEN(G2)>=7,ISNUMBER(--G2),OR(LEN(G2)=7,LEN(G2)=8))')
+            ->setError('National ID must be 6 to 8 digits only.')
+            ->setFormula1('AND(LEN(G2)>=6,LEN(G2)<=8,ISNUMBER(--G2))')
             ->setSqref("G2:G{$rowLimit}");
     }
 

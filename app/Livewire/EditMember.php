@@ -47,7 +47,7 @@ class EditMember extends Component
             'groupMember.name' => 'required|string',
             'groupMember.role' => 'required|in:' . implode(',', $this->roles),
             'groupMember.gender' => 'required|in:' . implode(',', $this->genders),
-            'groupMember.member_Id' => 'required|string|between:6,10|regex:/^[0-9]+$/',
+            'groupMember.member_Id' => 'required|string|regex:/^[0-9]{6,8}$/',
             'groupMember.phonenumber' => 'required|regex:/^[0-9]{10}$/',
         ]);
 

@@ -400,16 +400,11 @@ class MembersTemplateImport implements
 
     private function validateIDNumber($ID, $rowNumber, $row)
     {
-        if (strlen($ID) > 10) {
-            $this->errors[] = "Row {$rowNumber}: ID number '{$ID}' must not exceed 10 characters.";
-            return;
-        }
-
         $digitsOnly = preg_replace('/[^0-9]/', '', $ID);
         $digitCount = strlen($digitsOnly);
 
-        if ($digitCount < 7 || $digitCount > 8) {
-            $this->errors[] = "Row {$rowNumber}: ID number '{$ID}' must be 7 or 8 digits. Found {$digitCount} digit(s).";
+        if ($digitCount < 6 || $digitCount > 8) {
+            $this->errors[] = "Row {$rowNumber}: ID number '{$ID}' must be 6 to 8 digits. Found {$digitCount} digit(s).";
             return;
         }
 

@@ -333,10 +333,8 @@ class MembersImport implements ToCollection, WithChunkReading, WithBatchInserts
 
             if (empty($memberId)) {
                 $errors[] = "Row {$rowNumber}: Member ID is required";
-            } elseif (strlen((string) $memberId) > 10) {
-                $errors[] = "Row {$rowNumber}: Member ID must not exceed 10 characters";
-            } elseif (!preg_match('/^\d{7,8}$/', preg_replace('/[^0-9]/', '', (string) $memberId))) {
-                $errors[] = "Row {$rowNumber}: Member ID must be 7-8 digits (numbers only)";
+            } elseif (!preg_match('/^\d{6,8}$/', preg_replace('/[^0-9]/', '', (string) $memberId))) {
+                $errors[] = "Row {$rowNumber}: Member ID must be 6 to 8 digits (numbers only)";
             }
 
             if (empty($role)) {
