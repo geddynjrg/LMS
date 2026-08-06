@@ -403,8 +403,8 @@ class MembersTemplateImport implements
         $digitsOnly = preg_replace('/[^0-9]/', '', $ID);
         $digitCount = strlen($digitsOnly);
 
-        if ($digitCount < 6 || $digitCount > 8) {
-            $this->errors[] = "Row {$rowNumber}: ID number '{$ID}' must be 6 to 8 digits. Found {$digitCount} digit(s).";
+        if ($digitCount < 6 || $digitCount > 10) {
+            $this->errors[] = "Row {$rowNumber}: ID number '{$ID}' must be 6 to 10 digits. Found {$digitCount} digit(s).";
             return;
         }
 

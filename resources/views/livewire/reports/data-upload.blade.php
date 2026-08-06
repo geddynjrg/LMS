@@ -927,7 +927,7 @@
                                                         <span class="text-success mr-2">●</span>
                                                         <div>
                                                             <strong>ID Number: </strong>
-                                                            <span class="font-italic">Must be 6-8 digits. No letters.</span>
+                                                            <span class="font-italic">Must be 6-10 digits. No letters.</span>
                                                         </div>
                                                     </li>
                                                     <li class="mb-2 d-flex align-items-start">
