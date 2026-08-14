@@ -102,18 +102,27 @@ services:
       - ddev_bridge
 
   scheduler:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: uwezo-lms-app
     container_name: uwezo-lms-scheduler
-    command: php artisan schedule:work
+    # schedule:work; use env_file (never bind-mount .env — a directory mount crashes the container)
+    command: php artisan schedule:work --verbose --no-interaction
     restart: unless-stopped
+    working_dir: /var/www/html
     volumes:
       - .:/var/www/html
     depends_on:
       - redis
       - app
+    env_file:
+      - .env
     environment:
       - DB_HOST=uwezo-lms-db
       - DB_PORT=3306
+      - EVENT_HASHER_URL=http://uwezo-event-hasher:8090
+      - EVENT_HASHER_TOKEN=${EVENT_HASHER_TOKEN:-uwezo-internal-hasher-2026}
     networks:
       - uwezo-network
 

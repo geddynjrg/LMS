@@ -1,7 +1,7 @@
 FROM php:8.3-apache
 
 # Install system dependencies + required extensions
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     unzip \
     libpq-dev \
@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
     redis-tools \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    poppler-utils \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -26,7 +29,8 @@ RUN apt-get update && apt-get install -y \
         pcntl \
         bcmath \
         gd \
-    && a2enmod rewrite
+    && a2enmod rewrite \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 18.x and NPM (only if you need to run build inside container)
 # If you keep Vite on host, you can comment this out to reduce image size.

@@ -12,8 +12,8 @@ services:
     container_name: uwezo-lms-app
     restart: unless-stopped
     working_dir: /var/www/html
+    # Use env_file only — never bind-mount ./.env (Docker may create a directory and crash)
     volumes:
-      - ./.env:/var/www/html/.env
       - storage_data:/var/www/html/storage
     depends_on:
       lms-db:
@@ -43,9 +43,6 @@ services:
 #     container_name: uwezo-lms-worker
 #     restart: unless-stopped
 #     command: php artisan queue:work --sleep=3 --tries=3 --max-time=3600
-#     volumes:
-#       - ./.env:/var/www/html/.env
-#     #   - .:/var/www/html
 #     depends_on:
 #       - db
 #       - redis
@@ -65,11 +62,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: uwezo-lms-app
     container_name: uwezo-lms-horizon
     restart: unless-stopped
     command: php artisan horizon
+    env_file:
+      - .env
     volumes:
-      - ./.env:/var/www/html/.env
+      - .:/var/www/html
     depends_on:
       app:
         condition: service_healthy
@@ -88,13 +88,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: uwezo-lms-app
     container_name: uwezo-lms-scheduler
     restart: unless-stopped
     command: php artisan schedule:work --verbose --no-interaction
+    env_file:
+      - .env
     volumes:
-      - ./.env:/var/www/html/.env
-      - storage_data:/var/www/html/storage
-    #   - .:/var/www/html
+      - .:/var/www/html
     depends_on:
       - lms-db
       - redis
