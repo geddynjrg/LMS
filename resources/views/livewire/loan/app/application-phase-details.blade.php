@@ -1102,6 +1102,7 @@
                         @endif
                     @endif
 
+@include('partials.review-checklist-draft', ['phase' => $this->detailedPhase ?? $phase ?? null])
                     <div class="card card-outline premium-summary-card shadow-sm border-0 mt-2">
                         <div class="card-header bg-white border-bottom-0 py-3">
                             <h3 class="card-title mb-0">

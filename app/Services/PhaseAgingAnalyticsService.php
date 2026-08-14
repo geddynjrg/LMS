@@ -9,6 +9,10 @@ class PhaseAgingAnalyticsService
 {
     public const SOURCE = 'core_lms';
 
+    public const SLA_WARN_DAYS = 7;
+
+    public const SLA_BREACH_DAYS = 14;
+
     public function liveAging(?string $constituencyCode = null, int $minDays = 0): Collection
     {
         $query = DB::table('loan_phases')
@@ -32,6 +36,49 @@ class PhaseAgingAnalyticsService
         }
 
         return collect($query->get())->filter(fn ($row) => (int) $row->max_days_in_phase >= $minDays)->values();
+    }
+
+    /**
+     * Suggested triage order: oldest phases first with SLA badges.
+     *
+     * @return Collection<int, object>
+     */
+    public function suggestedTriage(int $limit = 10, ?string $constituencyCode = null): Collection
+    {
+        $query = DB::table('loan_phases')
+            ->select([
+                'loan_phases.id',
+                'loan_phases.slug',
+                'loan_phases.phase',
+                'loan_phases.status as phase_status',
+                'loan_phases.constituency_code',
+                'constituencies.constituency_name',
+                DB::raw('DATEDIFF(NOW(), COALESCE(loan_phases.updated_at, loan_phases.created_at)) as days_in_phase'),
+                DB::raw('(SELECT COUNT(*) FROM phase_applications pa WHERE pa.loan_phase_id = loan_phases.id) as application_count'),
+            ])
+            ->leftJoin('constituencies', 'constituencies.constituency_code', '=', 'loan_phases.constituency_code')
+            ->whereNotIn('loan_phases.status', ['disbursed', 'cancelled', 'rejected'])
+            ->orderByDesc('days_in_phase')
+            ->limit(max(1, $limit));
+
+        if ($constituencyCode) {
+            $query->where('loan_phases.constituency_code', $constituencyCode);
+        }
+
+        return collect($query->get())->map(function ($row) {
+            $days = (int) $row->days_in_phase;
+            $sla = 'ok';
+            if ($days >= self::SLA_BREACH_DAYS) {
+                $sla = 'breach';
+            } elseif ($days >= self::SLA_WARN_DAYS) {
+                $sla = 'warn';
+            }
+
+            $row->sla_badge = $sla;
+            $row->suggest_review_next = $days >= self::SLA_WARN_DAYS;
+
+            return $row;
+        })->values();
     }
 
     public function snapshot(): int

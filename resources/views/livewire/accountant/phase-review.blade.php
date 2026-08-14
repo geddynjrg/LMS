@@ -49,6 +49,7 @@
         </div>
     @endif
 
+@include('partials.review-checklist-draft', ['phase' => $phase])
     <div class="row">
         <div class="col-lg-7">
             <div class="card hq-panel-card mb-4">

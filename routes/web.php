@@ -19,6 +19,7 @@ use App\Http\Controllers\Hq\HqReportController;
 use App\Http\Controllers\Secretariat\SecretariatController;
 use App\Http\Controllers\Accountant\AccountantController;
 use App\Http\Controllers\PhaseDocumentController;
+use App\Http\Controllers\ReviewChecklistDraftController;
 use App\Http\Controllers\HelpController;
 
 /*
@@ -69,6 +70,8 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/phase-aging', [\App\Http\Controllers\PhaseAgingController::class, 'index'])->name('phase-aging');
+    Route::get('/review-checklist/{phase}', [ReviewChecklistDraftController::class, 'show'])->name('review-checklist.show');
+    Route::post('/review-checklist/{phase}', [ReviewChecklistDraftController::class, 'save'])->name('review-checklist.save');
     Route::get('/help', [HelpController::class, 'index'])->name('help.index');
 
     // --- HQ / National Administration Routes ---

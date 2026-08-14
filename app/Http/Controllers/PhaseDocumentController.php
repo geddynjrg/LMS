@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\PhaseApplicationDocument;
-use App\Services\Loan\PhaseDocumentResolver;
+use App\Services\DocumentPreviewCopilotService;
 use App\Services\DocumentTextExtractionService;
+use App\Services\Loan\PhaseDocumentResolver;
 use App\Support\HqAccess;
 
 class PhaseDocumentController extends Controller
@@ -58,8 +59,12 @@ class PhaseDocumentController extends Controller
         return response()->download($fullPath, $doc->original_filename);
     }
 
-    public function preview(int $id, PhaseDocumentResolver $resolver, DocumentTextExtractionService $extractor)
-    {
+    public function preview(
+        int $id,
+        PhaseDocumentResolver $resolver,
+        DocumentTextExtractionService $extractor,
+        DocumentPreviewCopilotService $copilot,
+    ) {
         $doc = PhaseApplicationDocument::with(['loanPhase.constituency'])->findOrFail($id);
 
         $this->authorizePhaseDocumentAccess($doc);
@@ -80,6 +85,11 @@ class PhaseDocumentController extends Controller
             }
         }
 
+        $copilotSummary = $copilot->summarize(
+            $doc,
+            is_object($ocr) ? ($ocr->extracted_text ?? null) : null
+        );
+
         return view('documents.phase-document-preview', [
             'doc' => $doc,
             'phase' => $doc->loanPhase,
@@ -88,6 +98,7 @@ class PhaseDocumentController extends Controller
             'embedUrl' => route('phase.doc.serve', ['id' => $doc->id, 'action' => 'view']),
             'downloadUrl' => route('phase.doc.serve', ['id' => $doc->id, 'action' => 'download']),
             'ocr' => $ocr,
+            'copilot' => $copilotSummary,
         ]);
     }
 }

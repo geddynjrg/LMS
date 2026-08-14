@@ -69,6 +69,40 @@
 
 <section class="content pb-4">
     <div class="container-fluid">
+        @if(!empty($copilot))
+            <div class="card shadow-sm border-info mb-3" style="border-radius: 16px;">
+                <div class="card-body">
+                    <h6 class="font-weight-bold mb-2">
+                        Document preview copilot
+                        <span class="badge badge-info">Assistive</span>
+                    </h6>
+                    <p class="small text-muted mb-2">Rule-based hints from OCR — not an automated decision.</p>
+                    <p class="small mb-1"><strong>Expected type:</strong> {{ $copilot['detected_type_hint'] ?? '—' }}</p>
+                    @if(!empty($copilot['id_matches']))
+                        <p class="small mb-1"><strong>Possible ID numbers:</strong> {{ implode(', ', $copilot['id_matches']) }}</p>
+                    @endif
+                    @if(!empty($copilot['date_matches']))
+                        <p class="small mb-1"><strong>Possible dates:</strong> {{ implode(', ', $copilot['date_matches']) }}</p>
+                    @endif
+                    @if(!empty($copilot['notes']))
+                        <ul class="small mb-2 pl-3">
+                            @foreach($copilot['notes'] as $note)
+                                <li>{{ $note }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                    @if(!empty($copilot['suggested_actions']))
+                        <p class="small font-weight-bold mb-1">Suggested officer actions</p>
+                        <ul class="small mb-0 pl-3">
+                            @foreach($copilot['suggested_actions'] as $action)
+                                <li>{{ $action }}</li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
+            </div>
+        @endif
+
         @if(!empty($ocr))
             <div class="card shadow-sm border-0 mb-3" style="border-radius: 16px;">
                 <div class="card-body">

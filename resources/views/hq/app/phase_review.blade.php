@@ -44,7 +44,8 @@
         </div>
 
         <hr>
-        @livewire('hq.phase-application-task', ['phase' => $phase])
+        @include('partials.review-checklist-draft', ['phase' => $phase])
+@livewire('hq.phase-application-task', ['phase' => $phase])
     </div>
 </div>
 
