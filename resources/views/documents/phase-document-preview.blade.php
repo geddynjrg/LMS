@@ -69,6 +69,25 @@
 
 <section class="content pb-4">
     <div class="container-fluid">
+        @if(!empty($ocr))
+            <div class="card shadow-sm border-0 mb-3" style="border-radius: 16px;">
+                <div class="card-body">
+                    <h6 class="font-weight-bold mb-2">OCR / extracted text
+                        <span class="badge badge-{{ ($ocr->status ?? '') === 'extracted' ? 'success' : 'secondary' }}">{{ $ocr->status ?? 'pending' }}</span>
+                        @if(!empty($ocr->extraction_method))
+                            <span class="text-muted small">({{ $ocr->extraction_method }})</span>
+                        @endif
+                    </h6>
+                    @if(!empty($ocr->extracted_text))
+                        <pre class="small mb-0 bg-light p-3" style="max-height: 220px; overflow:auto; white-space: pre-wrap;">{{ \Illuminate\Support\Str::limit($ocr->extracted_text, 4000) }}</pre>
+                    @elseif(!empty($ocr->error_message))
+                        <p class="text-muted mb-0 small">{{ $ocr->error_message }}</p>
+                    @else
+                        <p class="text-muted mb-0 small">No extractable text yet. Install tesseract/pdftotext in the LMS image for scanned documents.</p>
+                    @endif
+                </div>
+            </div>
+        @endif
         @if(!empty($fileMissing))
             <div class="card shadow-sm border-0" style="border-radius: 16px;">
                 <div class="card-body text-center py-5 px-4">

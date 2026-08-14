@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PhaseApplicationDocument;
 use App\Services\Loan\PhaseDocumentResolver;
+use App\Services\DocumentTextExtractionService;
 use App\Support\HqAccess;
 
 class PhaseDocumentController extends Controller
@@ -57,13 +58,27 @@ class PhaseDocumentController extends Controller
         return response()->download($fullPath, $doc->original_filename);
     }
 
-    public function preview(int $id, PhaseDocumentResolver $resolver)
+    public function preview(int $id, PhaseDocumentResolver $resolver, DocumentTextExtractionService $extractor)
     {
         $doc = PhaseApplicationDocument::with(['loanPhase.constituency'])->findOrFail($id);
 
         $this->authorizePhaseDocumentAccess($doc);
 
         $fullPath = $resolver->resolveReadablePath($doc);
+        $ocr = null;
+        if ($fullPath) {
+            $key = 'phase-doc-'.$doc->id;
+            $ocr = $extractor->find($key);
+            if (! $ocr || $ocr->status === 'pending') {
+                $result = $extractor->extractAndStore($key, $fullPath, $doc->mime_type);
+                $ocr = (object) [
+                    'status' => $result['status'],
+                    'extraction_method' => $result['method'],
+                    'extracted_text' => $result['text'] ?? null,
+                    'error_message' => $result['error'] ?? null,
+                ];
+            }
+        }
 
         return view('documents.phase-document-preview', [
             'doc' => $doc,
@@ -72,6 +87,7 @@ class PhaseDocumentController extends Controller
             'fileMissing' => $fullPath === null,
             'embedUrl' => route('phase.doc.serve', ['id' => $doc->id, 'action' => 'view']),
             'downloadUrl' => route('phase.doc.serve', ['id' => $doc->id, 'action' => 'download']),
+            'ocr' => $ocr,
         ]);
     }
 }
