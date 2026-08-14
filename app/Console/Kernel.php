@@ -26,6 +26,12 @@ class Kernel extends ConsoleKernel
             ->withoutOverlapping()
             ->runInBackground();
 
+        $schedule->command('analytics:snapshot-phase-aging')
+            ->dailyAt('05:30')
+            ->timezone('Africa/Nairobi')
+            ->withoutOverlapping();
+
+
         $schedule->command('training:auto-reject-missed')
             ->dailyAt('06:00')
             ->timezone('Africa/Nairobi')

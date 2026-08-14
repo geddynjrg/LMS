@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Database\Eloquent\Builder;
 use App\Support\PhaseDocumentType;
+use App\Services\EventHashClient;
 use App\Models\Member;
 
 
@@ -274,6 +275,29 @@ class LoanPhaseService
         }
 
         $phase->update(['status' => 'in_review']);
+        $this->recordPhaseHash($phase, 'start_review');
+    }
+
+    protected function recordPhaseHash($phase, string $action): void
+    {
+        try {
+            $hasher = app(EventHashClient::class);
+            $prev = $hasher->previousHash('loan_phase', $phase->id);
+            $hasher->record(
+                'loan_phase',
+                $phase->id,
+                $action,
+                [
+                    'phase_id' => $phase->id,
+                    'status' => $phase->status,
+                    'constituency_code' => $phase->constituency_code ?? null,
+                    'action' => $action,
+                ],
+                $prev
+            );
+        } catch (\Throwable $e) {
+            Log::warning('[EventHash] phase hook failed', ['error' => $e->getMessage()]);
+        }
     }
 
     /**
@@ -1271,6 +1295,7 @@ class LoanPhaseService
                     'committee_remarks' => $remarks ?? null,
                     'status' => 'submitted_to_hq',
                     'affected_applications' => $pendingApplications->map(function($app) {
+                        $this->recordPhaseHash($phase, 'submit_to_hq');
                         return [
                             'app_id' => $app->tempApplication->application_id,
                             'group_name' => $app->tempApplication->group_name,
@@ -1581,6 +1606,7 @@ class LoanPhaseService
                     'hq_remarks' => $remarks,
                     'status' => 'approved',
                     'affected_groups' => $pendingApplications->map(function($app) {
+                        $this->recordPhaseHash($phase, 'approve_phase');
                         return [
                             'app_id' => $app->tempApplication->application_id,
                             'group_name' => $app->tempApplication->group_name,

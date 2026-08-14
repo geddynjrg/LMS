@@ -29,6 +29,8 @@ services:
       - APP_URL=${APP_URL:-http://localhost:8082}
       # IMPORTANT: Use the container name of the existing DB (must be on same network)
       - DB_HOST=uwezo-lms-db
+      - EVENT_HASHER_URL=http://uwezo-event-hasher:8090
+      - EVENT_HASHER_TOKEN=${EVENT_HASHER_TOKEN:-uwezo-internal-hasher-2026}
       - DB_PORT=3306
       - DB_DATABASE=uwezo_fund03
       - DB_USERNAME=uwezo_admin
@@ -114,6 +116,29 @@ services:
       - DB_PORT=3306
     networks:
       - uwezo-network
+
+  event-hasher:
+    build:
+      context: ./services/event-hasher
+      dockerfile: Dockerfile
+    image: uwezo-event-hasher:latest
+    container_name: uwezo-event-hasher
+    restart: unless-stopped
+    environment:
+      PORT: "8090"
+      EVENT_HASHER_TOKEN: ${EVENT_HASHER_TOKEN:-uwezo-internal-hasher-2026}
+    # Internal only — do not publish host ports
+    expose:
+      - "8090"
+    networks:
+      - uwezo-network
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 
 networks:
   uwezo-network:

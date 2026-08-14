@@ -68,6 +68,7 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/phase-aging', [\App\Http\Controllers\PhaseAgingController::class, 'index'])->name('phase-aging');
     Route::get('/help', [HelpController::class, 'index'])->name('help.index');
 
     // --- HQ / National Administration Routes ---
