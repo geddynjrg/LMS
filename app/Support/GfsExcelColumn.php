@@ -70,16 +70,19 @@ class GfsExcelColumn
         $digits = 'LEN(SUBSTITUTE(SUBSTITUTE(' . $cell . ',"-","")," ",""))';
         $validChars = self::onlyValidCharsFormula($cell);
 
-        return '=OR(' . $cell . '="",AND(' . $validChars . ',' . $digits . '<=21))';
+        return '=OR(' . $cell . '="",AND(' . $validChars . ',' . $digits . '>=20,' . $digits . '<=21))';
     }
 
+    /**
+     * True when nothing remains after removing 0-9 and "-": LEN(stripped)=0.
+     *
+     * Nested SUBSTITUTE of every allowed character is ~220 chars by itself and
+     * blows Excel's 255-character data-validation limit. Equivalent leftover
+     * length: LEN(cell) minus the count of digits and dashes.
+     */
     private static function onlyValidCharsFormula(string $cell): string
     {
-        $stripped = $cell;
-        foreach (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '-'] as $char) {
-            $stripped = 'SUBSTITUTE(' . $stripped . ',"' . $char . '","")';
-        }
-
-        return 'LEN(' . $cell . ')=LEN(' . $stripped . ')';
+        return 'LEN(' . $cell . ')-SUMPRODUCT(LEN(' . $cell . ')-LEN(SUBSTITUTE(' . $cell
+            . ',{"0","1","2","3","4","5","6","7","8","9","-"},"")))=0';
     }
 }
