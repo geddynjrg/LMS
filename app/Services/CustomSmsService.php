@@ -33,7 +33,7 @@ class CustomSmsService
         }
 
         return $user->constituencies()
-            ->where('constituency_code', $constituencyCode)
+            ->wherePivot('constituency_code', $constituencyCode)
             ->exists();
     }
 
