@@ -16,7 +16,7 @@ class GfsExcelColumnTest extends TestCase
         $this->assertLessThan(255, strlen($formula), $formula);
         $this->assertMatchesRegularExpression('/LEN\(.+\)=0/', $formula);
         $this->assertStringContainsString('>=20', $formula);
-        $this->assertStringContainsString('<=21', $formula);
+        $this->assertStringContainsString('<=22', $formula);
     }
 
     public function test_members_column_formula_is_under_excel_dv_limit(): void
@@ -42,7 +42,9 @@ class GfsExcelColumnTest extends TestCase
             'user code' => ['4-039-218-4110202-202-228', true],
             'sample dashed' => ['4-006-026-4110202-201-001', true],
             'twenty-one digit suffix' => ['4-006-026-4110202-201-0001', true],
+            'twenty-two digit suffix' => ['4-006-026-4110202-201-00001', true],
             'digits only' => ['40060264110202201001', true],
+            'twenty-two digits only' => ['4006026411020220100001', true],
             'empty allowed' => ['', true],
             'too few digits' => ['4-039-218-4110202-202-22', false],
             'letter in code' => ['4-039-218-4110202-202-228A', false],

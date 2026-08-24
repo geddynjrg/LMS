@@ -4,13 +4,13 @@ namespace App\Support;
 
 class GfsCode
 {
-    private const DASHED_PATTERN = '/^(\d)-(\d{3})-(\d{3})-(\d{7})-(\d{3})-(\d{3,4})$/';
+    private const DASHED_PATTERN = '/^(\d)-(\d{3})-(\d{3})-(\d{7})-(\d{3})-(\d{3,5})$/';
 
     /**
      * Normalize a GFS code for validation and storage.
      *
-     * Non-digit characters (dashes, spaces) are stripped, the digit structure is
-     * validated, and the canonical dashed format is returned.
+     * Digits-only (20–22) or dashed forms are accepted. Missing dashes are
+     * inserted so the database always stores the canonical dashed code.
      */
     public static function normalize(string $value): ?string
     {
@@ -23,34 +23,27 @@ class GfsCode
             return $value;
         }
 
-        $digits = preg_replace('/\D/', '', $value);
+        $digits = preg_replace('/\D/', '', $value) ?? '';
         $length = strlen($digits);
 
-        if ($length === 20) {
-            return sprintf(
-                '%s-%s-%s-%s-%s-%s',
-                substr($digits, 0, 1),
-                substr($digits, 1, 3),
-                substr($digits, 4, 3),
-                substr($digits, 7, 7),
-                substr($digits, 14, 3),
-                substr($digits, 17, 3)
-            );
+        $layouts = [
+            20 => [1, 3, 3, 7, 3, 3],
+            21 => [1, 3, 3, 7, 3, 4],
+            22 => [1, 3, 3, 7, 3, 5],
+        ];
+
+        if (!isset($layouts[$length])) {
+            return null;
         }
 
-        if ($length === 21) {
-            return sprintf(
-                '%s-%s-%s-%s-%s-%s',
-                substr($digits, 0, 1),
-                substr($digits, 1, 3),
-                substr($digits, 4, 3),
-                substr($digits, 7, 7),
-                substr($digits, 14, 3),
-                substr($digits, 17, 4)
-            );
+        $parts = [];
+        $offset = 0;
+        foreach ($layouts[$length] as $size) {
+            $parts[] = substr($digits, $offset, $size);
+            $offset += $size;
         }
 
-        return null;
+        return implode('-', $parts);
     }
 
     /**

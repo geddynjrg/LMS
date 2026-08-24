@@ -38,6 +38,18 @@ class GfsCodeTest extends TestCase
         );
     }
 
+    public function test_normalize_accepts_twenty_two_digit_suffix(): void
+    {
+        $this->assertSame(
+            '4-006-026-4110202-201-00001',
+            GfsCode::normalize('4006026411020220100001')
+        );
+        $this->assertSame(
+            '4-006-026-4110202-201-00001',
+            GfsCode::normalize('4-006-026-4110202-201-00001')
+        );
+    }
+
     public function test_normalize_rejects_invalid_length(): void
     {
         $this->assertNull(GfsCode::normalize('4-006-026-4110202-201'));
@@ -48,5 +60,6 @@ class GfsCodeTest extends TestCase
     {
         $this->assertSame('001', GfsCode::groupSuffix('4-006-026-4110202-201-001'));
         $this->assertSame('0001', GfsCode::groupSuffix('4-006-026-4110202-201-0001'));
+        $this->assertSame('00001', GfsCode::groupSuffix('4-006-026-4110202-201-00001'));
     }
 }

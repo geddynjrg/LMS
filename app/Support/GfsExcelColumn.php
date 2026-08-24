@@ -8,9 +8,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 /**
  * Shared GFS column styling and validation for upload templates.
  *
- * Text format (@) is required because GFS codes are 20–21 digits; Excel numeric
- * cells only preserve 15 significant digits, so a custom number mask would corrupt
- * digit-only entry. Import normalizes dashed or continuous digits via GfsCode.
+ * Text format (@) is required because GFS codes are 20–22 digits; Excel numeric
+ * cells only preserve 15 significant digits. Import inserts dashes via GfsCode
+ * when the sheet has digits only.
  */
 class GfsExcelColumn
 {
@@ -28,15 +28,15 @@ class GfsExcelColumn
             ->setFormatCode(self::FORMAT_CODE);
 
         $sheet->getColumnDimension($column)->setAutoSize(false);
-        $sheet->getColumnDimension($column)->setWidth(28);
+        $sheet->getColumnDimension($column)->setWidth(32);
 
         $headerCell = $column . '1';
         if ($sheet->getCell($headerCell)->getValue() !== null) {
             $comment = $sheet->getComment($headerCell);
             $comment->setAuthor('LMS');
             $comment->getText()->createTextRun(self::inputMessage());
-            $comment->setWidth('280pt');
-            $comment->setHeight('80pt');
+            $comment->setWidth('300pt');
+            $comment->setHeight('90pt');
         }
 
         $validation = $sheet->getCell($anchor)->getDataValidation();
@@ -56,13 +56,13 @@ class GfsExcelColumn
     public static function inputMessage(): string
     {
         return 'Format: 4-County-Constituency-XXXXXXX-XXX-XXX (e.g. ' . self::SAMPLE . '). '
-            . 'Enter with or without dashes (20-21 digits).';
+            . 'Enter with or without dashes (20-22 digits). Dashes are added on upload if omitted.';
     }
 
     public static function errorMessage(): string
     {
-        return 'GFS Code must contain only digits and dashes, with 20-21 digits total '
-            . '(e.g. ' . self::SAMPLE . ').';
+        return 'GFS Code must contain only digits and dashes, with 20-22 digits total '
+            . '(e.g. ' . self::SAMPLE . '). Dashes are optional.';
     }
 
     public static function validationFormula(string $cell): string
@@ -70,15 +70,11 @@ class GfsExcelColumn
         $digits = 'LEN(SUBSTITUTE(SUBSTITUTE(' . $cell . ',"-","")," ",""))';
         $validChars = self::onlyValidCharsFormula($cell);
 
-        return '=OR(' . $cell . '="",AND(' . $validChars . ',' . $digits . '>=20,' . $digits . '<=21))';
+        return '=OR(' . $cell . '="",AND(' . $validChars . ',' . $digits . '>=20,' . $digits . '<=22))';
     }
 
     /**
-     * True when nothing remains after removing 0-9 and "-": LEN(stripped)=0.
-     *
-     * Nested SUBSTITUTE of every allowed character is ~220 chars by itself and
-     * blows Excel's 255-character data-validation limit. Equivalent leftover
-     * length: LEN(cell) minus the count of digits and dashes.
+     * True when nothing remains after removing 0-9 and "-".
      */
     private static function onlyValidCharsFormula(string $cell): string
     {
