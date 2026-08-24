@@ -5,7 +5,6 @@ namespace App\Exports;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Events\AfterSheet;
-use App\Support\GfsExcelColumn;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -126,7 +125,14 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             ->setFormula1(3)
             ->setSqref("C2:C{$limit}");
 
-        GfsExcelColumn::apply($sheet, 'G', 3, $limit);
+        // GFS Code (Exact 10)
+        $gfsVal = $sheet->getCell('G3')->getDataValidation();
+        $gfsVal->setType(DataValidation::TYPE_TEXTLENGTH)
+            ->setOperator(DataValidation::OPERATOR_EQUAL)
+            ->setFormula1(10)
+            ->setAllowBlank(false)
+            ->setError('GFS Code must be exactly 10 characters.')
+            ->setSqref("G2:G{$limit}");
     }
 
     private function applyStyles(Worksheet $sheet, string $highestColumn, int $maxRows): void
@@ -160,26 +166,19 @@ class LoanTemplateExport implements WithHeadings, WithEvents
             'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
         ]);
 
-        // Fixed widths are significantly faster than autosize on large template ranges.
-        $columnWidths = [
-            'A' => 8,   // S/No
-            'B' => 18,  // Date of Disbursement
-            'C' => 30,  // Name of Group
-            'D' => 22,  // Ward
-            'E' => 20,  // Loan Phase
-            'F' => 18,  // Loan Type
-            'G' => 20,  // GFS Code
-            'H' => 18,  // Identifier
-            'I' => 16,  // Category
-            'J' => 18,  // Sector
-            'K' => 20,  // Amount Approved
-            'L' => 20,  // Amount Issued
-            'M' => 20,  // Amount Repaid
-        ];
+        // $sheet->getStyle("G2:G{$maxRows}")->applyFromArray([
+        //     'alignment' => [
+        //         'wrapText' => false,
+        //     ],
+        // ]);
 
-        foreach ($columnWidths as $column => $width) {
-            $sheet->getColumnDimension($column)->setAutoSize(false);
-            $sheet->getColumnDimension($column)->setWidth($width);
+        $sheet->getStyle("G2:G{$maxRows}")
+            ->getNumberFormat()
+            ->setFormatCode(\PhpOffice\PhpSpreadsheet\Style\NumberFormat::FORMAT_TEXT);
+
+        // Auto-size columns
+        foreach (range('A', $highestColumn) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
         $sheet->getStyle("A{$summaryRow}:M{$summaryRow}")->applyFromArray([

@@ -289,6 +289,19 @@ class LoanTemplateImport implements
 
     private function validateGfs($value, $rowNumber, $row, $mapping)
     {
+        $value = trim((string) $value);
+
+        // Previous group template required exactly 10 characters.
+        if (preg_match('/^\d{10}$/', $value)) {
+            $groupCode = $this->extractGroupCode($value);
+            if (!$groupCode) {
+                $this->errors[] = "Row {$rowNumber}: GFS suffix (last 3-4 digits) invalid in '{$value}'";
+                return;
+            }
+            $this->checkForDuplicateGroupCodeInDoc($groupCode, $rowNumber, $value, $row, $mapping);
+            return;
+        }
+
         $parsed = GfsCode::parse($value);
         if (!$parsed) {
             $this->errors[] = "Row {$rowNumber}: GFS Code '{$value}' is invalid. Sample 4-{$this->constituency->county_code}-{$this->constituency->constituency_code}-4110202-201-001";
@@ -454,7 +467,20 @@ class LoanTemplateImport implements
 
     private function extractGroupCode(string $gfs): ?string
     {
-        return GfsCode::groupSuffix($gfs);
+        $fromParser = GfsCode::groupSuffix($gfs);
+        if ($fromParser) {
+            return $fromParser;
+        }
+
+        $digits = preg_replace('/\D/', '', $gfs) ?? '';
+        if (strlen($digits) === 10) {
+            return substr($digits, -3);
+        }
+
+        $parts = explode('-', $gfs);
+        $last = trim((string) end($parts));
+
+        return (strlen($last) >= 3 && strlen($last) <= 4 && ctype_digit($last)) ? $last : null;
     }
 
     private function checkForDuplicateGroupCodeInDoc(
