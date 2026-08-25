@@ -127,11 +127,15 @@ class SendCustomSms extends Component
                     $this->message,
                 );
 
-                if ($result['sms_sent'] > 0) {
+                $skipNote = ($result['skipped'] ?? 0) > 0
+                    ? " ({$result['skipped']} member(s) skipped — no phone number)"
+                    : '';
+                if (($result['sms_queued'] ?? 0) > 0) {
                     $this->statusType = 'success';
-                    $skipNote = $result['skipped'] > 0
-                        ? " ({$result['skipped']} member(s) skipped — no phone number)"
-                        : '';
+                    $this->statusMessage = "Queued SMS for {$result['sms_queued']} member(s). Delivery continues in the background.{$skipNote}";
+                    $this->message = '';
+                } elseif ($result['sms_sent'] > 0) {
+                    $this->statusType = 'success';
                     $failNote = $result['sms_failed'] > 0
                         ? " {$result['sms_failed']} failed."
                         : '';
@@ -155,11 +159,15 @@ class SendCustomSms extends Component
                     $this->groupLoanId,
                 );
 
-                if ($result['sms_sent'] > 0) {
+                $skipNote = ($result['skipped'] ?? 0) > 0
+                    ? " ({$result['skipped']} member(s) skipped — no phone number)"
+                    : '';
+                if (($result['sms_queued'] ?? 0) > 0) {
                     $this->statusType = 'success';
-                    $skipNote = $result['skipped'] > 0
-                        ? " ({$result['skipped']} member(s) skipped — no phone number)"
-                        : '';
+                    $this->statusMessage = "Queued SMS for {$result['sms_queued']} member(s). Delivery continues in the background.{$skipNote}";
+                    $this->message = '';
+                } elseif ($result['sms_sent'] > 0) {
+                    $this->statusType = 'success';
                     $failNote = $result['sms_failed'] > 0
                         ? " {$result['sms_failed']} failed."
                         : '';

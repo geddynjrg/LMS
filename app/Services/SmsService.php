@@ -34,37 +34,52 @@ class SmsService
         $config = config('sms.ebiscloud');
 
         try {
-            $response = Http::timeout(30)
-                ->acceptJson()
-                ->post($config['api_url'], [
-                    'api_key' => $config['api_key'],
-                    'mobile' => $mobile,
-                    'response_type' => 'json',
-                    'shortcode' => trim($config['shortcode'], '"'),
-                    'message' => $message,
-                    'service_id' => $config['service_id'],
-                ]);
+            $attempts = max(1, (int) config('sms.send_attempts', 3));
+            $retryPause = (int) config('sms.retry_pause_microseconds', 250000);
+            $lastError = null;
 
-            if (!$response->successful()) {
-                Log::error('SMS API HTTP error', [
-                    'phone' => $mobile,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
+            for ($attempt = 1; $attempt <= $attempts; $attempt++) {
+                try {
+                    $response = Http::timeout(15)
+                        ->acceptJson()
+                        ->post($config['api_url'], [
+                            'api_key' => $config['api_key'],
+                            'mobile' => $mobile,
+                            'response_type' => 'json',
+                            'shortcode' => trim($config['shortcode'], '"'),
+                            'message' => $message,
+                            'service_id' => $config['service_id'],
+                        ]);
 
-                return false;
+                    if ($response->successful()) {
+                        $payload = $response->json();
+                        if ($this->isSuccessfulResponse($payload)) {
+                            Log::info('SMS sent successfully', [
+                                'phone' => $mobile,
+                                'response' => $payload,
+                                'attempt' => $attempt,
+                            ]);
+
+                            return true;
+                        }
+
+                        $lastError = 'rejected: '.json_encode($payload);
+                    } else {
+                        $lastError = 'http '.$response->status().': '.$response->body();
+                    }
+                } catch (\Throwable $e) {
+                    $lastError = $e->getMessage();
+                }
+
+                if ($attempt < $attempts && $retryPause > 0) {
+                    usleep($retryPause);
+                }
             }
 
-            $payload = $response->json();
-            if ($this->isSuccessfulResponse($payload)) {
-                Log::info('SMS sent successfully', ['phone' => $mobile, 'response' => $payload]);
-
-                return true;
-            }
-
-            Log::error('SMS API rejected message', [
+            Log::error('SMS send failed after retries', [
                 'phone' => $mobile,
-                'response' => $payload,
+                'error' => $lastError,
+                'attempts' => $attempts,
             ]);
 
             return false;

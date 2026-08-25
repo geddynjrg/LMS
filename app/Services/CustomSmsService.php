@@ -8,6 +8,7 @@ use App\Models\Member;
 use App\Models\TempApplication;
 use App\Models\TempGroupMember;
 use App\Models\User;
+use App\Jobs\SendBulkCustomSmsJob;
 use App\Support\SystemRoles;
 use Illuminate\Support\Facades\Log;
 
@@ -42,7 +43,7 @@ class CustomSmsService
         return GroupMember::query()
             ->where('member_Id', $memberId)
             ->whereHas('groupLoan.loanPhase', function ($query) use ($constituencyCode) {
-                $query->where('constituency_code', $constituencyCode);
+                $query->where('loan_phases.constituency_code', $constituencyCode);
             })
             ->exists();
     }
@@ -125,8 +126,7 @@ class CustomSmsService
         $members = $query->get()->unique('member_Id');
         $formattedMessage = $this->formatMessage($message);
 
-        $sent = 0;
-        $failed = 0;
+        $phones = [];
         $skipped = 0;
 
         foreach ($members as $groupMember) {
@@ -135,27 +135,31 @@ class CustomSmsService
                 $skipped++;
                 continue;
             }
-
-            if ($this->smsService->send($phone, $formattedMessage)) {
-                $sent++;
-            } else {
-                $failed++;
-            }
+            $phones[] = $phone;
         }
 
-        Log::info('Custom SMS sent to group', [
+        if ($phones !== []) {
+            SendBulkCustomSmsJob::dispatch($phones, $formattedMessage, [
+                'user_id' => $user->id,
+                'group_id' => $group->id,
+                'group_loan_id' => $groupLoanId,
+                'constituency_code' => $constituencyCode,
+            ]);
+        }
+
+        Log::info('Custom SMS queued for group', [
             'user_id' => $user->id,
             'group_id' => $group->id,
             'group_loan_id' => $groupLoanId,
             'constituency_code' => $constituencyCode,
-            'sms_sent' => $sent,
-            'sms_failed' => $failed,
+            'sms_queued' => count($phones),
             'skipped' => $skipped,
         ]);
 
         return [
-            'sms_sent' => $sent,
-            'sms_failed' => $failed,
+            'sms_sent' => 0,
+            'sms_failed' => 0,
+            'sms_queued' => count($phones),
             'skipped' => $skipped,
         ];
     }
@@ -220,8 +224,7 @@ class CustomSmsService
         $application->loadMissing('groupMembers');
         $formattedMessage = $this->formatMessage($message);
 
-        $sent = 0;
-        $failed = 0;
+        $phones = [];
         $skipped = 0;
 
         foreach ($application->groupMembers as $member) {
@@ -229,26 +232,29 @@ class CustomSmsService
                 $skipped++;
                 continue;
             }
-
-            if ($this->smsService->send($member->phone_number, $formattedMessage)) {
-                $sent++;
-            } else {
-                $failed++;
-            }
+            $phones[] = $member->phone_number;
         }
 
-        Log::info('Custom SMS sent to application group', [
+        if ($phones !== []) {
+            SendBulkCustomSmsJob::dispatch($phones, $formattedMessage, [
+                'user_id' => $user->id,
+                'application_id' => $application->application_id,
+                'constituency_code' => $constituencyCode,
+            ]);
+        }
+
+        Log::info('Custom SMS queued for application group', [
             'user_id' => $user->id,
             'application_id' => $application->application_id,
             'constituency_code' => $constituencyCode,
-            'sms_sent' => $sent,
-            'sms_failed' => $failed,
+            'sms_queued' => count($phones),
             'skipped' => $skipped,
         ]);
 
         return [
-            'sms_sent' => $sent,
-            'sms_failed' => $failed,
+            'sms_sent' => 0,
+            'sms_failed' => 0,
+            'sms_queued' => count($phones),
             'skipped' => $skipped,
         ];
     }
