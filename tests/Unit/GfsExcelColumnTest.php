@@ -46,6 +46,7 @@ class GfsExcelColumnTest extends TestCase
             'digits only' => ['40060264110202201001', true],
             'twenty-two digits only' => ['4006026411020220100001', true],
             'empty allowed' => ['', true],
+            'trailing dashes' => ['4-006-026-4110202-201-001---', true],
             'too few digits' => ['4-039-218-4110202-202-22', false],
             'letter in code' => ['4-039-218-4110202-202-228A', false],
             'letters only' => ['abc', false],

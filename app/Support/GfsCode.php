@@ -9,12 +9,13 @@ class GfsCode
     /**
      * Normalize a GFS code for validation and storage.
      *
-     * Digits-only (20–22) or dashed forms are accepted. Missing dashes are
-     * inserted so the database always stores the canonical dashed code.
+     * Digits-only (20–22) or dashed forms are accepted. Trailing dashes are
+     * stripped. Missing dashes are inserted so the database always stores
+     * the canonical dashed code.
      */
     public static function normalize(string $value): ?string
     {
-        $value = trim($value);
+        $value = rtrim(trim($value), "- \t");
         if ($value === '') {
             return null;
         }

@@ -50,6 +50,22 @@ class GfsCodeTest extends TestCase
         );
     }
 
+    public function test_normalize_strips_trailing_dashes(): void
+    {
+        $this->assertSame(
+            '4-006-026-4110202-201-001',
+            GfsCode::normalize('4-006-026-4110202-201-001---')
+        );
+        $this->assertSame(
+            '4-006-026-4110202-201-001',
+            GfsCode::normalize('40060264110202201001---')
+        );
+        $this->assertSame(
+            '4-006-026-4110202-201-00001',
+            GfsCode::normalize('4-006-026-4110202-201-00001-')
+        );
+    }
+
     public function test_normalize_rejects_invalid_length(): void
     {
         $this->assertNull(GfsCode::normalize('4-006-026-4110202-201'));

@@ -56,13 +56,14 @@ class GfsExcelColumn
     public static function inputMessage(): string
     {
         return 'Format: 4-County-Constituency-XXXXXXX-XXX-XXX (e.g. ' . self::SAMPLE . '). '
-            . 'Enter with or without dashes (20-22 digits). Dashes are added on upload if omitted.';
+            . 'Enter with or without dashes (20-22 digits). Trailing dashes are ignored. '
+            . 'Dashes are added on upload if omitted.';
     }
 
     public static function errorMessage(): string
     {
         return 'GFS Code must contain only digits and dashes, with 20-22 digits total '
-            . '(e.g. ' . self::SAMPLE . '). Dashes are optional.';
+            . '(e.g. ' . self::SAMPLE . '). Trailing dashes are ignored. Dashes are optional.';
     }
 
     public static function validationFormula(string $cell): string
