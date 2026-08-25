@@ -22,6 +22,7 @@ use App\Models\LoanPhase;
 use App\Models\Wards;
 use App\Services\Loan\LoanPhaseService;
 use App\Support\GfsCode;
+use App\Support\GroupNameMatcher;
 use App\Support\LoanPhaseFinancialTotals;
 
 class LoanTemplateImport implements
@@ -226,7 +227,8 @@ class LoanTemplateImport implements
             }
 
             if ($colIndex === 8 && $value !== '') {
-                if (!in_array($lowerValue, $this->categories)) {
+                $category = GroupNameMatcher::normalizeCategory($value);
+                if (!in_array($category, $this->categories, true)) {
                     $this->errors[] = "Row {$rowNumber}: '{$value}' is not a valid Group Category.";
                 }
             }
@@ -505,7 +507,7 @@ class LoanTemplateImport implements
             $existingLoanType = $existing['loan_type'];
 
             // Check if they are the same group (by name)
-            $isSameGroup = $currentGroupName === $existingGroupName;
+            $isSameGroup = GroupNameMatcher::isSameGroup($currentGroupName, $existingGroupName);
             if (!$isSameGroup) {
                 // Different groups using same GFS code - this is a conflict
                 $this->errors[] = "Row {$rowNumber}: GFS code suffix '{$groupCode}' is already used by "
@@ -630,7 +632,7 @@ class LoanTemplateImport implements
         $namesToCodes = [];
 
         foreach ($this->docEntries as $entry) {
-            $nameKey = strtolower(trim($entry['group_name'] ?? ''));
+            $nameKey = GroupNameMatcher::normalize($entry['group_name'] ?? '');
             $groupCode = trim($entry['group_code'] ?? '');
 
             if ($nameKey === '' || $groupCode === '') {
@@ -746,7 +748,7 @@ class LoanTemplateImport implements
             $entryGroupName = strtolower(trim($entry['group_name'] ?? ''));
             $rowNumber = $entry['rowNumber'];
 
-            if ($entryGroupName !== $expectedName) {
+            if (!GroupNameMatcher::isSameGroup($entryGroupName, $expectedName)) {
                 $mismatchedRows[] = "Row {$rowNumber}: '{$entry['group_name']}'";
             }
         }
