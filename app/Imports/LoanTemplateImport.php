@@ -632,7 +632,8 @@ class LoanTemplateImport implements
         $namesToCodes = [];
 
         foreach ($this->docEntries as $entry) {
-            $nameKey = GroupNameMatcher::normalize($entry['group_name'] ?? '');
+            // Keep category tokens so "Makena W.G" does not collide with "Makena Youth".
+            $nameKey = GroupNameMatcher::normalizeWithCategory($entry['group_name'] ?? '');
             $groupCode = trim($entry['group_code'] ?? '');
 
             if ($nameKey === '' || $groupCode === '') {

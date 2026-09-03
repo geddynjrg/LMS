@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Imports\MembersTemplateImport;
 use App\Models\Constituency;
+use App\Support\ExcelEmptyRowTrimmer;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -37,13 +38,23 @@ class ProcessMembersTemplateImport implements ShouldQueue
         ini_set('memory_limit', '1024M');
         set_time_limit($this->timeout);
 
-        $this->updateProgress(10, 'Reading spreadsheet...');
+        $this->updateProgress(8, 'Preparing spreadsheet...');
 
         $constituency = Constituency::query()
             ->where('constituency_code', $this->constituencyCode)
             ->firstOrFail();
 
         try {
+            $trim = ExcelEmptyRowTrimmer::trim($this->filePath);
+            if (($trim['removed'] ?? 0) > 0) {
+                $this->updateProgress(
+                    10,
+                    "Removed {$trim['removed']} empty Excel rows, then reading {$trim['kept']} data rows..."
+                );
+            } else {
+                $this->updateProgress(10, 'Reading spreadsheet...');
+            }
+
             $import = new MembersTemplateImport($constituency, $this->phases, $this->progressKey);
             Excel::import($import, $this->filePath);
 
@@ -115,6 +126,32 @@ class ProcessMembersTemplateImport implements ShouldQueue
                 'updated_at' => now(),
             ], now()->addHour());
         }
+    }
+
+
+    public function failed(?Throwable $e): void
+    {
+        $message = $e?->getMessage() ?: 'Import failed.';
+        if (str_contains($message, 'attempted too many times') || str_contains(class_basename($e ?? new \Exception()), 'MaxAttempts')) {
+            $message = 'Import was interrupted by the queue (job ran longer than the queue reservation). Please upload again. If this persists, copy only the member data rows into a new blank workbook first.';
+        } elseif (str_contains($message, 'timed out') || str_contains(class_basename($e ?? new \Exception()), 'Timeout')) {
+            $message = 'Import timed out. The Excel file likely contains tens of thousands of empty formatted rows. Copy only the member rows into a new blank workbook and upload again.';
+        }
+
+        Cache::put($this->resultKey, [
+            'success' => false,
+            'message' => $message,
+            'errors' => [$message],
+            'total_errors' => 1,
+            'display_errors' => [$message],
+            'stats' => [
+                'imported' => 0,
+                'skipped' => 0,
+                'new' => 0,
+            ],
+        ], now()->addHour());
+
+        $this->updateProgress(100, 'Import failed.');
     }
 
     private function updateProgress(int $progress, string $message): void

@@ -156,8 +156,9 @@ class MembersTemplateImport implements
     private function updateProgress(int $progress, string $message): void
     {
         static $lastProgress = 0;
+        static $lastMessage = '';
 
-        if (abs($progress - $lastProgress) < 3 && $progress < 100) {
+        if (abs($progress - $lastProgress) < 3 && $progress < 100 && $message === $lastMessage) {
             return;
         }
 
@@ -169,6 +170,7 @@ class MembersTemplateImport implements
         ], now()->addHour());
 
         $lastProgress = $progress;
+        $lastMessage = $message;
     }
 
     public function loadExistingData() : void

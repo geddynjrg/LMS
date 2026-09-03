@@ -23,6 +23,20 @@ class GroupNameMatcherTest extends TestCase
     {
         $this->assertFalse(GroupNameMatcher::isSameGroup('Amazing Lalwet W.G', 'Blessing Hand Self Help Group'));
         $this->assertFalse(GroupNameMatcher::isSameGroup('Gift Upendo Women Group', 'Elite Youth Group'));
+        $this->assertFalse(GroupNameMatcher::isSameGroup('Makena W.G', 'Makena Youth Group'));
+        $this->assertFalse(GroupNameMatcher::isSameGroup('makena w.g', 'Makena Self Help Group'));
+    }
+
+    public function test_normalize_with_category_keeps_type_tokens(): void
+    {
+        $this->assertSame('makena women', GroupNameMatcher::normalizeWithCategory('makena w.g'));
+        $this->assertSame('makena youth', GroupNameMatcher::normalizeWithCategory('Makena Youth Group'));
+        $this->assertSame('faith selfhelp', GroupNameMatcher::normalizeWithCategory('Faith S.H.G'));
+        $this->assertSame('faith selfhelp', GroupNameMatcher::normalizeWithCategory('Faith Self Help Group'));
+        $this->assertNotSame(
+            GroupNameMatcher::normalizeWithCategory('makena w.g'),
+            GroupNameMatcher::normalizeWithCategory('Makena Youth Group')
+        );
     }
 
     public function test_category_aliases(): void

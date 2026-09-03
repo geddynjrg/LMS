@@ -201,7 +201,7 @@ return [
     'defaults' => [
         'supervisor-1' => [
             'connection' => 'redis',
-            'queue' => ['default', 'loan-applications'],
+            'queue' => ['sms', 'default', 'loan-applications'],
             'balance' => 'simple', // Change from 'auto' to 'simple'
             'processes' => 3,      // Add this line
             'autoScalingStrategy' => 'time',
@@ -210,7 +210,7 @@ return [
             'maxJobs' => 0,
             'memory' => 1024,
             'tries' => 5,
-            'timeout' => 600,
+            'timeout' => 960,
             'nice' => 0,
         ],
         'supervisor-financial' => [ // supervisor for financial updates
@@ -233,13 +233,13 @@ return [
         'production' => [
             'supervisor-1' => [
                 'connection' => 'redis',
-                'queue' => ['loan-applications', 'default'],
+                'queue' => ['sms', 'loan-applications', 'default'],
                 'balance' => 'auto',
                 'minProcesses' => 1,
                 'maxProcesses' => 10,
                 'processes' => 10,
                 'tries' => 5,
-                'timeout' => 600,
+                'timeout' => 960,
                 'memory' => 1024,
             ],
 
@@ -259,13 +259,13 @@ return [
         'staging' => [
             'supervisor-1' => [
                 'connection' => 'redis',
-                'queue' => ['loan-applications', 'default'],
+                'queue' => ['sms', 'loan-applications', 'default'],
                 'balance' => 'auto',
                 'minProcesses' => 1,
                 'maxProcesses' => 5,
                 'processes' => 5,      // Adjust as needed (3-10 is fine for staging)
                 'tries' => 5,
-                'timeout' => 600,
+                'timeout' => 960,
                 'memory' => 1024,
             ],
             'supervisor-financial' => [
@@ -284,11 +284,11 @@ return [
         'local' => [
             'supervisor-1' => [
                 'connection' => 'redis',
-                'queue' => ['default', 'loan-applications'],
+                'queue' => ['sms', 'default', 'loan-applications'],
                 'balance' => 'simple',
                 'processes' => 3,
                 'tries' => 5,
-                'timeout' => 600,
+                'timeout' => 960,
                 'memory' => 1024,
             ],
             'supervisor-financial' => [
