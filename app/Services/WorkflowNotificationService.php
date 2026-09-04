@@ -15,8 +15,23 @@ use Illuminate\Support\Facades\Mail;
 
 class WorkflowNotificationService
 {
-    public function __construct(protected SmsService $smsService)
+    public function __construct(
+        protected SmsService $smsService,
+        protected WhatsAppService $whatsAppService,
+    ) {
+    }
+
+    /**
+     * SMS via EBIS (live) plus optional WhatsApp (stub unless WHATSAPP_ENABLED).
+     */
+    protected function sendChannelAlert(string $phone, string $message): void
     {
+        $this->smsService->send($phone, $message);
+        try {
+            $this->whatsAppService->sendText($phone, $message);
+        } catch (\Throwable $e) {
+            Log::warning('WhatsApp channel failed', ['error' => $e->getMessage()]);
+        }
     }
 
     public function notifyConstituencyOfficersNewApplication(TempApplication $application, bool $queue = true): void
@@ -154,7 +169,7 @@ class WorkflowNotificationService
             }
 
             if ($smsMessage && $officer->phone_number) {
-                $this->smsService->send($officer->phone_number, $smsMessage);
+                $this->sendChannelAlert($officer->phone_number, $smsMessage);
             }
         }
     }
@@ -232,7 +247,7 @@ class WorkflowNotificationService
             }
 
             if ($officer->phone_number) {
-                $this->smsService->send(
+                $this->sendChannelAlert(
                     $officer->phone_number,
                     "Uwezo Fund: {$phase->phase} ({$constituencyName}) submitted to HQ — {$batchCount} application(s), KES {$totalApproved}. Review in LMS."
                 );
@@ -268,7 +283,7 @@ class WorkflowNotificationService
         }
 
         if ($accountant->phone_number) {
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $accountant->phone_number,
                 "Uwezo Fund: {$phase->phase} ({$constituencyName}) is ready for accounts review. Processed code list uploaded by HQ. Review in LMS."
             );
@@ -306,7 +321,7 @@ class WorkflowNotificationService
         }
 
         if ($accountant->phone_number) {
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $accountant->phone_number,
                 "Uwezo Fund: {$phase->phase} ({$constituencyName}) resubmitted by HQ for accounts review. Notes: {$hqNotes}"
             );
@@ -341,7 +356,7 @@ class WorkflowNotificationService
         }
 
         if ($officer->phone_number) {
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $officer->phone_number,
                 "Uwezo Fund: {$phase->phase} ({$constituencyName}) was returned by Secretariat for HQ review. Reason: {$reason}"
             );
@@ -376,7 +391,7 @@ class WorkflowNotificationService
         }
 
         if ($head->phone_number) {
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $head->phone_number,
                 "Uwezo Fund: {$phase->phase} ({$constituencyName}) is HQ-approved and needs your secretariat sign-off for training and disbursement. Review: {$reviewUrl}"
             );
@@ -424,7 +439,7 @@ class WorkflowNotificationService
             }
 
             if ($officer->phone_number) {
-                $this->smsService->send(
+                $this->sendChannelAlert(
                     $officer->phone_number,
                     "Uwezo Fund: Secretariat approved training for {$phase->phase} ({$constituencyName}). Please schedule training dates in LMS: {$phaseUrl}"
                 );
@@ -467,7 +482,7 @@ class WorkflowNotificationService
         }
 
         if ($head->phone_number) {
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $head->phone_number,
                 "Uwezo Fund: {$phase?->phase} ({$constituencyName}) — group {$appId} training marked complete on {$markedAt} at {$venue}. Members notified."
             );
@@ -499,7 +514,7 @@ class WorkflowNotificationService
                 continue;
             }
 
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $member->phone_number,
                 "Uwezo Fund: Dear {$member->name}, {$groupName} (Application No. {$appId}) is scheduled for {$phaseName} training "
                 . "from {$startDate} to {$endDate} at {$venue}. Please attend with your application number."
@@ -531,7 +546,7 @@ class WorkflowNotificationService
                 continue;
             }
 
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $member->phone_number,
                 "Uwezo Fund: Dear {$member->name}, {$groupName} (Application No. {$appId}) successfully completed {$phaseName} training on {$markedAt} at {$venue}. "
                 . "Keep this application number for your records. Your training certificate is now available for download on the Uwezo portal and LMS."
@@ -563,7 +578,7 @@ class WorkflowNotificationService
                 continue;
             }
 
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $member->phone_number,
                 "Uwezo Fund: Dear {$member->name}, {$groupName} (Application No. {$appId}) has received KES {$amount} "
                 . "for {$phaseName}. Cheque/ref: {$cheque}. Repay promptly to remain eligible for future loans. "
@@ -594,7 +609,7 @@ class WorkflowNotificationService
                 continue;
             }
 
-            $this->smsService->send(
+            $this->sendChannelAlert(
                 $member->phone_number,
                 "Uwezo Fund: Dear {$member->name}, disbursement for {$groupName} (Application No. {$appId}, {$phaseName}) "
                 . "was not completed. Reason: {$reason} Contact your constituency office for next steps."

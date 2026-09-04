@@ -363,6 +363,7 @@
                     <p class="small mb-0 {{ $recommendation['should_decline'] ? 'text-danger' : 'text-dark' }}">
                         {{ $recommendation['explanation'] }}
                     </p>
+                    @include('partials.pathway-prescription', ['pathwayPrescription' => $recommendation])
                 </div>
 
                 @if($summary = $this->wardAllocationSummary)

@@ -351,5 +351,7 @@
 
         @livewireScripts
 
+        @include('partials.assistive-chatbot')
+
     </body>
 </html>

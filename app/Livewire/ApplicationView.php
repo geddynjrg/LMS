@@ -16,6 +16,7 @@ use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
 use App\Services\Loan\LoanAnalysisService;
 use App\Services\Loan\LoanRecommendationService;
+use App\Services\PathwayPrescriptionService;
 use App\Services\Loan\WardAllocationService;
 use App\Services\Loan\DefaultAnalysisService;
 use App\Services\IdempotencyService;
@@ -56,6 +57,7 @@ class ApplicationView extends Component
     protected DefaultAnalysisService $defaultService;
     protected LoanAnalysisService $analysisService;
     protected LoanRecommendationService $recommendationService;
+    protected PathwayPrescriptionService $pathwayPrescription;
     protected WardAllocationService $wardAllocationService;
     protected IdempotencyService $idempotencyService;
 
@@ -130,6 +132,7 @@ class ApplicationView extends Component
         LoanPhaseService $phaseService,
         LoanAnalysisService $analysisService,
         LoanRecommendationService $recommendationService,
+        PathwayPrescriptionService $pathwayPrescription,
         WardAllocationService $wardAllocationService,
         TempApplicationService $appService,
         DefaultAnalysisService $defaultService,
@@ -141,6 +144,7 @@ class ApplicationView extends Component
         $this->defaultService = $defaultService;
         $this->analysisService = $analysisService;
         $this->recommendationService = $recommendationService;
+        $this->pathwayPrescription = $pathwayPrescription;
         $this->wardAllocationService = $wardAllocationService;
         $this->idempotencyService = $idempotencyService;
     }
@@ -335,10 +339,16 @@ class ApplicationView extends Component
     #[Computed]
     public function loanRecommendation()
     {
-        return $this->recommendationService->recommend(
+        return $this->pathwayPrescription->prescribe(
             $this->application,
             $this->eligibility
         );
+    }
+
+    #[Computed]
+    public function pathwayPrescription()
+    {
+        return $this->loanRecommendation;
     }
 
     #[Computed]
