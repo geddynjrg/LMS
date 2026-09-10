@@ -585,6 +585,17 @@ class ApplicationPhaseDetails extends Component
             return;
         }
 
+        if ($this->hqReadyCount() < 1) {
+            $this->dispatch('swal:toast',
+                title: 'Cannot submit to HQ',
+                message: $this->isHistoricalPhase
+                    ? 'This phase has no groups to submit to HQ.'
+                    : 'No approved applications are ready for HQ. Finish constituency reviews first.',
+                type: 'error'
+            );
+            return;
+        }
+
         $this->dispatch('open-modal', name: 'phase-submission-modal');
     }
 
@@ -605,6 +616,19 @@ class ApplicationPhaseDetails extends Component
             $this->dispatch('swal:toast',
                 title: 'Cannot submit to HQ',
                 message: 'Complete reviewing all applications before submitting this phase.',
+                type: 'error'
+            );
+            $this->dispatch('close-modal', name: 'phase-submission-modal');
+
+            return;
+        }
+
+        if ($this->hqReadyCount() < 1) {
+            $this->dispatch('swal:toast',
+                title: 'Cannot submit to HQ',
+                message: $this->isHistoricalPhase
+                    ? 'This phase has no groups to submit to HQ.'
+                    : 'No approved applications are ready for HQ. Finish constituency reviews first.',
                 type: 'error'
             );
             $this->dispatch('close-modal', name: 'phase-submission-modal');
@@ -669,25 +693,43 @@ class ApplicationPhaseDetails extends Component
                 type: 'success'
             );
         } catch (ValidationException $e) {
+            $message = $e->validator->errors()->first() ?: $e->getMessage();
+            logger()->warning('HQ submission validation failed', [
+                'phase_id' => $this->phase->id,
+                'error' => $message,
+            ]);
             $this->dispatch('swal:toast',
-                title: 'System Error 😕',
-                message: $e->getMessage(),
+                title: 'Cannot submit to HQ',
+                message: $message,
                 type: 'error'
             );
 
             $this->dispatch('close-modal', name: 'phase-submission-modal');
-            // $this->addError('phase_submission', $e->getMessage());
 
             $this->idempotencyService->release($idempotencyKey);
-        }   catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            logger()->error('HQ submission failed', [
+                'phase_id' => $this->phase->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             $this->dispatch('swal:toast',
                 title: 'System Error 😕',
-                message: "Could not finalize submission. Please try again or contact support.",
+                message: $e->getMessage() ?: 'Could not finalize submission. Please try again or contact support.',
                 type: 'error'
             );
 
             $this->idempotencyService->release($idempotencyKey);
         }
+    }
+
+    protected function hqReadyCount(): int
+    {
+        if ($this->isHistoricalPhase) {
+            return (int) ($this->phase->grouploans()->count() ?: ($this->detailedPhase->total_applications ?? 0));
+        }
+
+        return (int) ($this->detailedPhase->pending_submission_to_hq_count ?? 0);
     }
 
     public function canSubmitApplication() : bool

@@ -1,4 +1,4 @@
-<div>
+<div @if($smsResultKey) wire:poll.2s="pollSmsResult" @endif>
     @if($isOpen)
     <div class="modal fade show d-block" style="background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);" wire:click.self="close">
         <div class="modal-dialog modal-lg modal-dialog-scrollable shadow-sm">

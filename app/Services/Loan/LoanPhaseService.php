@@ -1204,6 +1204,11 @@ class LoanPhaseService
             ]);
         }
 
+        if ($phase->isHistoricalUpload()) {
+            $this->submitHistoricalPhaseToHq($phase, $remarks, $idempotencyKey);
+            return;
+        }
+
         $pendingApplications = $phase->phaseApplications()
             ->where('status', 'pending_submission_to_hq')
             ->with(['tempApplication' => function($query) {
@@ -1214,13 +1219,15 @@ class LoanPhaseService
                     'group_registration_number',
                 ]);
             }])
-            ->get();
+            ->get()
+            ->filter(fn ($app) => $app->tempApplication !== null)
+            ->values();
 
         $randomHex = strtoupper(bin2hex(random_bytes(2)));
 
         if ($pendingApplications->isEmpty()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'phase' => 'No approved applications found in this phase ready for HQ submission.'
+            throw ValidationException::withMessages([
+                'phase' => 'No approved applications found in this phase ready for HQ submission. Approve constituency reviews first, then submit.',
             ]);
         }
 
@@ -1231,11 +1238,9 @@ class LoanPhaseService
             'total_approved' => $phase->total_approved, // This is a computed/ghost column
         ];
 
-        $phase->refresh();
+        $phaseId = $phase->id;
 
         DB::transaction(function () use ($phase, $pendingApplications, $remarks, $ref, $idempotencyKey, $stats) {
-
-
             $tempAppIds = $pendingApplications->pluck('temp_application_id')->toArray();
             TempApplication::whereIn('id', $tempAppIds)->update([
                 'status' => 'under_hq_review',
@@ -1284,6 +1289,8 @@ class LoanPhaseService
                 'hq_accountant_resubmitted_by' => null,
             ]);
 
+            $this->recordPhaseHash($phase, 'submit_to_hq');
+
             activity()
                 ->performedOn($phase)
                 ->causedBy(auth()->user())
@@ -1295,7 +1302,6 @@ class LoanPhaseService
                     'committee_remarks' => $remarks ?? null,
                     'status' => 'submitted_to_hq',
                     'affected_applications' => $pendingApplications->map(function($app) {
-                        $this->recordPhaseHash($phase, 'submit_to_hq');
                         return [
                             'app_id' => $app->tempApplication->application_id,
                             'group_name' => $app->tempApplication->group_name,
@@ -1306,17 +1312,93 @@ class LoanPhaseService
                 ])
                 ->log("Phase finalized and submitted to HQ with Ref: {$ref}");
 
-            app(\App\Services\Constituency\ConstituencyAllocationService::class)
-                ->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase->fresh());
-
             $this->idempotencyService->release($idempotencyKey);
         });
+
+        try {
+            app(\App\Services\Constituency\ConstituencyAllocationService::class)
+                ->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase->fresh());
+        } catch (\Throwable $e) {
+            Log::error('HQ submission succeeded but allocation sync failed', [
+                'phase_id' => $phaseId,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         try {
             app(WorkflowNotificationService::class)->notifyHqOfficersPhaseSubmitted($phase->fresh());
         } catch (\Throwable $e) {
             Log::error('Failed to notify HQ officers of phase submission', [
-                'phase_id' => $phase->id,
+                'phase_id' => $phaseId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function submitHistoricalPhaseToHq($phase, $remarks, $idempotencyKey): void
+    {
+        $groupLoans = $phase->grouploans()->get();
+        if ($groupLoans->isEmpty()) {
+            throw ValidationException::withMessages([
+                'phase' => 'This phase has no groups or applications to submit to HQ.',
+            ]);
+        }
+
+        $ref = "UWEZO/HQ/{$phase->constituency_code}/{$phase->slug}/" . now()->format('Ymd') . "/" . strtoupper(bin2hex(random_bytes(2)));
+        $phaseId = $phase->id;
+
+        DB::transaction(function () use ($phase, $remarks, $ref, $idempotencyKey, $groupLoans) {
+            $phase->update([
+                'status' => 'submitted_to_hq',
+                'submitted_to_hq_at' => now(),
+                'constituency_officer_id' => auth()->id(),
+                'phase_ref' => $ref,
+                'committee_remarks' => $remarks ?? null,
+                'accountant_review_status' => null,
+                'accountant_notes' => null,
+                'accountant_reviewed_at' => null,
+                'accountant_reviewed_by' => null,
+                'hq_accountant_resubmit_notes' => null,
+                'hq_accountant_resubmitted_at' => null,
+                'hq_accountant_resubmitted_by' => null,
+            ]);
+
+            $this->recordPhaseHash($phase, 'submit_to_hq');
+
+            activity()
+                ->performedOn($phase)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'phase' => $phase->phase,
+                    'reference' => $ref,
+                    'batch_count' => $groupLoans->count(),
+                    'total_amount_approved' => $groupLoans->sum('amount_approved'),
+                    'committee_remarks' => $remarks ?? null,
+                    'status' => 'submitted_to_hq',
+                    'historical_upload' => true,
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                ])
+                ->log("Historical phase finalized and submitted to HQ with Ref: {$ref}");
+
+            $this->idempotencyService->release($idempotencyKey);
+        });
+
+        try {
+            app(\App\Services\Constituency\ConstituencyAllocationService::class)
+                ->syncAllSubmittedPhasesForConstituency($phase->constituency_code, $phase->fresh());
+        } catch (\Throwable $e) {
+            Log::error('Historical HQ submission succeeded but allocation sync failed', [
+                'phase_id' => $phaseId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            app(WorkflowNotificationService::class)->notifyHqOfficersPhaseSubmitted($phase->fresh());
+        } catch (\Throwable $e) {
+            Log::error('Failed to notify HQ officers of historical phase submission', [
+                'phase_id' => $phaseId,
                 'error' => $e->getMessage(),
             ]);
         }

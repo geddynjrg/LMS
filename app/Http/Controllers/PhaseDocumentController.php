@@ -21,7 +21,7 @@ class PhaseDocumentController extends Controller
 
         if ($user?->hasRole('constituency_officer')
             && $phase
-            && $user->constituencies()->wherePivot('constituency_code', $phase->constituency_code)->exists()) {
+            && $user->constituencies()->where('constituency_code', $phase->constituency_code)->exists()) {
             return;
         }
 

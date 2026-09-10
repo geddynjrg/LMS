@@ -10,7 +10,9 @@ use App\Models\TempGroupMember;
 use App\Models\User;
 use App\Jobs\SendBulkCustomSmsJob;
 use App\Support\SystemRoles;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class CustomSmsService
 {
@@ -138,14 +140,12 @@ class CustomSmsService
             $phones[] = $phone;
         }
 
-        if ($phones !== []) {
-            SendBulkCustomSmsJob::dispatch($phones, $formattedMessage, [
-                'user_id' => $user->id,
-                'group_id' => $group->id,
-                'group_loan_id' => $groupLoanId,
-                'constituency_code' => $constituencyCode,
-            ]);
-        }
+        $resultKey = $this->queuePhones($phones, $formattedMessage, [
+            'user_id' => $user->id,
+            'group_id' => $group->id,
+            'group_loan_id' => $groupLoanId,
+            'constituency_code' => $constituencyCode,
+        ]);
 
         Log::info('Custom SMS queued for group', [
             'user_id' => $user->id,
@@ -154,6 +154,7 @@ class CustomSmsService
             'constituency_code' => $constituencyCode,
             'sms_queued' => count($phones),
             'skipped' => $skipped,
+            'result_key' => $resultKey,
         ]);
 
         return [
@@ -161,6 +162,7 @@ class CustomSmsService
             'sms_failed' => 0,
             'sms_queued' => count($phones),
             'skipped' => $skipped,
+            'result_key' => $resultKey,
         ];
     }
 
@@ -235,13 +237,11 @@ class CustomSmsService
             $phones[] = $member->phone_number;
         }
 
-        if ($phones !== []) {
-            SendBulkCustomSmsJob::dispatch($phones, $formattedMessage, [
-                'user_id' => $user->id,
-                'application_id' => $application->application_id,
-                'constituency_code' => $constituencyCode,
-            ]);
-        }
+        $resultKey = $this->queuePhones($phones, $formattedMessage, [
+            'user_id' => $user->id,
+            'application_id' => $application->application_id,
+            'constituency_code' => $constituencyCode,
+        ]);
 
         Log::info('Custom SMS queued for application group', [
             'user_id' => $user->id,
@@ -249,6 +249,7 @@ class CustomSmsService
             'constituency_code' => $constituencyCode,
             'sms_queued' => count($phones),
             'skipped' => $skipped,
+            'result_key' => $resultKey,
         ]);
 
         return [
@@ -256,7 +257,44 @@ class CustomSmsService
             'sms_failed' => 0,
             'sms_queued' => count($phones),
             'skipped' => $skipped,
+            'result_key' => $resultKey,
         ];
+    }
+
+
+    /**
+     * @param  list<string>  $phones
+     * @param  array<string, mixed>  $context
+     */
+    protected function queuePhones(array $phones, string $message, array $context): ?string
+    {
+        if ($phones === []) {
+            return null;
+        }
+
+        $resultKey = 'sms_bulk_result_'.$context['user_id'].'_'.Str::uuid()->toString();
+        $batches = array_chunk($phones, 20);
+
+        Cache::put($resultKey, [
+            'status' => 'queued',
+            'queued' => count($phones),
+            'sms_sent' => 0,
+            'sms_failed' => 0,
+            'batches_done' => 0,
+            'batches' => count($batches),
+            'credits_exhausted' => false,
+            'error' => null,
+        ], now()->addHour());
+
+        foreach ($batches as $index => $batch) {
+            SendBulkCustomSmsJob::dispatch($batch, $message, $context + [
+                'result_key' => $resultKey,
+                'batch' => $index + 1,
+                'batches' => count($batches),
+            ]);
+        }
+
+        return $resultKey;
     }
 
     protected function assertCanSend(User $user, string $constituencyCode): void

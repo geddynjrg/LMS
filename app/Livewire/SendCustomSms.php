@@ -6,6 +6,7 @@ use App\Models\Group;
 use App\Models\TempApplication;
 use App\Services\CustomSmsService;
 use Livewire\Attributes\On;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Component;
 
 class SendCustomSms extends Component
@@ -25,6 +26,7 @@ class SendCustomSms extends Component
     public bool $sending = false;
     public ?string $statusMessage = null;
     public string $statusType = 'info';
+    public ?string $smsResultKey = null;
 
     protected CustomSmsService $customSmsService;
 
@@ -56,7 +58,7 @@ class SendCustomSms extends Component
             return;
         }
 
-        $this->reset(['message', 'statusMessage', 'sending']);
+        $this->reset(['message', 'statusMessage', 'sending', 'smsResultKey']);
         $this->recipientType = $recipientType;
         $this->constituencyCode = $constituencyCode;
         $this->memberId = $memberId;
@@ -74,7 +76,7 @@ class SendCustomSms extends Component
     public function close(): void
     {
         $this->isOpen = false;
-        $this->reset(['message', 'statusMessage', 'sending']);
+        $this->reset(['message', 'statusMessage', 'sending', 'smsResultKey']);
     }
 
     public function send(): void
@@ -132,6 +134,7 @@ class SendCustomSms extends Component
                     : '';
                 if (($result['sms_queued'] ?? 0) > 0) {
                     $this->statusType = 'success';
+                    $this->smsResultKey = $result['result_key'] ?? null;
                     $this->statusMessage = "Queued SMS for {$result['sms_queued']} member(s). Delivery continues in the background.{$skipNote}";
                     $this->message = '';
                 } elseif ($result['sms_sent'] > 0) {
@@ -164,6 +167,7 @@ class SendCustomSms extends Component
                     : '';
                 if (($result['sms_queued'] ?? 0) > 0) {
                     $this->statusType = 'success';
+                    $this->smsResultKey = $result['result_key'] ?? null;
                     $this->statusMessage = "Queued SMS for {$result['sms_queued']} member(s). Delivery continues in the background.{$skipNote}";
                     $this->message = '';
                 } elseif ($result['sms_sent'] > 0) {
@@ -194,6 +198,37 @@ class SendCustomSms extends Component
         } finally {
             $this->sending = false;
         }
+    }
+
+
+    public function pollSmsResult(): void
+    {
+        if (! $this->smsResultKey) {
+            return;
+        }
+
+        $result = Cache::get($this->smsResultKey);
+        if (! is_array($result) || ($result['status'] ?? '') !== 'done') {
+            return;
+        }
+
+        $sent = (int) ($result['sms_sent'] ?? 0);
+        $failed = (int) ($result['sms_failed'] ?? 0);
+        if (! empty($result['credits_exhausted'])) {
+            $this->statusType = 'danger';
+            $this->statusMessage = "SMS delivery stopped: EBIS bulk credits are exhausted. Sent {$sent}, not sent {$failed}. Top up the EBIS SMS account, then retry.";
+        } elseif ($failed > 0 && $sent > 0) {
+            $this->statusType = 'warning';
+            $this->statusMessage = "SMS delivery finished: {$sent} sent, {$failed} failed.";
+        } elseif ($sent > 0) {
+            $this->statusType = 'success';
+            $this->statusMessage = "SMS delivery finished: {$sent} sent.";
+        } else {
+            $this->statusType = 'danger';
+            $this->statusMessage = $result['error'] ?? 'SMS delivery failed.';
+        }
+
+        $this->smsResultKey = null;
     }
 
     public function render()
