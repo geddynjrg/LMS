@@ -574,6 +574,10 @@ class LoanPhaseService
         $phase->has_management_proposal_minutes = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::MANAGEMENT_PROPOSAL_REVIEW_MINUTES);
         $phase->has_signed_approved_code_list = $phase->phaseApplicationDocuments->contains('document_type', PhaseDocumentType::SIGNED_APPROVED_CODE_LIST);
 
+        // Display-only counters/flags are not loan_phases columns. Keep them readable
+        // without marking the model dirty, or later update()/save() writes unknown columns.
+        $phase->syncOriginal();
+
         $applicationsQuery = $phase->phaseApplications()
             ->select([
                 'phase_applications.id',
@@ -723,6 +727,8 @@ class LoanPhaseService
             ->first();
 
         $phase->forceFill($stats?->toArray() ?? []);
+        // Display-only counters are not loan_phases columns; avoid dirtying the model.
+        $phase->syncOriginal();
 
         $query = DB::table('group_loans as gl')
             ->join('groups as g', 'gl.group_id', '=', 'g.id')
@@ -1240,6 +1246,9 @@ class LoanPhaseService
 
         $phaseId = $phase->id;
 
+        // Drop computed display attributes (total_applications, has_*, etc.) before persist.
+        $phase->refresh();
+
         DB::transaction(function () use ($phase, $pendingApplications, $remarks, $ref, $idempotencyKey, $stats) {
             $tempAppIds = $pendingApplications->pluck('temp_application_id')->toArray();
             TempApplication::whereIn('id', $tempAppIds)->update([
@@ -1347,6 +1356,9 @@ class LoanPhaseService
         $ref = "UWEZO/HQ/{$phase->constituency_code}/{$phase->slug}/" . now()->format('Ymd') . "/" . strtoupper(bin2hex(random_bytes(2)));
         $phaseId = $phase->id;
 
+        // Drop computed display attributes before persist (same as normal HQ submit).
+        $phase->refresh();
+
         DB::transaction(function () use ($phase, $remarks, $ref, $idempotencyKey, $groupLoans) {
             $phase->update([
                 'status' => 'submitted_to_hq',
@@ -1445,6 +1457,9 @@ class LoanPhaseService
                     'action' => 'returned_from_hq',
                     'updated_at' => now(),
                 ]);
+
+            // detailedPhase may carry computed display attributes; refresh before persist.
+            $phase->refresh();
 
             $phase->update([
                 'status' => 'draft',
