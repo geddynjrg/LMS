@@ -31,6 +31,7 @@ use App\Models\PhaseApplication;
 use App\Services\Loan\TrainingCertificateService;
 use App\Livewire\Concerns\ManagesApplicationReviewWorkflow;
 use App\Livewire\Concerns\ManagesPhaseDisbursement;
+use App\Livewire\Concerns\ManagesApplicationDetailEditing;
 use Exception;
 use Mpdf\Tag\Th;
 use Throwable;
@@ -42,6 +43,7 @@ class ApplicationView extends Component
 {
     use ManagesPhaseDisbursement;
     use ManagesApplicationReviewWorkflow;
+    use ManagesApplicationDetailEditing;
 
     public $selectedAppId;
     public $selectedGroupId;

@@ -51,7 +51,7 @@ class HqAccess
 
     public static function phaseCanBeEditedBy(?User $user, LoanPhase $phase): bool
     {
-        if ($phase->is_locked) {
+        if ($phase->is_locked && ! LmsGracePeriod::isActive()) {
             return false;
         }
 

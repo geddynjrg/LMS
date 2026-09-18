@@ -46,6 +46,14 @@
                                 <i class="fas fa-times-circle mr-1"></i> Not disbursed
                             </button>
                         @endif
+                        @if($this->canEditApplication($this->application))
+                            <button type="button"
+                                    class="btn btn-refresh-premium btn-outline-secondary btn-sm"
+                                    wire:click="openEditApplicationModal({{ $this->application->id }})"
+                                    title="Edit application details">
+                                <i class="fas fa-edit mr-1"></i> Edit
+                            </button>
+                        @endif
                         @include('partials.application.send-group-sms-button')
                         <x-loading-button target="exportInstitutionalInfo" class="btn-refresh-premium btn-sm" icon="fas fa-file-excel" label="Export" />
                         <x-loading-button target="refreshData" class="btn-refresh-premium btn-sm" icon="fas fa-sync-alt" label="Refresh" />
@@ -237,6 +245,7 @@
     </div>
 
     @include('livewire.loan.app.partials.application-review-modals')
+    @include('livewire.loan.app.partials.application-edit-modal')
 
     @livewire('send-custom-sms')
 </section>

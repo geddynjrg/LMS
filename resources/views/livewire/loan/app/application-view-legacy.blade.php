@@ -66,6 +66,15 @@
                                     </button>
                                 @endif
 
+                                @if($this->canEditApplication($this->application))
+                                    <button type="button"
+                                            class="btn btn-refresh-premium btn-outline-secondary"
+                                            wire:click="openEditApplicationModal({{ $this->application->id }})"
+                                            title="Edit application details">
+                                        <i class="fas fa-edit mr-1"></i> Edit
+                                    </button>
+                                @endif
+
                                 @include('partials.application.send-group-sms-button')
                                 <x-loading-button
                                     target="exportInstitutionalInfo"
@@ -1302,6 +1311,7 @@
         </x-slot>
     </x-action-modal>
 
+    @include('livewire.loan.app.partials.application-edit-modal')
     @livewire('send-custom-sms')
 
 @push('styles')

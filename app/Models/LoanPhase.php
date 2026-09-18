@@ -98,6 +98,26 @@ class LoanPhase extends Model
 
     public function canBeEditedBy($user)
     {
+        if (!$user) {
+            return false;
+        }
+
+        // Extended edit window: restore August behaviour (edit at any stage).
+        if (LmsGracePeriod::isActive()) {
+            if ($user->hasRole('super-admin')) {
+                return true;
+            }
+
+            if ($user->hasAnyRole(['constituency_officer', 'intern'])
+                && $this->userCanManageConstituencyPhases($user)) {
+                return true;
+            }
+
+            if ($user->canAccessHq() && $user->can('approve application')) {
+                return true;
+            }
+        }
+
         if ($this->is_locked) {
             return false;
         }
@@ -277,6 +297,16 @@ class LoanPhase extends Model
      */
     public function canManageDisbursementBy($user): bool
     {
+        if (LmsGracePeriod::isActive()) {
+            if ($user->hasRole('super-admin')) {
+                return true;
+            }
+
+            if ($user->hasRole('constituency_officer') && $user->can('submit application')) {
+                return true;
+            }
+        }
+
         if ($this->is_locked) {
             return false;
         }

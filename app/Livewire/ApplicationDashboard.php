@@ -15,6 +15,7 @@ use App\Services\Loan\TempApplicationService;
 use App\Services\Application\TempApplicationDeleteService;
 use App\Services\Cache\AppCacheService;
 use App\Support\LmsGracePeriod;
+use App\Livewire\Concerns\ManagesApplicationDetailEditing;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\Cache;
 class ApplicationDashboard extends Component
 {
     use WithPagination;
+    use ManagesApplicationDetailEditing;
 
     public $constituency;
 
@@ -95,7 +97,7 @@ class ApplicationDashboard extends Component
 
     public function mount($constituency)
     {
-        $this->constituency = $constituency->load('county');
+        $this->constituency = $constituency->load(['county', 'wards']);
         $this->reviewDate = now()->addDays(7)->format('Y-m-d');
         $this->gracePeriodActive = LmsGracePeriod::isActive();
         $this->gracePeriodEndsAt = LmsGracePeriod::endsAt()?->format('j M Y') ?? '';

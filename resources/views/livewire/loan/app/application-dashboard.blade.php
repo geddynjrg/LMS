@@ -406,6 +406,15 @@
                                                 ]"
                                             />
 
+                                            @if($this->canEditApplication($app))
+                                                <button type="button"
+                                                        class="btn btn-sm btn-outline-secondary border shadow-sm ml-1"
+                                                        wire:click="openEditApplicationModal({{ $app->id }})"
+                                                        title="Edit application details">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                            @endif
+
                                             @if(is_null($app->phaseApplication))
                                                 <x-modal-trigger
                                                     target="singleAssignToPhaseModal({{ $app->id }})"
@@ -730,6 +739,8 @@
                 </div>
             </x-slot>
         </x-action-modal>
+
+        @include('livewire.loan.app.partials.application-edit-modal')
 
     </div>
 </section>

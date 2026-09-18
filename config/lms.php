@@ -14,5 +14,5 @@ return [
     | Rollback: LMS_GRACE_PERIOD_ENDS_AT= && php artisan config:clear
     |
     */
-    'grace_period_ends_at' => env('LMS_GRACE_PERIOD_ENDS_AT', '2027-03-31 23:59:59'),
+    'grace_period_ends_at' => env('LMS_GRACE_PERIOD_ENDS_AT', '2099-12-31 23:59:59'),
 ];
