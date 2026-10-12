@@ -400,7 +400,7 @@ class ConstituencyAllocationService
      */
     protected function normalizePhaseIssuedAmounts(mixed $phases): array
     {
-        return collect($phases ?: [])
+        $rows = collect($phases ?: [])
             ->map(function ($row) {
                 return [
                     'phase' => (int) ($row['phase'] ?? 0),
@@ -408,9 +408,17 @@ class ConstituencyAllocationService
                 ];
             })
             ->filter(fn (array $row) => $row['phase'] > 0)
-            ->sortBy('phase')
-            ->values()
-            ->all();
+            ->unique('phase')
+            ->values();
+
+        if (! $rows->contains(fn (array $row) => $row['phase'] === 1)) {
+            $rows->prepend([
+                'phase' => 1,
+                'amount' => 0,
+            ]);
+        }
+
+        return $rows->sortBy('phase')->values()->all();
     }
 
     protected function upsertTransferLevel(array &$data, int $level, float $amount): void

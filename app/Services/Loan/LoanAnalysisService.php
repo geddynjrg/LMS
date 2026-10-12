@@ -291,8 +291,14 @@ class LoanAnalysisService
             ->get()
             ->keyBy('sector_name');
 
+        // Include HQ-bound applications so constituency→HQ submissions appear on dashboards.
         $newApplications = DB::table('temp_applications')
-            ->whereIn('status', ['submitted', 'under_constituency_review'])
+            ->whereIn('status', [
+                'submitted',
+                'under_constituency_review',
+                'under_hq_review',
+                'pending_secretariat_review',
+            ])
             ->when(!empty($filters['county_code']), fn($q) => $q->where('county_code', $filters['county_code']))
             ->when(!empty($filters['constituency_code']), fn($q) => $q->where('constituency_code', $filters['constituency_code']))
             ->when(!empty($filters['ward_id']), fn($q) => $q->where('ward_id', $filters['ward_id']))
@@ -304,10 +310,11 @@ class LoanAnalysisService
                 'nature_of_group',
                 'business_type',
                 'application_id',
-                'key_activities'
+                'key_activities',
+                'status'
             )
             ->latest()
-            ->limit(5)
+            ->limit(8)
             ->get();
 
         $approvedPhases = DB::table('loan_phases as lp')
@@ -416,11 +423,16 @@ class LoanAnalysisService
     }
 
     /**
-     * All constituencies ranked by application volume.
+     * Portal + historical application volume per constituency.
      *
-     * Counts every portal application (temp_applications, any status/phase) plus
-     * historical group loans in completed phases that are not already linked to
-     * a portal application record.
+     * Portal: distinct temp_applications. When linked to a phase, attribute to
+     * the phase constituency so constituency→HQ submissions still count under
+     * the submitting constituency even if temp.constituency_code is null/wrong.
+     * Unassigned portal apps use temp_applications.constituency_code.
+     *
+     * Historical: financed group_loans on phases that have no portal
+     * phase_applications (historical upload / completed-data phases only).
+     * Excludes cancelled loans and avoids double-counting portal-linked loans.
      *
      * @param  array{county_code?: string, constituency_code?: string}  $filters
      * @return list<object{
@@ -434,24 +446,52 @@ class LoanAnalysisService
      */
     public function getApplicationsPerConstituency(array $filters = []): array
     {
-        $tempCounts = DB::table('temp_applications')
-            ->select('constituency_code', DB::raw('COUNT(*) as temp_count'))
-            ->whereNotNull('constituency_code')
+        // Portal apps already attached to a phase (includes submitted_to_hq).
+        $portalLinked = DB::table('phase_applications as pa')
+            ->join('loan_phases as lp', 'pa.loan_phase_id', '=', 'lp.id')
+            ->whereNotNull('pa.temp_application_id')
+            ->select(
+                'lp.constituency_code',
+                'pa.temp_application_id'
+            )
+            ->distinct();
+
+        // Portal apps not yet on any phase.
+        $portalUnlinked = DB::table('temp_applications as ta')
+            ->leftJoin('phase_applications as pa', 'pa.temp_application_id', '=', 'ta.id')
+            ->whereNull('pa.id')
+            ->whereNotNull('ta.constituency_code')
+            ->select(
+                'ta.constituency_code',
+                'ta.id as temp_application_id'
+            );
+
+        $portalUnion = $portalLinked->unionAll($portalUnlinked);
+
+        $portalCounts = DB::query()
+            ->fromSub($portalUnion, 'portal_apps')
+            ->select(
+                'constituency_code',
+                DB::raw('COUNT(DISTINCT temp_application_id) as portal_count')
+            )
             ->groupBy('constituency_code');
 
+        // Pure historical phases: no portal phase_applications on the phase.
         $historicalCounts = DB::table('group_loans as gl')
             ->join('loan_phases as lp', 'gl.loan_phase_id', '=', 'lp.id')
-            ->leftJoin('phase_applications as pa', function ($join) {
-                $join->on('pa.group_loan_id', '=', 'gl.id')
+            ->where('gl.loan_status', 'financed')
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('phase_applications as pa')
+                    ->whereColumn('pa.loan_phase_id', 'lp.id')
                     ->whereNotNull('pa.temp_application_id');
             })
-            ->whereNull('pa.id')
             ->select('lp.constituency_code', DB::raw('COUNT(*) as historical_count'))
             ->groupBy('lp.constituency_code');
 
         return DB::table('constituencies as c')
             ->join('counties as co', 'c.county_code', '=', 'co.county_code')
-            ->leftJoinSub($tempCounts, 'ta', 'ta.constituency_code', '=', 'c.constituency_code')
+            ->leftJoinSub($portalCounts, 'ta', 'ta.constituency_code', '=', 'c.constituency_code')
             ->leftJoinSub($historicalCounts, 'hg', 'hg.constituency_code', '=', 'c.constituency_code')
             ->when(!empty($filters['county_code']), fn ($q) => $q->where('c.county_code', $filters['county_code']))
             ->when(!empty($filters['constituency_code']), fn ($q) => $q->where('c.constituency_code', $filters['constituency_code']))
@@ -459,8 +499,8 @@ class LoanAnalysisService
                 'c.constituency_code',
                 'c.constituency_name',
                 'co.county_name',
-                DB::raw('COALESCE(ta.temp_count, 0) + COALESCE(hg.historical_count, 0) as application_count'),
-                DB::raw('COALESCE(ta.temp_count, 0) as portal_applications'),
+                DB::raw('COALESCE(ta.portal_count, 0) + COALESCE(hg.historical_count, 0) as application_count'),
+                DB::raw('COALESCE(ta.portal_count, 0) as portal_applications'),
                 DB::raw('COALESCE(hg.historical_count, 0) as historical_records'),
             )
             ->orderByDesc('application_count')
@@ -474,6 +514,339 @@ class LoanAnalysisService
                 'portal_applications' => (int) $row->portal_applications,
                 'historical_records' => (int) $row->historical_records,
             ])
+            ->all();
+    }
+
+    /**
+     * Historical phases for a constituency (dashboard drill-down level 1).
+     * Same definition as historical_records: financed loans on phases with no portal apps.
+     */
+    public function getHistoricalConstituencyOverview(string $constituencyCode): array
+    {
+        $constituency = DB::table('constituencies as c')
+            ->join('counties as co', 'c.county_code', '=', 'co.county_code')
+            ->where('c.constituency_code', $constituencyCode)
+            ->select(
+                'c.constituency_code',
+                'c.constituency_name',
+                'c.slug as constituency_slug',
+                'co.county_name',
+                'co.slug as county_slug'
+            )
+            ->first();
+
+        $phaseIds = $this->historicalPhaseIdsForConstituency($constituencyCode);
+
+        if ($phaseIds === []) {
+            return [
+                'constituency' => $constituency,
+                'summary' => ['count' => 0, 'amount' => 0.0, 'member_count' => 0, 'phases' => []],
+            ];
+        }
+
+        $phases = DB::table('loan_phases as lp')
+            ->join('group_loans as gl', function ($join) {
+                $join->on('gl.loan_phase_id', '=', 'lp.id')
+                    ->where('gl.loan_status', '=', 'financed');
+            })
+            ->whereIn('lp.id', $phaseIds)
+            ->select(
+                'lp.id',
+                'lp.phase',
+                'lp.slug',
+                'lp.status',
+                DB::raw('COUNT(gl.id) as loan_count'),
+                DB::raw('COALESCE(SUM(gl.amount_issued), 0) as amount_issued'),
+                DB::raw('COALESCE(SUM(gl.amount_repaid), 0) as amount_repaid')
+            )
+            ->groupBy('lp.id', 'lp.phase', 'lp.slug', 'lp.status')
+            ->orderBy('lp.phase')
+            ->get()
+            ->map(fn ($row) => (object) [
+                'id' => (int) $row->id,
+                'phase' => $row->phase,
+                'slug' => $row->slug,
+                'status' => $row->status,
+                'loan_count' => (int) $row->loan_count,
+                'amount_issued' => (float) $row->amount_issued,
+                'amount_repaid' => (float) $row->amount_repaid,
+            ])
+            ->all();
+
+        return [
+            'constituency' => $constituency,
+            'summary' => [
+                'count' => (int) array_sum(array_map(fn ($p) => $p->loan_count, $phases)),
+                'amount' => (float) array_sum(array_map(fn ($p) => $p->amount_issued, $phases)),
+                'phases' => $phases,
+            ],
+        ];
+    }
+
+    /**
+     * Paginated financed group loans for one historical phase (drill-down level 2).
+     */
+    public function getHistoricalPhaseGroups(
+        int $phaseId,
+        int $page = 1,
+        int $perPage = 25,
+        ?string $search = null
+    ): array {
+        $page = max(1, $page);
+        $perPage = max(10, min(50, $perPage));
+        $search = $search !== null ? trim($search) : '';
+
+        $phase = DB::table('loan_phases as lp')
+            ->join('constituencies as c', 'lp.constituency_code', '=', 'c.constituency_code')
+            ->join('counties as co', 'c.county_code', '=', 'co.county_code')
+            ->where('lp.id', $phaseId)
+            ->select(
+                'lp.id',
+                'lp.phase',
+                'lp.slug',
+                'lp.status',
+                'lp.constituency_code',
+                'c.constituency_name',
+                'co.county_name'
+            )
+            ->first();
+
+        if (! $phase) {
+            return [
+                'phase' => null,
+                'rows' => [],
+                'pagination' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => $perPage,
+                    'total' => 0,
+                    'from' => null,
+                    'to' => null,
+                ],
+            ];
+        }
+
+        $base = DB::table('group_loans as gl')
+            ->leftJoin('groups as g', 'gl.group_id', '=', 'g.id')
+            ->leftJoin('wards as w', 'g.ward_id', '=', 'w.id')
+            ->where('gl.loan_phase_id', $phaseId)
+            ->where('gl.loan_status', 'financed');
+
+        if ($search !== '') {
+            $like = '%' . addcslashes($search, '%_\\') . '%';
+            $base->where(function ($q) use ($like) {
+                $q->where('g.name', 'like', $like)
+                    ->orWhere('g.reg_number', 'like', $like)
+                    ->orWhere('gl.sector', 'like', $like)
+                    ->orWhere('gl.category', 'like', $like)
+                    ->orWhere('w.ward_name', 'like', $like);
+            });
+        }
+
+        $total = (int) (clone $base)->count('gl.id');
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        if ($page > $lastPage) {
+            $page = $lastPage;
+        }
+        $offset = ($page - 1) * $perPage;
+
+        $rows = (clone $base)
+            ->select(
+                'gl.id',
+                'g.name as group_name',
+                'g.slug as group_slug',
+                'g.reg_number',
+                'g.bank',
+                'g.account',
+                'g.location',
+                'w.ward_name',
+                'gl.amount_issued',
+                'gl.amount_repaid',
+                'gl.amount_approved',
+                'gl.sector',
+                'gl.category',
+                'gl.disbursement_date',
+                'gl.cheque_no',
+                'gl.gfs_code',
+                DB::raw('(SELECT COUNT(*) FROM group_members gm WHERE gm.group_loans_id = gl.id) as member_count')
+            )
+            ->orderBy('g.name')
+            ->offset($offset)
+            ->limit($perPage)
+            ->get()
+            ->map(fn ($row) => (object) [
+                'id' => (int) $row->id,
+                'group_name' => $row->group_name ?: '—',
+                'group_slug' => $row->group_slug,
+                'reg_number' => $row->reg_number ?: '—',
+                'bank' => $row->bank ?: '—',
+                'account' => $row->account ?: '—',
+                'location' => $row->location ?: '—',
+                'ward_name' => $row->ward_name ?: '—',
+                'amount_issued' => (float) ($row->amount_issued ?? 0),
+                'amount_repaid' => (float) ($row->amount_repaid ?? 0),
+                'amount_approved' => (float) ($row->amount_approved ?? 0),
+                'sector' => $row->sector ?: '—',
+                'category' => $row->category ?: '—',
+                'disbursement_date' => $row->disbursement_date,
+                'cheque_no' => $row->cheque_no ?: '—',
+                'gfs_code' => $row->gfs_code ?: '—',
+                'member_count' => (int) $row->member_count,
+            ])
+            ->all();
+
+        $from = $total === 0 ? null : $offset + 1;
+        $to = $total === 0 ? null : min($offset + $perPage, $total);
+
+        return [
+            'phase' => $phase,
+            'rows' => $rows,
+            'pagination' => [
+                'current_page' => $page,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'from' => $from,
+                'to' => $to,
+            ],
+        ];
+    }
+
+    /**
+     * Single financed group loan + members (drill-down level 3).
+     */
+    public function getHistoricalGroupDetail(int $groupLoanId): array
+    {
+        $loan = DB::table('group_loans as gl')
+            ->leftJoin('groups as g', 'gl.group_id', '=', 'g.id')
+            ->leftJoin('wards as w', 'g.ward_id', '=', 'w.id')
+            ->leftJoin('loan_phases as lp', 'gl.loan_phase_id', '=', 'lp.id')
+            ->where('gl.id', $groupLoanId)
+            ->select(
+                'gl.id',
+                'gl.loan_phase_id',
+                'gl.amount_applied',
+                'gl.amount_approved',
+                'gl.amount_issued',
+                'gl.amount_repaid',
+                'gl.amount_due',
+                'gl.total_arrears',
+                'gl.sector',
+                'gl.category',
+                'gl.sector_desc',
+                'gl.loan_status',
+                'gl.loan_type',
+                'gl.disbursement_date',
+                'gl.cheque_no',
+                'gl.gfs_code',
+                'gl.application_date',
+                'g.name as group_name',
+                'g.slug as group_slug',
+                'g.reg_number',
+                'g.bank',
+                'g.account',
+                'g.location',
+                'g.box',
+                'g.date_formed',
+                'g.date_registered',
+                'g.status as group_status',
+                'w.ward_name',
+                'lp.phase',
+                'lp.slug as phase_slug',
+                'lp.constituency_code'
+            )
+            ->first();
+
+        if (! $loan) {
+            return ['loan' => null, 'members' => []];
+        }
+
+        $members = DB::table('group_members as gm')
+            ->join('members as m', 'gm.member_Id', '=', 'm.member_Id')
+            ->where('gm.group_loans_id', $groupLoanId)
+            ->select(
+                'gm.id as group_member_id',
+                'gm.role',
+                'm.member_Id',
+                'm.name',
+                'm.number',
+                'm.gender',
+                'm.disabled'
+            )
+            ->orderBy('gm.role')
+            ->orderBy('m.name')
+            ->get()
+            ->map(fn ($row) => (object) [
+                'group_member_id' => (int) $row->group_member_id,
+                'member_id' => $row->member_Id,
+                'name' => $row->name ?: '—',
+                'number' => $row->number ?: '—',
+                'gender' => $row->gender ?: '—',
+                'disabled' => (bool) $row->disabled,
+                'role' => $row->role ?: 'Member',
+            ])
+            ->all();
+
+        return [
+            'loan' => (object) [
+                'id' => (int) $loan->id,
+                'loan_phase_id' => (int) $loan->loan_phase_id,
+                'group_name' => $loan->group_name ?: '—',
+                'group_slug' => $loan->group_slug,
+                'reg_number' => $loan->reg_number ?: '—',
+                'bank' => $loan->bank ?: '—',
+                'account' => $loan->account ?: '—',
+                'location' => $loan->location ?: '—',
+                'box' => $loan->box ?: '—',
+                'ward_name' => $loan->ward_name ?: '—',
+                'date_formed' => $loan->date_formed,
+                'date_registered' => $loan->date_registered,
+                'group_status' => $loan->group_status ?: '—',
+                'phase' => $loan->phase,
+                'phase_slug' => $loan->phase_slug,
+                'constituency_code' => $loan->constituency_code,
+                'amount_applied' => (float) ($loan->amount_applied ?? 0),
+                'amount_approved' => (float) ($loan->amount_approved ?? 0),
+                'amount_issued' => (float) ($loan->amount_issued ?? 0),
+                'amount_repaid' => (float) ($loan->amount_repaid ?? 0),
+                'amount_due' => (float) ($loan->amount_due ?? 0),
+                'total_arrears' => (float) ($loan->total_arrears ?? 0),
+                'sector' => $loan->sector ?: '—',
+                'category' => $loan->category ?: '—',
+                'sector_desc' => $loan->sector_desc ?: '—',
+                'loan_status' => $loan->loan_status ?: '—',
+                'loan_type' => $loan->loan_type ?: '—',
+                'disbursement_date' => $loan->disbursement_date,
+                'cheque_no' => $loan->cheque_no ?: '—',
+                'gfs_code' => $loan->gfs_code ?: '—',
+                'application_date' => $loan->application_date,
+                'member_count' => count($members),
+            ],
+            'members' => $members,
+        ];
+    }
+
+    /**
+     * @return list<int>
+     */
+    protected function historicalPhaseIdsForConstituency(string $constituencyCode): array
+    {
+        return DB::table('loan_phases as lp')
+            ->where('lp.constituency_code', $constituencyCode)
+            ->whereExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('group_loans as gl')
+                    ->whereColumn('gl.loan_phase_id', 'lp.id')
+                    ->where('gl.loan_status', 'financed');
+            })
+            ->whereNotExists(function ($q) {
+                $q->select(DB::raw(1))
+                    ->from('phase_applications as pa')
+                    ->whereColumn('pa.loan_phase_id', 'lp.id')
+                    ->whereNotNull('pa.temp_application_id');
+            })
+            ->pluck('lp.id')
+            ->map(fn ($id) => (int) $id)
             ->all();
     }
 

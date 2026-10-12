@@ -21,6 +21,7 @@ trait ManagesGroupDetailEditing
     public ?string $editAmountIssued = null;
     public ?string $editAmountRepaid = null;
     public ?string $editDisbursementDate = null;
+    public ?string $editChequeNo = null;
 
     #[Computed]
     public function editablePhaseIds(): array
@@ -64,6 +65,7 @@ trait ManagesGroupDetailEditing
         $this->editAmountIssued = $groupLoan->amount_issued !== null ? (string) $groupLoan->amount_issued : null;
         $this->editAmountRepaid = $groupLoan->amount_repaid !== null ? (string) $groupLoan->amount_repaid : null;
         $this->editDisbursementDate = $groupLoan->disbursement_date?->format('Y-m-d');
+        $this->editChequeNo = $groupLoan->cheque_no;
 
         $this->resetErrorBag();
         $this->dispatch('open-modal', name: 'edit-group-details-modal');
@@ -85,11 +87,11 @@ trait ManagesGroupDetailEditing
                 'groupName' => $this->editGroupName,
                 'wardId' => $this->editGroupWardId,
                 'gfsCode' => $this->editGfsCode,
-                'amountApplied' => $this->editAmountApplied,
                 'amountApproved' => $this->editAmountApproved,
                 'amountIssued' => $this->editAmountIssued,
                 'amountRepaid' => $this->editAmountRepaid,
                 'disbursementDate' => $this->editDisbursementDate,
+                'chequeNo' => $this->editChequeNo,
             ]);
 
             $this->resetGroupEditForm();
@@ -226,6 +228,7 @@ trait ManagesGroupDetailEditing
             'editAmountIssued',
             'editAmountRepaid',
             'editDisbursementDate',
+            'editChequeNo',
         ]);
     }
 }

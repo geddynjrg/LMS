@@ -158,7 +158,12 @@ class HqDashboardV2 extends Component
                 'secondary_url' => null,
                 'secondary_label' => null,
             ])->all(),
-            'new_applications' => collect($this->getStats['newApplications'] ?? [])->take(5)->values()->all(),
+            // Prefer HQ-bound portal apps so constituency→HQ submissions surface here.
+            'new_applications' => collect($this->getStats['newApplications'] ?? [])
+                ->sortByDesc(fn ($app) => in_array(($app->status ?? ''), ['under_hq_review', 'pending_secretariat_review'], true))
+                ->take(8)
+                ->values()
+                ->all(),
         ];
     }
 

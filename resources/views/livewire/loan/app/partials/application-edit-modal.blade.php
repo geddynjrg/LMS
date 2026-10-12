@@ -12,7 +12,7 @@
             <div class="alert alert-light border mb-3 py-2 px-3" style="border-radius: 12px;">
                 <span class="text-xs text-gray-600">
                     <i class="fas fa-shield-alt mr-1 text-info"></i>
-                    Changes are recorded in the application audit trail with your user account and IP address.
+                    A SQL backup is saved before this change. The update is recorded in the application audit trail and can be restored from Reports → Restore Deleted Data.
                 </span>
             </div>
 
@@ -21,6 +21,14 @@
                     <label class="text-uppercase text-gray-600 font-weight-bold small">Group Name <span class="text-danger">*</span></label>
                     <input type="text" wire:model="editGroupName" class="form-control" required>
                     @error('groupName') <span class="text-danger small">{{ $message }}</span> @enderror
+                </div>
+            @endif
+
+            @if($this->editingApplicationAllows('group_registration_number'))
+                <div class="form-group mb-3">
+                    <label class="text-uppercase text-gray-600 font-weight-bold small">Group Registration Number</label>
+                    <input type="text" wire:model="editGroupRegistrationNumber" class="form-control" placeholder="Group registration number">
+                    @error('groupRegistrationNumber') <span class="text-danger small">{{ $message }}</span> @enderror
                 </div>
             @endif
 
@@ -56,26 +64,6 @@
                             <label class="text-uppercase text-gray-600 font-weight-bold small">Amount Applied (KES)</label>
                             <input type="number" step="0.01" min="0" wire:model="editAmountApplied" class="form-control">
                             @error('amountApplied') <span class="text-danger small">{{ $message }}</span> @enderror
-                        </div>
-                    </div>
-                @endif
-
-                @if($this->editingApplicationAllows('amount_approved'))
-                    <div class="col-md-6">
-                        <div class="form-group mb-3">
-                            <label class="text-uppercase text-gray-600 font-weight-bold small">Amount Approved (KES)</label>
-                            <input type="number" step="0.01" min="0" wire:model="editAmountApproved" class="form-control">
-                            @error('amountApproved') <span class="text-danger small">{{ $message }}</span> @enderror
-                        </div>
-                    </div>
-                @endif
-
-                @if($this->editingApplicationAllows('amount_issued'))
-                    <div class="col-md-6">
-                        <div class="form-group mb-3">
-                            <label class="text-uppercase text-gray-600 font-weight-bold small">Amount Issued (KES)</label>
-                            <input type="number" step="0.01" min="0" wire:model="editAmountIssued" class="form-control">
-                            @error('amountIssued') <span class="text-danger small">{{ $message }}</span> @enderror
                         </div>
                     </div>
                 @endif

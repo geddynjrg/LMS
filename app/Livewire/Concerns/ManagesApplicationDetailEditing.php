@@ -12,6 +12,7 @@ trait ManagesApplicationDetailEditing
     public ?int $editingApplicationId = null;
 
     public string $editGroupName = '';
+    public ?string $editGroupRegistrationNumber = null;
     public ?int $editGroupWardId = null;
     public ?string $editGfsCode = null;
     public ?string $editAmountApplied = null;
@@ -45,6 +46,7 @@ trait ManagesApplicationDetailEditing
 
         $this->editingApplicationId = $application->id;
         $this->editGroupName = $application->group_name ?? $group?->name ?? '';
+        $this->editGroupRegistrationNumber = $application->group_registration_number ?? $group?->reg_number;
         $this->editGroupWardId = $application->ward_id ?? $group?->ward_id;
         $this->editGfsCode = $application->gfs_code ?? $phaseApplication?->gfs_code ?? $groupLoan?->gfs_code;
         $this->editAmountApplied = $this->stringifyAmount($phaseApplication?->amount_applied ?? $application->loan_amount);
@@ -69,11 +71,10 @@ trait ManagesApplicationDetailEditing
         try {
             app(TempApplicationDetailEditService::class)->updateDetails($application, auth()->user(), [
                 'groupName' => $this->editGroupName,
+                'groupRegistrationNumber' => $this->editGroupRegistrationNumber,
                 'wardId' => $this->editGroupWardId,
                 'gfsCode' => $this->editGfsCode,
                 'amountApplied' => $this->editAmountApplied,
-                'amountApproved' => $this->editAmountApproved,
-                'amountIssued' => $this->editAmountIssued,
                 'amountRepaid' => $this->editAmountRepaid,
                 'dateRegistered' => $this->editDateRegistered,
                 'disbursementDate' => $this->editDisbursementDate,
@@ -165,6 +166,7 @@ trait ManagesApplicationDetailEditing
         $this->reset([
             'editingApplicationId',
             'editGroupName',
+            'editGroupRegistrationNumber',
             'editGroupWardId',
             'editGfsCode',
             'editAmountApplied',

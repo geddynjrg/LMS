@@ -9,6 +9,10 @@ use Livewire\Attributes\Url;
 use Illuminate\Support\Str;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\GroupLoan;
+use App\Models\HistoricalCorrectionRequest;
+use App\Services\Group\GroupDetailEditService;
+use App\Services\Historical\HistoricalCorrectionService;
+use Illuminate\Validation\ValidationException;
 use App\Services\Group\GroupsService;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Cache\AppCacheService;
@@ -46,6 +50,15 @@ class GroupLoans extends Component
     public $sortDirection = 'desc';
 
     public $selectedGroupLoan;
+
+    public ?int $correctingGroupLoanId = null;
+    public ?string $editGfsCode = null;
+    public ?string $editAmountApproved = null;
+
+    public ?int $promptingGroupLoanId = null;
+    public array $promptFields = [];
+    public string $promptMessage = '';
+    public ?string $promptGroupLabel = null;
 
     public function boot(
         GroupsService $groupsService,
@@ -283,6 +296,95 @@ class GroupLoans extends Component
             fn () => print($pdf),
             "Statement_{$loan->id}.pdf"
         );
+    }
+
+
+    public function openHqCorrectModal(int $groupLoanId): void
+    {
+        $groupLoan = GroupLoan::with(['group', 'loanPhase'])->findOrFail($groupLoanId);
+        $service = app(GroupDetailEditService::class);
+
+        if (! $service->canEditGroupLoan($groupLoan, auth()->user())) {
+            $this->dispatch('swal:toast', title: 'Permission Denied', message: 'You cannot correct this historical loan.', type: 'error');
+            return;
+        }
+
+        $this->correctingGroupLoanId = $groupLoan->id;
+        $this->editGfsCode = $groupLoan->gfs_code;
+        $this->editAmountApproved = $groupLoan->amount_approved !== null ? (string) $groupLoan->amount_approved : null;
+        $this->resetErrorBag();
+        $this->dispatch('open-modal', name: 'hq-correct-historical-modal');
+    }
+
+    public function saveHqHistoricalCorrection(): void
+    {
+        if (! $this->correctingGroupLoanId) {
+            return;
+        }
+
+        $groupLoan = GroupLoan::with(['group', 'loanPhase'])->findOrFail($this->correctingGroupLoanId);
+
+        try {
+            app(GroupDetailEditService::class)->updateDetails($groupLoan, auth()->user(), [
+                'gfsCode' => $this->editGfsCode,
+                'amountApproved' => $this->editAmountApproved,
+            ]);
+
+            $this->reset(['correctingGroupLoanId', 'editGfsCode', 'editAmountApproved']);
+            $this->dispatch('close-modal', name: 'hq-correct-historical-modal');
+            $this->dispatch('swal:toast', title: 'Corrected', message: 'Approved amount / GFS code updated.', type: 'success');
+            $this->refreshData();
+        } catch (ValidationException $e) {
+            foreach ($e->errors() as $field => $messages) {
+                $this->addError($field, $messages[0]);
+            }
+            $this->dispatch('swal:toast', title: 'Validation Error', message: collect($e->errors())->flatten()->first(), type: 'error');
+        } catch (\Throwable $e) {
+            $this->dispatch('swal:toast', title: 'Update Failed', message: $e->getMessage(), type: 'error');
+        }
+    }
+
+    public function openRequestCorrectionModal(int $groupLoanId): void
+    {
+        $groupLoan = GroupLoan::with(['group', 'loanPhase'])->findOrFail($groupLoanId);
+
+        if (! app(HistoricalCorrectionService::class)->hqCanCorrectHistorical(auth()->user(), $groupLoan)) {
+            $this->dispatch('swal:toast', title: 'Permission Denied', message: 'Correction prompts apply to historical group loans only.', type: 'error');
+            return;
+        }
+
+        $this->promptingGroupLoanId = $groupLoan->id;
+        $this->promptGroupLabel = ($groupLoan->group?->name ?? 'Group').' / '.($groupLoan->loanPhase?->phase ?? '');
+        $this->promptFields = ['disbursement_date', 'amount_issued', 'amount_repaid'];
+        $this->promptMessage = '';
+        $this->resetErrorBag();
+        $this->dispatch('open-modal', name: 'hq-request-correction-modal');
+    }
+
+    public function sendCorrectionPrompt(): void
+    {
+        if (! $this->promptingGroupLoanId) {
+            return;
+        }
+
+        $groupLoan = GroupLoan::with(['group', 'loanPhase'])->findOrFail($this->promptingGroupLoanId);
+
+        try {
+            app(HistoricalCorrectionService::class)->requestGroupLoanCorrection(
+                auth()->user(),
+                $groupLoan,
+                $this->promptFields,
+                $this->promptMessage !== '' ? $this->promptMessage : null,
+            );
+
+            $this->reset(['promptingGroupLoanId', 'promptFields', 'promptMessage', 'promptGroupLabel']);
+            $this->dispatch('close-modal', name: 'hq-request-correction-modal');
+            $this->dispatch('swal:toast', title: 'Prompt sent', message: 'Field officers were notified by email and will see a login modal.', type: 'success');
+        } catch (ValidationException $e) {
+            $this->dispatch('swal:toast', title: 'Could not send', message: collect($e->errors())->flatten()->first(), type: 'error');
+        } catch (\Throwable $e) {
+            $this->dispatch('swal:toast', title: 'Could not send', message: $e->getMessage(), type: 'error');
+        }
     }
 
     public function render()

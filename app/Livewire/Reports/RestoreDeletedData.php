@@ -76,7 +76,7 @@ class RestoreDeletedData extends Component
       );
 
       $this->statusType = 'success';
-      $this->statusMessage = 'Deleted data was restored successfully.';
+      $this->statusMessage = 'Data was restored successfully from backup.';
       $this->closeConfirmModal();
       $this->resetSelectionState();
     } catch (ValidationException $exception) {

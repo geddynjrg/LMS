@@ -50,15 +50,6 @@
                     </div>
                 @endif
 
-                @if($this->editingGroupAllows('amount_applied'))
-                    <div class="col-md-6">
-                        <div class="form-group mb-3">
-                            <label class="text-uppercase text-gray-600 font-weight-bold small">Amount Applied (KES)</label>
-                            <input type="number" step="0.01" min="0" wire:model="editAmountApplied" class="form-control">
-                            @error('amountApplied') <span class="text-danger small">{{ $message }}</span> @enderror
-                        </div>
-                    </div>
-                @endif
 
                 @if($this->editingGroupAllows('amount_approved'))
                     <div class="col-md-6">
@@ -93,9 +84,19 @@
                 @if($this->editingGroupAllows('disbursement_date'))
                     <div class="col-md-6">
                         <div class="form-group mb-3">
-                            <label class="text-uppercase text-gray-600 font-weight-bold small">Disbursement Date</label>
+                            <label class="text-uppercase text-gray-600 font-weight-bold small">Date issued / disbursement date</label>
                             <input type="date" wire:model="editDisbursementDate" class="form-control">
                             @error('disbursementDate') <span class="text-danger small">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+                @endif
+
+                @if($this->editingGroupAllows('cheque_no'))
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label class="text-uppercase text-gray-600 font-weight-bold small">Cheque number</label>
+                            <input type="text" wire:model="editChequeNo" class="form-control">
+                            @error('chequeNo') <span class="text-danger small">{{ $message }}</span> @enderror
                         </div>
                     </div>
                 @endif

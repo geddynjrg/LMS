@@ -75,4 +75,9 @@ class ReportsController extends Controller
     {
         return redirect()->route('hq.reports.index');
     }
+
+    public function applicationVolume(County $county, Constituency $constituency)
+    {
+        return view('reports.constituency.application_volume', compact('county', 'constituency'));
+    }
 }

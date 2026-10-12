@@ -17,4 +17,9 @@ class ConstituencyController extends Controller
 
     }
 
+
+    public function allocations(County $county, Constituency $constituency)
+    {
+        return view('constituency.allocations', compact('county', 'constituency'));
+    }
 }

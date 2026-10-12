@@ -6,12 +6,15 @@ use App\Models\Group;
 use App\Models\TempApplication;
 use App\Models\User;
 use App\Models\Wards;
+use App\Services\Application\TempApplicationEditBackupService;
 use App\Services\Cache\AppCacheService;
 use App\Services\Group\GroupDetailEditService;
 use App\Services\Loan\LoanPhaseService;
 use App\Services\Loan\TempApplicationService;
 use App\Support\LmsGracePeriod;
+use App\Support\LoanPhaseFinancialTotals;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +25,7 @@ class TempApplicationDetailEditService
         protected TempApplicationService $applicationService,
         protected LoanPhaseService $phaseService,
         protected AppCacheService $cacheService,
+        protected TempApplicationEditBackupService $backupService,
     ) {}
 
     public function canEdit(TempApplication $application, User $user): bool
@@ -55,11 +59,12 @@ class TempApplicationDetailEditService
     {
         $fields = [
             'group_name',
+            'group_registration_number',
             'ward_id',
             'gfs_code',
             'amount_applied',
-            'amount_approved',
             'date_registered',
+            'disbursement_date',
         ];
 
         $groupLoan = $application->phaseApplication?->groupLoan;
@@ -69,10 +74,10 @@ class TempApplicationDetailEditService
                 $fields,
                 $this->groupEditService->editableFieldsFor($groupLoan),
             )));
-        } elseif ($application->phaseApplication || LmsGracePeriod::isActive()) {
-            $fields[] = 'amount_issued';
-            $fields[] = 'disbursement_date';
         }
+
+        // Approved and issued amounts are set only during approval / disbursement.
+        $fields = array_values(array_diff($fields, ['amount_approved', 'amount_issued']));
 
         return $fields;
     }
@@ -101,8 +106,9 @@ class TempApplicationDetailEditService
 
         $payload = $this->validatePayload($application, $data, $allowed);
         $oldValues = $this->buildSnapshot($application);
+        $backup = $this->backupService->backup($application);
 
-        DB::transaction(function () use ($application, $user, $payload, $oldValues) {
+        DB::transaction(function () use ($application, $user, $payload, $oldValues, $backup) {
             $this->applyApplicationUpdates($application, $payload);
             $this->applyPhaseApplicationUpdates($application, $payload);
             $this->applyLinkedGroupUpdates($application, $user, $payload);
@@ -114,7 +120,7 @@ class TempApplicationDetailEditService
                 'phaseApplication.linkedGroup',
             ]);
 
-            $this->logAudit($application, $user, $oldValues, $this->buildSnapshot($application));
+            $this->logAudit($application, $user, $oldValues, $this->buildSnapshot($application), $backup['path']);
             $this->invalidateCaches($application);
         });
 
@@ -158,6 +164,18 @@ class TempApplicationDetailEditService
         if (in_array('group_name', $allowed, true)) {
             $rules['groupName'] = ['required', 'string', 'max:255'];
             $attributes['groupName'] = 'group name';
+        }
+
+        if (in_array('group_registration_number', $allowed, true)) {
+            $rules['groupRegistrationNumber'] = [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('temp_applications', 'group_registration_number')
+                    ->where('constituency_code', $constituencyCode)
+                    ->ignore($application->id),
+            ];
+            $attributes['groupRegistrationNumber'] = 'group registration number';
         }
 
         if (in_array('ward_id', $allowed, true)) {
@@ -211,6 +229,7 @@ class TempApplicationDetailEditService
 
         $map = [
             'groupName' => 'group_name',
+            'groupRegistrationNumber' => 'group_registration_number',
             'wardId' => 'ward_id',
             'gfsCode' => 'gfs_code',
             'amountApplied' => 'amount_applied',
@@ -231,14 +250,38 @@ class TempApplicationDetailEditService
                 $value = null;
             }
 
-            if ($column === 'group_name' && is_string($value)) {
+            if (in_array($column, ['group_name', 'group_registration_number'], true) && is_string($value)) {
                 $value = trim($value);
             }
 
             $payload[$column] = $value;
         }
 
+        $this->assertRegistrationNumberAvailable($application, $payload);
+
         return $payload;
+    }
+
+    protected function assertRegistrationNumberAvailable(TempApplication $application, array $payload): void
+    {
+        if (!array_key_exists('group_registration_number', $payload) || !$payload['group_registration_number']) {
+            return;
+        }
+
+        $groupId = $application->phaseApplication?->group_id
+            ?? $application->phaseApplication?->groupLoan?->group_id
+            ?? $application->group_id;
+
+        $taken = Group::query()
+            ->where('reg_number', $payload['group_registration_number'])
+            ->when($groupId, fn ($query) => $query->where('id', '!=', $groupId))
+            ->exists();
+
+        if ($taken) {
+            throw ValidationException::withMessages([
+                'groupRegistrationNumber' => 'This group registration number is already in use.',
+            ]);
+        }
     }
 
     protected function applyApplicationUpdates(TempApplication $application, array $payload): void
@@ -249,6 +292,10 @@ class TempApplicationDetailEditService
             $updates['group_name'] = $payload['group_name'];
         }
 
+        if (array_key_exists('group_registration_number', $payload)) {
+            $updates['group_registration_number'] = $payload['group_registration_number'];
+        }
+
         if (array_key_exists('ward_id', $payload)) {
             $updates['ward_id'] = $payload['ward_id'];
             $updates['ward_name'] = $payload['ward_id']
@@ -256,21 +303,15 @@ class TempApplicationDetailEditService
                 : null;
         }
 
-        if (array_key_exists('gfs_code', $payload)) {
-            $updates['gfs_code'] = $payload['gfs_code'];
-        }
-
         if (array_key_exists('amount_applied', $payload)) {
             $updates['loan_amount'] = $payload['amount_applied'];
-        }
-
-        if (array_key_exists('amount_approved', $payload)) {
-            $updates['amount_approved'] = $payload['amount_approved'];
         }
 
         if (array_key_exists('date_registered', $payload)) {
             $updates['date_registered'] = $payload['date_registered'];
         }
+
+        $updates = $this->onlyExistingColumns('temp_applications', $updates);
 
         if ($updates !== []) {
             $application->update($updates);
@@ -287,11 +328,13 @@ class TempApplicationDetailEditService
 
         $updates = [];
 
-        foreach (['gfs_code', 'amount_applied', 'amount_approved', 'amount_issued', 'disbursement_date'] as $field) {
+        foreach (['gfs_code', 'amount_applied', 'disbursement_date'] as $field) {
             if (array_key_exists($field, $payload)) {
                 $updates[$field] = $payload[$field];
             }
         }
+
+        $updates = $this->onlyExistingColumns('phase_applications', $updates);
 
         if ($updates !== []) {
             $phaseApplication->update($updates);
@@ -310,16 +353,23 @@ class TempApplicationDetailEditService
                 'wardId' => $wardId,
                 'gfsCode' => array_key_exists('gfs_code', $payload) ? $payload['gfs_code'] : $groupLoan->gfs_code,
                 'amountApplied' => array_key_exists('amount_applied', $payload) ? $payload['amount_applied'] : $groupLoan->amount_applied,
-                'amountApproved' => array_key_exists('amount_approved', $payload) ? $payload['amount_approved'] : $groupLoan->amount_approved,
-                'amountIssued' => array_key_exists('amount_issued', $payload) ? $payload['amount_issued'] : $groupLoan->amount_issued,
                 'amountRepaid' => array_key_exists('amount_repaid', $payload) ? $payload['amount_repaid'] : $groupLoan->amount_repaid,
                 'disbursementDate' => array_key_exists('disbursement_date', $payload)
                     ? $payload['disbursement_date']
                     : $groupLoan->disbursement_date?->format('Y-m-d'),
             ]);
 
+            if (array_key_exists('group_registration_number', $payload) && $groupLoan->group) {
+                $groupLoan->group->update([
+                    'reg_number' => $payload['group_registration_number'],
+                ]);
+            }
+
+            $this->applyGroupLoanAmountUpdates($groupLoan, $payload);
             return;
         }
+
+        $this->applyGroupLoanAmountUpdates($groupLoan, $payload);
 
         $group = $application->phaseApplication?->linkedGroup
             ?? ($application->group_id ? Group::query()->find($application->group_id) : null);
@@ -334,20 +384,50 @@ class TempApplicationDetailEditService
             $updates['name'] = $payload['group_name'];
         }
 
-        if (array_key_exists('ward_id', $payload)) {
-            $updates['ward_id'] = $payload['ward_id'];
+        if (array_key_exists('group_registration_number', $payload)) {
+            $updates['reg_number'] = $payload['group_registration_number'];
         }
 
-        if (array_key_exists('gfs_code', $payload)) {
-            $updates['gfs_code'] = $payload['gfs_code'];
+        if (array_key_exists('ward_id', $payload)) {
+            $updates['ward_id'] = $payload['ward_id'];
         }
 
         if (array_key_exists('date_registered', $payload)) {
             $updates['date_registered'] = $payload['date_registered'];
         }
 
+        $updates = $this->onlyExistingColumns('groups', $updates);
+
         if ($updates !== []) {
             $group->update($updates);
+        }
+    }
+
+
+    protected function applyGroupLoanAmountUpdates($groupLoan, array $payload): void
+    {
+        if (!$groupLoan) {
+            return;
+        }
+
+        $loanUpdates = [];
+        foreach (['gfs_code', 'amount_applied', 'amount_repaid', 'disbursement_date'] as $field) {
+            if (array_key_exists($field, $payload)) {
+                $loanUpdates[$field] = $payload[$field];
+            }
+        }
+
+        $loanUpdates = $this->onlyExistingColumns('group_loans', $loanUpdates);
+
+        if ($loanUpdates === []) {
+            return;
+        }
+
+        $groupLoan->update($loanUpdates);
+        $groupLoan->loadMissing('loanPhase');
+
+        if ($groupLoan->loanPhase) {
+            LoanPhaseFinancialTotals::refresh($groupLoan->loanPhase);
         }
     }
 
@@ -360,9 +440,10 @@ class TempApplicationDetailEditService
         return [
             'application_id' => $application->application_id,
             'group_name' => $application->group_name,
+            'group_registration_number' => $application->group_registration_number ?? $group?->reg_number,
             'ward_id' => $application->ward_id,
             'ward_name' => $application->ward_name ?? $application->ward?->ward_name,
-            'gfs_code' => $application->gfs_code ?? $phaseApplication?->gfs_code,
+            'gfs_code' => $phaseApplication?->gfs_code ?? $groupLoan?->gfs_code,
             'loan_amount' => $application->loan_amount,
             'amount_approved' => $application->amount_approved ?? $phaseApplication?->amount_approved,
             'amount_issued' => $phaseApplication?->amount_issued ?? $groupLoan?->amount_issued,
@@ -375,7 +456,7 @@ class TempApplicationDetailEditService
         ];
     }
 
-    protected function logAudit(TempApplication $application, User $user, array $oldValues, array $newValues): void
+    protected function logAudit(TempApplication $application, User $user, array $oldValues, array $newValues, ?string $backupFile = null): void
     {
         activity('application_audit')
             ->performedOn($application)
@@ -389,10 +470,11 @@ class TempApplicationDetailEditService
                 'constituency_code' => $application->constituency_code,
                 'old_values' => $oldValues,
                 'new_values' => $newValues,
+                'backup_file' => $backupFile,
                 'ip_address' => request()->ip(),
                 'user_agent' => request()->userAgent(),
             ])
-            ->log("Application {$application->application_id} details were updated.");
+            ->log("Application {$application->application_id} details were updated. A backup was saved.");
     }
 
     protected function invalidateCaches(TempApplication $application): void
@@ -412,5 +494,21 @@ class TempApplicationDetailEditService
             $this->phaseService->invalidatePhaseCache($phase->id);
             $this->cacheService->flushGroupLoansCache($phase->constituency_code);
         }
+    }
+    /**
+     * @param  array<string, mixed>  $updates
+     * @return array<string, mixed>
+     */
+    protected function onlyExistingColumns(string $table, array $updates): array
+    {
+        $filtered = [];
+
+        foreach ($updates as $column => $value) {
+            if (Schema::hasColumn($table, $column)) {
+                $filtered[$column] = $value;
+            }
+        }
+
+        return $filtered;
     }
 }

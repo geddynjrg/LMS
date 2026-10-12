@@ -169,7 +169,7 @@
                                     }
                                 @endphp
 
-                                @if($isDanger && $backupFile && ($isPhaseAudit || $isGroupAudit || $isApplicationAudit) && $restoreCountySlug && $restoreConstituency)
+                                @if($backupFile && ($isPhaseAudit || $isGroupAudit || $isApplicationAudit) && ($isDanger || ($isUpdate && $isApplicationAudit)) && $restoreCountySlug && $restoreConstituency)
                                     <p class="mb-2">
                                         <a href="{{ route('const.reports.restore-deleted-data', [
                                             'county' => $restoreCountySlug,

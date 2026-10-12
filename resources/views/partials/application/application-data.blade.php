@@ -238,29 +238,35 @@
 
                 @include('partials.application.send-group-sms-button', ['class' => 'mt-3'])
 
+                @php
+                    $approvedAmount = $this->application->phaseApplication?->amount_approved
+                        ?? $this->application->amount_approved;
+                    $issuedAmount = $this->application->phaseApplication?->amount_issued;
+                @endphp
+
                 {{-- Approved State --}}
-                @if($this->application->phaseApplication && !in_array($this->application->phaseApplication?->status, ['pending', 'submitted', 'rejected']))
+                @if($approvedAmount !== null && $approvedAmount !== '')
                     <div class="mt-4 pt-4 border-top">
                         <span class="text-uppercase text-muted font-weight-bold tracking-widest d-block mb-2" style="font-size: 0.7rem;">
                             @if (in_array($this->application->phaseApplication?->status, ['pending_hq_approval', 'pending_submission_to_hq']))
                                 Proposed Amount
                             @else
-                                Approved Amount
+                                Amount Approved
                             @endif
                         </span>
                         <h1 class="font-weight-bold text-dark mb-1" style="letter-spacing: -1px;">
-                            KES {{ number_format($this->application->phaseApplication->amount_approved, 2) }}
+                            KES {{ number_format($approvedAmount, 2) }}
                         </h1>
                     </div>
                 @endif
 
-                @if($this->application->phaseApplication && $this->application->phaseApplication?->status === 'disbursed')
+                @if($issuedAmount !== null && $issuedAmount !== '')
                     <div class="mt-4 pt-4 border-top">
                         <span class="text-uppercase text-muted font-weight-bold tracking-widest d-block mb-2" style="font-size: 0.7rem;">
                             Amount Issued
                         </span>
                         <h1 class="font-weight-bold text-dark mb-1" style="letter-spacing: -1px;">
-                            KES {{ number_format($this->application->phaseApplication->amount_issued, 2) }}
+                            KES {{ number_format($issuedAmount, 2) }}
                         </h1>
                     </div>
                 @endif

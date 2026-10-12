@@ -257,6 +257,7 @@
             <div class="wrapper">
                 @auth
                     <livewire:constituency-officer-guide-modal />
+                    <livewire:historical-correction-prompt-modal />
 
                     <!-- Navbar -->
                     @include('nav-bar')

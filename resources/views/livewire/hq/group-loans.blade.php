@@ -314,9 +314,9 @@
                                     >
                                         Balance
                                     </x-table-header>
-                                    {{-- <x-table-header :sortable="false">
+                                    <x-table-header :sortable="false">
                                         Action
-                                    </x-table-header> --}}
+                                    </x-table-header>
                                 </tr>
                             </thead>
                             <tbody>
@@ -359,20 +359,17 @@
                                         <td class="px-4 py-3">
                                             <span class="text-sm text-gray-900">{{ number_format($groupLoan->balance ?? 0, 2) }}</span>
                                         </td>
-                                        {{-- <td class="px-4 py-3">
-                                            <x-modal-trigger
-                                                target="viewGroupLoan({{ $groupLoan->gl_id }})"
-                                                label=""
-                                                title="View Loan"
-                                                icon="fas fa-eye"
-                                                variant="outline-primary"
-                                                defaultLabel=""
-                                            />
-                                        </td> --}}
+                                        <td class="px-4 py-3">
+                                            <div class="d-flex flex-column">
+                                                <button type="button" class="btn btn-link btn-sm p-0 text-left" wire:click="viewGroupLoan({{ $groupLoan->gl_id }})">View</button>
+                                                <button type="button" class="btn btn-link btn-sm p-0 text-left" wire:click="openHqCorrectModal({{ $groupLoan->gl_id }})">Correct approved / GFS</button>
+                                                <button type="button" class="btn btn-link btn-sm p-0 text-left" wire:click="openRequestCorrectionModal({{ $groupLoan->gl_id }})">Prompt officer</button>
+                                            </div>
+                                        </td>
                                     </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="8" class="text-center py-4">
+                                    <td colspan="9" class="text-center py-4">
                                         <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
                                         <h5 class="text-sm text-gray-500">No Groups found</h5>
                                         @if($search || $wardFilter || $phaseFilter || $dateFrom || $dateTo)
@@ -534,5 +531,75 @@
                 />
             </div>
         </x-slot>
+    </x-action-modal>
+
+    <x-action-modal
+        id="hq-correct-historical-modal"
+        title="Correct approved amount / GFS"
+        type="info"
+        icon="fa-edit"
+        size="modal-md"
+        x-on:open-modal.window="if($event.detail.name === 'hq-correct-historical-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'hq-correct-historical-modal') $($el).modal('hide')"
+    >
+        <form wire:submit.prevent="saveHqHistoricalCorrection">
+            <p class="small text-muted">Headquarters may correct these historical fields directly.</p>
+            <div class="form-group">
+                <label class="small font-weight-bold text-uppercase">GFS code</label>
+                <input type="text" class="form-control" wire:model="editGfsCode">
+                @error('gfsCode') <span class="text-danger small">{{ $message }}</span> @enderror
+            </div>
+            <div class="form-group">
+                <label class="small font-weight-bold text-uppercase">Approved amount (KES)</label>
+                <input type="number" step="0.01" min="0" class="form-control" wire:model="editAmountApproved">
+                @error('amountApproved') <span class="text-danger small">{{ $message }}</span> @enderror
+            </div>
+            <x-slot name="footer">
+                <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save correction</button>
+            </x-slot>
+        </form>
+    </x-action-modal>
+
+    <x-action-modal
+        id="hq-request-correction-modal"
+        title="Prompt field officer to correct"
+        type="warning"
+        icon="fa-bell"
+        size="modal-md"
+        x-on:open-modal.window="if($event.detail.name === 'hq-request-correction-modal') $($el).modal('show')"
+        x-on:close-modal.window="if($event.detail.name === 'hq-request-correction-modal') $($el).modal('hide')"
+    >
+        <form wire:submit.prevent="sendCorrectionPrompt">
+            <p class="small mb-2">Group: <strong>{{ $promptGroupLabel }}</strong></p>
+            <p class="small text-muted">Sends email and a login modal. The modal clears after the officer saves the selected fields.</p>
+            <div class="form-group">
+                <label class="small font-weight-bold text-uppercase d-block">Suggest corrections</label>
+                <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="pf_date" value="disbursement_date" wire:model="promptFields">
+                    <label class="custom-control-label" for="pf_date">When the cheque was issued / date issued</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="pf_issued" value="amount_issued" wire:model="promptFields">
+                    <label class="custom-control-label" for="pf_issued">How much was issued</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="pf_repaid" value="amount_repaid" wire:model="promptFields">
+                    <label class="custom-control-label" for="pf_repaid">Amount repaid</label>
+                </div>
+                <div class="custom-control custom-checkbox">
+                    <input type="checkbox" class="custom-control-input" id="pf_cheque" value="cheque_no" wire:model="promptFields">
+                    <label class="custom-control-label" for="pf_cheque">Cheque number</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="small font-weight-bold text-uppercase">Message to officer</label>
+                <textarea class="form-control" rows="3" wire:model="promptMessage" placeholder="Optional guidance"></textarea>
+            </div>
+            <x-slot name="footer">
+                <button type="button" class="btn btn-outline-secondary" data-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-warning">Send prompt</button>
+            </x-slot>
+        </form>
     </x-action-modal>
 </section>

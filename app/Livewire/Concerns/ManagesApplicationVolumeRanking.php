@@ -8,12 +8,106 @@ trait ManagesApplicationVolumeRanking
 {
     public string $applicationVolumeSearch = '';
 
+    public ?string $applicationVolumeDetailCode = null;
+
+    public ?int $applicationVolumeDetailPhaseId = null;
+
+    public ?int $applicationVolumeDetailGroupLoanId = null;
+
+    public string $applicationVolumeDetailSearch = '';
+
+    public int $applicationVolumeDetailPage = 1;
+
     /**
      * @return array{county_code?: string, constituency_code?: string}
      */
     protected function applicationVolumeFilters(): array
     {
         return [];
+    }
+
+    public function openApplicationVolumeConstituency(string $constituencyCode): void
+    {
+        $code = trim($constituencyCode);
+        if ($code === '') {
+            return;
+        }
+
+        $this->applicationVolumeDetailCode = $code;
+        $this->applicationVolumeDetailPhaseId = null;
+        $this->applicationVolumeDetailGroupLoanId = null;
+        $this->applicationVolumeDetailSearch = '';
+        $this->applicationVolumeDetailPage = 1;
+        $this->forgetApplicationVolumeDetailComputed();
+    }
+
+    public function closeApplicationVolumeConstituency(): void
+    {
+        $this->applicationVolumeDetailCode = null;
+        $this->applicationVolumeDetailPhaseId = null;
+        $this->applicationVolumeDetailGroupLoanId = null;
+        $this->applicationVolumeDetailSearch = '';
+        $this->applicationVolumeDetailPage = 1;
+        $this->forgetApplicationVolumeDetailComputed();
+    }
+
+    public function openApplicationVolumePhase(int $phaseId): void
+    {
+        if ($phaseId <= 0) {
+            return;
+        }
+
+        $this->applicationVolumeDetailPhaseId = $phaseId;
+        $this->applicationVolumeDetailGroupLoanId = null;
+        $this->applicationVolumeDetailSearch = '';
+        $this->applicationVolumeDetailPage = 1;
+        $this->forgetApplicationVolumeDetailComputed();
+    }
+
+    public function backApplicationVolumeToPhases(): void
+    {
+        $this->applicationVolumeDetailPhaseId = null;
+        $this->applicationVolumeDetailGroupLoanId = null;
+        $this->applicationVolumeDetailSearch = '';
+        $this->applicationVolumeDetailPage = 1;
+        $this->forgetApplicationVolumeDetailComputed();
+    }
+
+    public function openApplicationVolumeGroup(int $groupLoanId): void
+    {
+        if ($groupLoanId <= 0) {
+            return;
+        }
+
+        $this->applicationVolumeDetailGroupLoanId = $groupLoanId;
+        $this->forgetApplicationVolumeDetailComputed();
+    }
+
+    public function backApplicationVolumeToGroups(): void
+    {
+        $this->applicationVolumeDetailGroupLoanId = null;
+        $this->forgetApplicationVolumeDetailComputed();
+    }
+
+    public function setApplicationVolumeDetailPage(int $page): void
+    {
+        $this->applicationVolumeDetailPage = max(1, $page);
+        unset($this->applicationVolumePhaseGroups);
+    }
+
+    public function updatedApplicationVolumeDetailSearch(): void
+    {
+        $this->applicationVolumeDetailPage = 1;
+        unset($this->applicationVolumePhaseGroups);
+    }
+
+    protected function forgetApplicationVolumeDetailComputed(): void
+    {
+        unset(
+            $this->applicationVolumeConstituencyOverview,
+            $this->applicationVolumePhaseGroups,
+            $this->applicationVolumeGroupDetail
+        );
     }
 
     #[Computed]
@@ -61,5 +155,40 @@ trait ManagesApplicationVolumeRanking
             'top_count' => (int) ($top?->application_count ?? 0),
             'max_count' => max((int) ($top?->application_count ?? 0), 1),
         ];
+    }
+
+    #[Computed]
+    public function applicationVolumeConstituencyOverview(): ?array
+    {
+        if (! $this->applicationVolumeDetailCode) {
+            return null;
+        }
+
+        return $this->analysisService->getHistoricalConstituencyOverview($this->applicationVolumeDetailCode);
+    }
+
+    #[Computed]
+    public function applicationVolumePhaseGroups(): ?array
+    {
+        if (! $this->applicationVolumeDetailPhaseId) {
+            return null;
+        }
+
+        return $this->analysisService->getHistoricalPhaseGroups(
+            $this->applicationVolumeDetailPhaseId,
+            $this->applicationVolumeDetailPage,
+            25,
+            $this->applicationVolumeDetailSearch !== '' ? $this->applicationVolumeDetailSearch : null
+        );
+    }
+
+    #[Computed]
+    public function applicationVolumeGroupDetail(): ?array
+    {
+        if (! $this->applicationVolumeDetailGroupLoanId) {
+            return null;
+        }
+
+        return $this->analysisService->getHistoricalGroupDetail($this->applicationVolumeDetailGroupLoanId);
     }
 }

@@ -16,6 +16,7 @@ use App\Http\Controllers\Hq\HqLoanController;
 use App\Http\Controllers\Hq\HqMemberController;
 use App\Http\Controllers\Hq\HqConstituencyAllocationController;
 use App\Http\Controllers\Hq\HqReportController;
+use App\Http\Controllers\Hq\ApplicationVolumeExportController;
 use App\Http\Controllers\Secretariat\SecretariatController;
 use App\Http\Controllers\Accountant\AccountantController;
 use App\Http\Controllers\PhaseDocumentController;
@@ -73,6 +74,16 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/review-checklist/{phase}', [ReviewChecklistDraftController::class, 'show'])->name('review-checklist.show');
     Route::post('/review-checklist/{phase}', [ReviewChecklistDraftController::class, 'save'])->name('review-checklist.save');
     Route::get('/help', [HelpController::class, 'index'])->name('help.index');
+    Route::middleware(['role:super-admin|hq_officer|admin|head_of_secretariat|constituency_officer'])->group(function () {
+        Route::post('/reports/application-volume/download', [ApplicationVolumeExportController::class, 'download'])
+            ->name('reports.application-volume.download');
+        Route::post('/reports/application-volume/preview-pdf', [ApplicationVolumeExportController::class, 'previewPdf'])
+            ->name('reports.application-volume.preview-pdf');
+        Route::get('/reports/application-volume/preview/{token}/{format}', [ApplicationVolumeExportController::class, 'show'])
+            ->where('format', 'pdf|xlsx|html')
+            ->name('reports.application-volume.preview-file');
+    });
+
 
     // --- HQ / National Administration Routes ---
     Route::middleware(['hq.access'])
@@ -120,6 +131,7 @@ Route::middleware(['auth'])->group(function () {
 
         // Reports
         Route::get('/reports', [HqReportController::class, 'index'])->name('reports.index');
+        Route::get('/reports/application-volume', [HqReportController::class, 'applicationVolume'])->name('reports.application-volume');
 
         Route::prefix('allocations')->name('allocations.')->group(function () {
             Route::get('/', [HqConstituencyAllocationController::class, 'index'])->name('index');
@@ -135,6 +147,7 @@ Route::middleware(['auth'])->group(function () {
         ->prefix('secretariat')
         ->name('secretariat.')
         ->group(function () {
+            Route::get('/application-volume', [HqReportController::class, 'applicationVolume'])->name('application-volume');
             Route::get('/phases', [SecretariatController::class, 'index'])->name('phases.index');
             Route::get('/phases/{phase}/review', [SecretariatController::class, 'review'])->name('phases.review');
             Route::get('/phases/{phase}/code-list', [\App\Http\Controllers\ProcessedCodeListController::class, 'download'])->name('phases.code-list');
@@ -201,6 +214,7 @@ Route::middleware(['auth'])->group(function () {
                 Route::get('loan-sub-form', [ReportsController::class, 'codeList'])->name('codelist');
                 Route::get('/disbursement', [ReportsController::class, 'disbursement'])->name('disbursement');
                 Route::get('/dynamic-report', [ReportsController::class, 'dynamicReport'])->name('dynamic-report');
+                Route::get('/application-volume', [ReportsController::class, 'applicationVolume'])->name('application-volume');
                 Route::get('/data-upload', [ReportsController::class, 'dataUpload'])->name('data-upload');
                 Route::get('/export', [ReportsController::class, 'export'])->name('export');
                 Route::get('/restore-deleted-data', [ReportsController::class, 'restoreDeletedData'])->name('restore-deleted-data');
@@ -209,6 +223,10 @@ Route::middleware(['auth'])->group(function () {
             Route::prefix('monitoring')->name('monitoring.')->group(function () {
                 Route::get('/report', [MeReportingController::class, 'home'])->name('monitor_home');
                 Route::get('/dataview', [MeReportingController::class, 'data'])->name('data_view');
+            });
+
+            Route::prefix('allocations')->name('allocations.')->group(function () {
+                Route::get('/', [\App\Http\Controllers\ConstituencyController::class, 'allocations'])->name('index');
             });
 
             Route::prefix('applications')->name('app.')->group(function () {

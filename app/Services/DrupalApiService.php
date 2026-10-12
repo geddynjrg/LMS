@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Log;
 
 class DrupalApiService
 {
+    use DrupalMemberOtpFallback;
+
     protected ?string $baseUrl;
     protected ?string $apiKey;
 

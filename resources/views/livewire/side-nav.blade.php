@@ -122,6 +122,13 @@
                         <p>National Analytics</p>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a href="{{ route('secretariat.application-volume') }}" class="nav-link {{ Route::is('secretariat.application-volume') ? 'active' : '' }}">
+                        <i class="nav-icon fas fa-chart-bar text-info"></i>
+                        <p>Apps by Constituency</p>
+                    </a>
+                </li>
+
             @endhasrole
 
             @hasrole('hq_officer|admin|super-admin')
@@ -250,7 +257,13 @@
                 </li> --}}
 
                 <li class="nav-item">
-                    <a href="{{ route('hq.reports.index') }}" class="nav-link {{ Route::is('hq.reports.*') ? 'active shadow-sm' : '' }}">
+                    <a href="{{ route('hq.reports.application-volume') }}" class="nav-link {{ Route::is('hq.reports.application-volume') ? 'active shadow-sm' : '' }}">
+                        <i class="nav-icon fas fa-chart-bar text-info"></i>
+                        <p>Apps by Constituency</p>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ route('hq.reports.index') }}" class="nav-link {{ Route::is('hq.reports.index') ? 'active shadow-sm' : '' }}">
                         <i class="nav-icon fas fa-file-contract text-success"></i>
                         <p>National Reports</p>
                     </a>
@@ -459,6 +472,15 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a href="{{route('const.reports.application-volume', [
+                            Str::slug($county->slug),
+                            Str::slug($currentConstituency->slug),
+                        ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.application-volume' ? 'active':''}}">
+                        <i class="fas fa-chart-bar nav-icon"></i>
+                        <p>Apps by Constituency</p>
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a href="{{route('const.reports.dynamic-report', [
                             Str::slug($county->slug),
                             Str::slug($currentConstituency->slug),
@@ -473,7 +495,7 @@
                             Str::slug($currentConstituency->slug),
                         ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.codelist' ? 'active':''}}">
                         <i class="fas fa-file nav-icon"></i>
-                        <p>Loan Subm Form (F.5)</p>
+                        <p>Loan Submission / Ledger (F.5)</p>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -494,21 +516,24 @@
                         <p>Audit Trail</p>
                         </a>
                     </li>
-                    {{-- <li class="nav-item">
+                    <li class="nav-item">
                         <a href="{{route('const.reports.disbursement', [
                             Str::slug($county->slug),
                             Str::slug($currentConstituency->slug),
                         ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.disbursement' ? 'active':''}}">
-                        <i class="fas fa-file nav-icon"></i>
-                        <p>Disbursement Reporting</p>
+                        <i class="fas fa-money-check-alt nav-icon"></i>
+                        <p>Disbursement Reports</p>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="#" class="nav-link">
-                        <i class="fas fa-file nav-icon"></i>
-                        <p>Sectorial Analysis</p>
+                        <a href="{{route('const.reports.dynamic-report', [
+                            Str::slug($county->slug),
+                            Str::slug($currentConstituency->slug),
+                        ])}}" class="nav-link {{ Route::currentRouteName() == 'const.reports.dynamic-report' ? 'active':''}}">
+                        <i class="fas fa-chart-pie nav-icon"></i>
+                        <p>Sectoral Analysis</p>
                         </a>
-                    </li> --}}
+                    </li>
                 </ul>
                 </li>
                 {{-- <li class="nav-item {{ Route::is('const.monitoring*')? 'menu-open':''}}">

@@ -209,6 +209,10 @@
                     </div>
                 </div>
 
+                <button type="button" wire:click="promptOfficerValidation" class="btn btn-warning shadow-sm font-weight-bold mb-4 mr-2" wire:loading.attr="disabled">
+                    <span wire:loading.remove wire:target="promptOfficerValidation"><i class="fas fa-bell mr-1"></i> Prompt officers to validate</span>
+                    <span wire:loading wire:target="promptOfficerValidation">Sending…</span>
+                </button>
                 <button type="button" wire:click="save" class="btn btn-success shadow-sm font-weight-bold mb-4" wire:loading.attr="disabled">
                     <span wire:loading.remove wire:target="save"><i class="fas fa-save mr-1"></i> Save allocation profile</span>
                     <span wire:loading wire:target="save"><i class="fas fa-spinner fa-spin mr-1"></i> Saving…</span>

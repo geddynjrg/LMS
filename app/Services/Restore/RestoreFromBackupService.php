@@ -83,9 +83,17 @@ class RestoreFromBackupService
   {
     return Activity::query()
       ->with('causer')
-      ->whereIn('log_name', ['phase_audit', 'group_audit'])
-      ->where('event', 'deleted')
+      ->where(function ($query) {
+        $query->where(function ($inner) {
+          $inner->whereIn('log_name', ['phase_audit', 'group_audit'])
+            ->where('event', 'deleted');
+        })->orWhere(function ($inner) {
+          $inner->where('log_name', 'application_audit')
+            ->whereIn('event', ['deleted', 'updated']);
+        });
+      })
       ->where('properties->constituency_code', $constituencyCode)
+      ->whereNotNull('properties->backup_file')
       ->orderByDesc('created_at')
       ->limit($limit)
       ->get()
@@ -98,11 +106,17 @@ class RestoreFromBackupService
           return null;
         }
 
-        $type = $activity->log_name === 'phase_audit' ? 'phase' : 'group';
+        $type = $this->backupTypeFromActivity($activity, $backupPath);
         $oldValues = (array) ($properties['old_values'] ?? []);
+        $newValues = (array) ($properties['new_values'] ?? []);
 
         $label = match ($type) {
           'phase' => $oldValues['phase'] ?? ('Phase #' . ($properties['loan_phase_id'] ?? $activity->subject_id)),
+          'application', 'application_edit' => $oldValues['group_name']
+            ?? $newValues['group_name']
+            ?? $oldValues['application_id']
+            ?? $properties['application_id']
+            ?? ('Application #' . ($properties['temp_application_id'] ?? $activity->subject_id)),
           default => $oldValues['group_name'] ?? ('Group loan #' . ($properties['group_loan_id'] ?? $activity->subject_id)),
         };
 
@@ -114,9 +128,11 @@ class RestoreFromBackupService
           'deleted_at' => $activity->created_at->toDateTimeString(),
           'deleted_by' => $activity->causer?->name,
           'label' => (string) $label,
-          'entity_id' => $type === 'phase'
-            ? ($oldValues['id'] ?? $properties['loan_phase_id'] ?? null)
-            : ($oldValues['group_loan_id'] ?? $properties['group_loan_id'] ?? null),
+          'entity_id' => match ($type) {
+            'phase' => $oldValues['id'] ?? $properties['loan_phase_id'] ?? null,
+            'application', 'application_edit' => $properties['temp_application_id'] ?? $oldValues['application_id'] ?? null,
+            default => $oldValues['group_loan_id'] ?? $properties['group_loan_id'] ?? null,
+          },
           'activity_id' => $activity->id,
         ];
       })
@@ -132,6 +148,10 @@ class RestoreFromBackupService
   {
     if (!File::exists($backupPath)) {
       return ['Backup file could not be found on disk.'];
+    }
+
+    if ($this->isReplaceRestore($backupPath)) {
+      return [];
     }
 
     $sql = File::get($backupPath);
@@ -295,6 +315,9 @@ class RestoreFromBackupService
 
     $sql = File::get($backupPath);
     $statements = $this->orderedInsertStatements($sql);
+    if ($this->isReplaceRestore($backupPath)) {
+      $statements = $this->asReplaceStatements($statements);
+    }
 
     if ($statements === []) {
       throw ValidationException::withMessages([
@@ -324,6 +347,8 @@ class RestoreFromBackupService
 
       $this->phaseService->invalidatePhasesCache($constituencyCode);
       $this->cacheService->flushGroupLoansCache($constituencyCode);
+      $this->cacheService->flashCache('applications', 'constituency_apps', $constituencyCode);
+      $this->cacheService->flashCache('applications', 'constituency_stats', $constituencyCode);
 
       foreach ($restoredPhaseIds as $phaseId) {
         $this->phaseService->invalidatePhaseCache($phaseId);
@@ -336,8 +361,8 @@ class RestoreFromBackupService
   protected function assertBackupBelongsToConstituency(string $backupPath, string $constituencyCode): void
   {
     $activity = Activity::query()
-      ->whereIn('log_name', ['phase_audit', 'group_audit'])
-      ->where('event', 'deleted')
+      ->whereIn('log_name', ['phase_audit', 'group_audit', 'application_audit'])
+      ->whereIn('event', ['deleted', 'updated'])
       ->where('properties->constituency_code', $constituencyCode)
       ->where(function ($query) use ($backupPath) {
         $query->where('properties->backup_file', $backupPath)
@@ -407,7 +432,13 @@ class RestoreFromBackupService
    */
   protected function logRestore(User $user, string $backupPath, string $constituencyCode, array $statements): void
   {
-    $type = str_contains($backupPath, 'phase-delete') ? 'phase' : 'group';
+    $type = $this->backupTypeFromPath($backupPath);
+    $label = match ($type) {
+      'application_edit' => 'application edit',
+      'application' => 'application',
+      'phase' => 'phase',
+      default => 'group',
+    };
 
     activity('restore_audit')
       ->causedBy($user)
@@ -421,7 +452,47 @@ class RestoreFromBackupService
         'ip_address' => request()->ip(),
         'user_agent' => request()->userAgent(),
       ])
-      ->log("Restored deleted {$type} data.");
+      ->log("Restored {$label} data from backup.");
+  }
+
+  protected function isReplaceRestore(string $backupPath): bool
+  {
+    return str_contains($backupPath, 'application-edit');
+  }
+
+  /**
+   * @param  list<string>  $statements
+   * @return list<string>
+   */
+  protected function asReplaceStatements(array $statements): array
+  {
+    return array_map(
+      fn (string $statement) => preg_replace('/^INSERT\s+INTO/i', 'REPLACE INTO', $statement) ?? $statement,
+      $statements,
+    );
+  }
+
+  protected function backupTypeFromPath(string $backupPath): string
+  {
+    return match (true) {
+      str_contains($backupPath, 'application-edit') => 'application_edit',
+      str_contains($backupPath, 'application-delete') => 'application',
+      str_contains($backupPath, 'phase-delete') => 'phase',
+      default => 'group',
+    };
+  }
+
+  protected function backupTypeFromActivity(Activity $activity, string $backupPath): string
+  {
+    if ($activity->log_name === 'application_audit') {
+      return $activity->event === 'updated' ? 'application_edit' : 'application';
+    }
+
+    if ($activity->log_name === 'phase_audit') {
+      return 'phase';
+    }
+
+    return $this->backupTypeFromPath($backupPath);
   }
 
   /**

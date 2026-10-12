@@ -5,6 +5,8 @@ namespace App\Livewire\Hq;
 use App\Imports\ConstituencyAllocationTemplateImport;
 use App\Models\ConstituencyAllocationProfile;
 use App\Services\Constituency\ConstituencyAllocationService;
+use App\Services\Historical\HistoricalCorrectionService;
+use Illuminate\Validation\ValidationException;
 use App\Services\LocationService;
 use App\Support\ConstituencyAllocationFields;
 use Livewire\Component;
@@ -320,6 +322,39 @@ class ConstituencyAllocations extends Component
         return ConstituencyAllocationProfile::query()->count();
     }
 
+
+    public function promptOfficerValidation(): void
+    {
+        $this->validate([
+            'constituencyFilter' => 'required|exists:constituencies,constituency_code',
+        ]);
+
+        try {
+            app(HistoricalCorrectionService::class)->requestAllocationProfileCorrection(
+                auth()->user(),
+                $this->constituencyFilter,
+                'Please validate the constituency allocation profile. It is read-only on your side; notify HQ if figures need changing.',
+            );
+
+            $this->dispatch('swal:toast',
+                title: 'Prompt sent',
+                message: 'Constituency officers will get an email and a login modal to validate the allocation profile.',
+                type: 'success'
+            );
+        } catch (ValidationException $e) {
+            $this->dispatch('swal:toast',
+                title: 'Could not send',
+                message: collect($e->errors())->flatten()->first(),
+                type: 'error'
+            );
+        } catch (\Throwable $e) {
+            $this->dispatch('swal:toast',
+                title: 'Could not send',
+                message: $e->getMessage(),
+                type: 'error'
+            );
+        }
+    }
     public function render()
     {
         return view('livewire.hq.constituency-allocations');

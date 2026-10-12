@@ -75,6 +75,27 @@ class WorkflowNotificationService
         );
     }
 
+    public function notifyConstituencyOfficersHistoricalCorrection(
+        string $constituencyCode,
+        string $headline,
+        array $lines,
+        ?string $actionUrl,
+        ?string $actionLabel,
+        ?string $smsMessage,
+        bool $queue = true,
+    ): void {
+        $this->notifyConstituencyOfficersByCode(
+            $constituencyCode,
+            $headline,
+            $headline,
+            array_values(array_filter($lines)),
+            $actionUrl,
+            $actionLabel,
+            $smsMessage,
+            $queue,
+        );
+    }
+
     public function notifyConstituencyOfficersPhaseReturned(LoanPhase $phase, string $reason, bool $queue = true): void
     {
         $phase->loadMissing(['constituency.county']);

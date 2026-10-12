@@ -20,7 +20,7 @@
                     Restore Deleted Data
                 </h5>
                 <p class="text-muted small mb-0">
-                    Recover phases or groups deleted with an automatic SQL backup. Restore is blocked when IDs, slugs, GFS codes, or application references already exist.
+                    Recover deleted phases, groups, and applications, or roll back application edits from the SQL backup taken before the change. Delete restores are blocked when IDs, slugs, GFS codes, or application references already exist. Application-edit restores replace the current values with the backed-up values.
                 </p>
             </div>
             <div class="card-body p-0">
@@ -36,7 +36,7 @@
                                 <tr>
                                     <th>Type</th>
                                     <th>Name</th>
-                                    <th>Deleted</th>
+                                    <th>When</th>
                                     <th>By</th>
                                     <th>Backup</th>
                                     <th class="text-right">Actions</th>
@@ -46,8 +46,8 @@
                                 @foreach($backups as $backup)
                                     <tr class="{{ $selectedBackupPath === $backup['backup_path'] ? 'table-primary' : '' }}">
                                         <td>
-                                            <span class="badge badge-{{ $backup['type'] === 'phase' ? 'info' : 'secondary' }}">
-                                                {{ ucfirst($backup['type']) }}
+                                            <span class="badge badge-{{ $backup['type'] === 'phase' ? 'info' : ($backup['type'] === 'application_edit' ? 'warning' : ($backup['type'] === 'application' ? 'primary' : 'secondary')) }}">
+                                                {{ str_replace('_', ' ', ucfirst($backup['type'])) }}
                                             </span>
                                         </td>
                                         <td class="font-weight-600">{{ $backup['label'] }}</td>
@@ -129,10 +129,15 @@
                         </button>
                     </div>
                     <div class="modal-body">
-                        <p class="mb-2">You are about to restore deleted data for:</p>
-                        <p class="font-weight-600">{{ $backups->firstWhere('backup_path', $selectedBackupPath)['label'] ?? 'Selected backup' }}</p>
+                        @php $selectedBackup = $backups->firstWhere('backup_path', $selectedBackupPath); @endphp
+                        <p class="mb-2">You are about to restore backed-up data for:</p>
+                        <p class="font-weight-600">{{ $selectedBackup['label'] ?? 'Selected backup' }}</p>
                         <p class="text-muted small mb-0">
-                            This will re-insert the backed-up database rows. The action is logged in the activity audit trail.
+                            @if(($selectedBackup['type'] ?? '') === 'application_edit')
+                                This will replace the current application, group, and related rows with the values from the backup. The action is logged in the activity audit trail.
+                            @else
+                                This will re-insert the backed-up database rows. The action is logged in the activity audit trail.
+                            @endif
                         </p>
                     </div>
                     <div class="modal-footer">

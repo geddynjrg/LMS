@@ -8,7 +8,9 @@ use App\Models\GroupMember;
 use App\Models\User;
 use App\Services\Cache\AppCacheService;
 use App\Services\Loan\LoanPhaseService;
+use App\Support\HqAccess;
 use App\Support\LmsGracePeriod;
+use App\Services\Historical\HistoricalCorrectionService;
 use App\Support\LoanPhaseFinancialTotals;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -26,8 +28,15 @@ class GroupDetailEditService
     {
         $groupLoan->loadMissing('loanPhase');
 
-        return $groupLoan->loanPhase !== null
-            && $groupLoan->loanPhase->canEditDetailsBy($user);
+        if ($groupLoan->loanPhase === null) {
+            return false;
+        }
+
+        if (HqAccess::userCanAccessRoutes($user) && $groupLoan->loanPhase->isHistoricalUpload()) {
+            return true;
+        }
+
+        return $groupLoan->loanPhase->canEditDetailsBy($user);
     }
 
     /**
@@ -42,15 +51,37 @@ class GroupDetailEditService
         }
 
         if ($phase->isHistoricalUpload()) {
+            $user = auth()->user();
+
+            // Field officers correct issuance / repayment / cheque timing (often after HQ prompt).
+            if ($user && $user->hasAnyRole(['constituency_officer', 'intern'])) {
+                return [
+                    'group_name',
+                    'ward_id',
+                    'amount_issued',
+                    'amount_repaid',
+                    'disbursement_date',
+                    'cheque_no',
+                ];
+            }
+
+            // HQ corrects approved amount + GFS directly.
+            if ($user && HqAccess::userCanAccessRoutes($user)) {
+                return [
+                    'gfs_code',
+                    'amount_approved',
+                ];
+            }
+
             return [
                 'group_name',
                 'ward_id',
                 'gfs_code',
-                'amount_applied',
                 'amount_approved',
                 'amount_issued',
                 'amount_repaid',
                 'disbursement_date',
+                'cheque_no',
             ];
         }
 
@@ -58,7 +89,6 @@ class GroupDetailEditService
             return [
                 'group_name',
                 'ward_id',
-                'amount_applied',
                 'amount_approved',
                 'gfs_code',
             ];
@@ -69,7 +99,6 @@ class GroupDetailEditService
                 'group_name',
                 'ward_id',
                 'gfs_code',
-                'amount_applied',
                 'amount_approved',
                 'amount_issued',
                 'amount_repaid',
@@ -135,6 +164,10 @@ class GroupDetailEditService
                 $loanUpdates['gfs_code'] = $payload['gfs_code'];
             }
 
+            if (array_key_exists('cheque_no', $payload)) {
+                $loanUpdates['cheque_no'] = $payload['cheque_no'];
+            }
+
             foreach (['amount_applied', 'amount_approved', 'amount_issued', 'amount_repaid', 'disbursement_date'] as $field) {
                 if (array_key_exists($field, $payload)) {
                     $loanUpdates[$field] = $payload[$field];
@@ -166,6 +199,12 @@ class GroupDetailEditService
             $this->phaseService->invalidatePhasesCache($phase->constituency_code);
             $this->phaseService->invalidatePhaseCache($phase->id);
             $this->cacheService->flushGroupLoansCache($phase->constituency_code);
+
+            app(HistoricalCorrectionService::class)->resolveGroupLoanRequests(
+                $groupLoan,
+                $user,
+                array_keys($loanUpdates),
+            );
         });
 
         return $groupLoan->fresh(['group.ward', 'loanPhase']);
@@ -269,6 +308,11 @@ class GroupDetailEditService
             $attributes['disbursementDate'] = 'disbursement date';
         }
 
+        if (in_array('cheque_no', $allowed, true)) {
+            $rules['chequeNo'] = ['nullable', 'string', 'max:255'];
+            $attributes['chequeNo'] = 'cheque number';
+        }
+
         $validator = validator($data, $rules, [], $attributes);
 
         if ($validator->fails()) {
@@ -287,6 +331,7 @@ class GroupDetailEditService
             'amountIssued' => 'amount_issued',
             'amountRepaid' => 'amount_repaid',
             'disbursementDate' => 'disbursement_date',
+            'chequeNo' => 'cheque_no',
         ];
 
         foreach ($map as $input => $column) {
@@ -324,6 +369,7 @@ class GroupDetailEditService
             'amount_issued' => $groupLoan?->amount_issued,
             'amount_repaid' => $groupLoan?->amount_repaid,
             'disbursement_date' => $groupLoan?->disbursement_date?->format('Y-m-d'),
+            'cheque_no' => $groupLoan?->cheque_no,
         ];
     }
 

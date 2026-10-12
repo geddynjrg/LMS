@@ -57,6 +57,9 @@
                         <a href="{{ route('const.reports.export', [$constituency->county->slug, $constituency->slug]) }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
                             <i class="fas fa-file-export text-info mr-2"></i> Reports
                         </a>
+                        <a href="{{ route('const.allocations.index', [$constituency->county->slug, $constituency->slug]) }}" class="list-group-item list-group-item-action border-0 px-0 py-2">
+                            <i class="fas fa-coins text-info mr-2"></i> Allocation profile
+                        </a>
                     </div>
 
                     <div class="mt-4 p-3 rounded {{ $this->riskProfile['bg_class'] }}">

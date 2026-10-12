@@ -124,7 +124,7 @@ class ConstituencyAllocationProfile extends Model
      */
     public function normalizedPhaseIssuedAmounts(): array
     {
-        return collect($this->phase_issued_amounts ?? [])
+        $phases = collect($this->phase_issued_amounts ?? [])
             ->map(function ($row) {
                 return [
                     'phase' => (int) ($row['phase'] ?? 0),
@@ -132,9 +132,17 @@ class ConstituencyAllocationProfile extends Model
                 ];
             })
             ->filter(fn (array $row) => $row['phase'] > 0)
-            ->sortBy('phase')
-            ->values()
-            ->all();
+            ->unique('phase')
+            ->values();
+
+        if (! $phases->contains(fn (array $row) => $row['phase'] === 1)) {
+            $phases->prepend([
+                'phase' => 1,
+                'amount' => 0.0,
+            ]);
+        }
+
+        return $phases->sortBy('phase')->values()->all();
     }
 
     public function totalAllocations(): float
