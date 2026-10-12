@@ -65,17 +65,15 @@ class LoanPhaseService
      */
     public function createPhase(array $data, string $constituencyCode): LoanPhase
     {
-        // Validate phase_name format
-        $phaseName = trim($data['phaseName'] ?? '');
+        $rawName = trim($data['phaseName'] ?? '');
 
-        if (!preg_match('/^phase\s+\d+$/i', $phaseName)) {
+        if (!preg_match('/^phase\s+\d+$/i', $rawName)) {
             throw ValidationException::withMessages([
                 'phaseName' => 'Phase name must be in the format "Phase [positive number]", e.g. "Phase 3" or "phase 12".',
             ]);
         }
 
-        // Extract the number part (for phase_number)
-        preg_match('/\d+/', $phaseName, $matches);
+        preg_match('/\d+/', $rawName, $matches);
         $phaseNumberFromName = (int) $matches[0];
 
         if ($phaseNumberFromName <= 0) {
@@ -84,7 +82,9 @@ class LoanPhaseService
             ]);
         }
 
-        // Check uniqueness (per constituency)
+        // Normalize casing so uniqueness and display stay consistent
+        $phaseName = 'Phase ' . $phaseNumberFromName;
+
         if (LoanPhase::where('constituency_code', $constituencyCode)
             ->whereRaw('LOWER(phase) = ?', [strtolower($phaseName)])
             ->exists()) {
@@ -93,20 +93,23 @@ class LoanPhaseService
             ]);
         }
 
-        $phaseCount = LoanPhase::where('constituency_code', $constituencyCode)->count();
-        return DB::transaction(function () use ($phaseName, $data, $constituencyCode, $phaseCount) {
+        return DB::transaction(function () use ($phaseName, $data, $constituencyCode) {
             $result = LoanPhase::create([
                 'constituency_code'       => $constituencyCode,
                 'phase'                  => $phaseName,
-                'phase_name'             => $phaseName,
-                'phase_number'           => 'Phase ' . ($phaseCount + 1) . ' - ' . now()->year,
                 'review_date'            => $data['reviewDate'],
                 'review_venue'           => $data['reviewVenue'] ?? null,
                 'constituency_officer_id' => Auth::id() ?? null,
                 'status'                 => 'draft',
             ]);
 
-            Log::info('create results: ' . $result->id);
+            Log::info('Loan phase created', [
+                'phase_id' => $result->id,
+                'phase' => $result->phase,
+                'constituency_code' => $constituencyCode,
+            ]);
+
+            $this->invalidatePhasesCache($constituencyCode);
 
             return $result;
         });
@@ -813,7 +816,7 @@ class LoanPhaseService
             // Get the latest vetting activity date
             ->withMax('phaseApplications as last_vetting_at', 'updated_at')
             ->when($search, function ($q) use ($search) {
-                $q->where('phase_name', 'like', "%{$search}%");
+                $q->where('phase', 'like', "%{$search}%");
             })
             ->orderBy('last_vetting_at', 'desc')
             ->get()

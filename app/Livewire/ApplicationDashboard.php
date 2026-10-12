@@ -444,7 +444,7 @@ class ApplicationDashboard extends Component
     {
         $validated = $this->validate([
             'phaseName' => 'required|string|max:255',
-            'reviewDate' => 'required|date|after:today',
+            'reviewDate' => 'required|date|after_or_equal:today',
             'reviewVenue' => 'nullable|string|max:255',
         ]);
 
@@ -477,6 +477,11 @@ class ApplicationDashboard extends Component
                 );
             }
         } catch (\Exception $e) {
+            Log::error('Phase creation failed', [
+                'constituency_code' => $this->constituency->constituency_code ?? null,
+                'phaseName' => $this->phaseName ?? null,
+                'error' => $e->getMessage(),
+            ]);
             $this->dispatch('swal:toast',
                 title: 'Error 😕',
                 message: "An error occured please try again.",
@@ -669,8 +674,16 @@ class ApplicationDashboard extends Component
     #[Computed]
     public function suggestedPhaseName()
     {
-        $count = $this->allPhases->count() + 1;
-        return "Phase {$count}";
+        $max = $this->allPhases
+            ->map(function ($phase) {
+                if (preg_match('/\d+/', (string) $phase->phase, $m)) {
+                    return (int) $m[0];
+                }
+                return 0;
+            })
+            ->max() ?? 0;
+
+        return 'Phase ' . ($max + 1);
     }
 
     // Helper method for status badges

@@ -104,10 +104,6 @@ class PhaseDetailEditService
         $oldValues = $phase->only(array_keys($payload));
 
         DB::transaction(function () use ($phase, $payload, $user, $oldValues) {
-            if (isset($payload['phase'])) {
-                $payload['phase_name'] = $payload['phase'];
-            }
-
             $phase->update($payload);
 
             $this->logAudit(

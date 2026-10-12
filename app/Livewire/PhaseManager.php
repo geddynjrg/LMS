@@ -214,7 +214,7 @@ class PhaseManager extends Component
     {
         $validated = $this->validate([
             'phaseName' => 'required|string|max:255',
-            'reviewDate' => 'required|date|after:today',
+            'reviewDate' => 'required|date|after_or_equal:today',
             'reviewVenue' => 'nullable|string|max:255',
         ]);
 
@@ -240,6 +240,11 @@ class PhaseManager extends Component
                 }
             }
         } catch (\Exception $e) {
+            Log::error('Phase creation failed', [
+                'constituency_code' => $this->constituency->constituency_code ?? null,
+                'phaseName' => $this->phaseName ?? null,
+                'error' => $e->getMessage(),
+            ]);
             $this->dispatch('swal:toast',
                 title: 'Error 😕',
                 message: "Could not create new phase. Please try again or contact support.",
