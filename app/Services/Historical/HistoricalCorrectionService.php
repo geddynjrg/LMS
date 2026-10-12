@@ -130,7 +130,7 @@ class HistoricalCorrectionService
      */
     public function pendingForOfficer(User $user): Collection
     {
-        $codes = $user->constituencies()->pluck('constituency_code')->filter()->values();
+        $codes = $user->constituencies()->pluck('constituencies.constituency_code')->filter()->values();
         $current = $user->currentConstituency?->constituency_code;
         if ($current) {
             $codes->push($current);

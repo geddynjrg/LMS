@@ -55,7 +55,7 @@ class HistoricalCorrectionPromptModal extends Component
             return;
         }
 
-        $codes = $user->constituencies()->pluck('constituency_code');
+        $codes = $user->constituencies()->pluck('constituencies.constituency_code');
         if ($user->currentConstituency?->constituency_code) {
             $codes->push($user->currentConstituency->constituency_code);
         }
