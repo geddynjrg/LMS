@@ -29,6 +29,7 @@ use App\Models\TempApplication;
 use App\Models\TempGroupMember;
 use App\Models\PhaseApplication;
 use App\Services\Loan\TrainingCertificateService;
+use App\Services\SmsService;
 use App\Livewire\Concerns\ManagesApplicationReviewWorkflow;
 use App\Livewire\Concerns\ManagesPhaseDisbursement;
 use App\Livewire\Concerns\ManagesApplicationDetailEditing;
@@ -114,6 +115,9 @@ class ApplicationView extends Component
 
     public $selectedRejectionKey;
     public $rejectionComment;
+
+    /** Officer comments when returning an application to the group for correction. */
+    public $returnToGroupComment;
 
     public $rejectionReasons = [
         'incomplete_information' => 'Incomplete or incorrect information',
@@ -956,6 +960,189 @@ class ApplicationView extends Component
         $this->resetErrorBag();
 
         $this->dispatch('open-modal', name: 'modal-reject-application');
+    }
+
+    public function returnToGroup()
+    {
+        $this->reset(['returnToGroupComment']);
+        $this->resetErrorBag();
+        $this->dispatch('open-modal', name: 'modal-return-to-group');
+    }
+
+    public function confirmReturnToGroup(SmsService $smsService)
+    {
+        if (($this->application->phaseApplication->status ?? null) !== 'pending') {
+            $this->notify('error', 'Invalid Action', 'Only applications awaiting constituency decision can be returned to the group.');
+            return;
+        }
+
+        $this->validate([
+            'returnToGroupComment' => [
+                'required',
+                'string',
+                'min:20',
+                'max:500',
+                function ($attribute, $value, $fail) {
+                    $cleanValue = strtolower(str_replace(' ', '', $value));
+                    if (preg_match('/(.)\1{3,}/', $cleanValue)) {
+                        $fail('The explanation contains too many repetitive characters. Please provide a real reason.');
+                    }
+
+                    $uniqueChars = count(count_chars($cleanValue, 1));
+                    if ($uniqueChars < 6) {
+                        $fail('This reason looks too generic. Please provide more specific details.');
+                    }
+                    $words = explode(' ', strtolower(trim($value)));
+                    $uniqueWords = array_unique($words);
+                    if (count($words) > 4 && (count($uniqueWords) / count($words)) < 0.5) {
+                        $fail('Please provide a constructive sentence rather than repeating words.');
+                    }
+                },
+            ],
+        ], [
+            'returnToGroupComment.required' => 'You must tell the group what to correct.',
+            'returnToGroupComment.min' => 'Comments must be at least 20 characters.',
+        ]);
+
+        try {
+            $result = DB::transaction(function () {
+                $phaseApplication = PhaseApplication::where('temp_application_id', $this->application->id)->first();
+
+                if (!$phaseApplication || $phaseApplication->status !== 'pending') {
+                    return false;
+                }
+
+                $phaseApplication->update([
+                    'status' => 'deferred',
+                    'user_id' => auth()->id(),
+                    'level' => 'constituency',
+                    'action' => 'returned_to_applicant',
+                    'rejection_reason' => 'incomplete_information',
+                    'rejection_message' => $this->returnToGroupComment,
+                    'comments' => $this->returnToGroupComment,
+                ]);
+
+                $this->application->update([
+                    'status' => 'draft',
+                    'lms_to_loan_app_sync_status' => 'pending',
+                ]);
+
+                activity()
+                    ->performedOn($phaseApplication)
+                    ->causedBy(auth()->user())
+                    ->createdAt(now())
+                    ->withProperties([
+                        'type' => 'application_returned_to_group',
+                        'attributes' => [
+                            'status' => 'draft',
+                            'comment' => $this->returnToGroupComment,
+                            'application_number' => $this->application->application_id,
+                        ],
+                        'context' => [
+                            'ip_address' => request()->ip(),
+                            'user_agent' => request()->userAgent(),
+                        ],
+                    ])
+                    ->log('Application returned to group for correction.');
+
+                SyncApplicationStatusToDrupal::pushAfterCommit($this->application->id);
+
+                return true;
+            });
+        } catch (Exception $e) {
+            Log::error('Return to group failed', [
+                'application_id' => $this->application->application_id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+            $this->dispatch('swal:toast',
+                title: 'Invalid Action 😕',
+                message: 'Internal Server Error.',
+                type: 'error'
+            );
+            return;
+        }
+
+        if (!$result) {
+            $this->notify('error', 'Invalid Application', 'ERROR: You have no access to this application.');
+            return;
+        }
+
+        $smsSent = $this->notifyChairpersonOfReturn($smsService, $this->returnToGroupComment);
+
+        $this->reset(['returnToGroupComment']);
+        $this->resetErrorBag();
+        $this->dispatch('close-modal', name: 'modal-return-to-group');
+
+        $this->notify(
+            'success',
+            'Returned to group',
+            $smsSent
+                ? 'Application marked as draft. An SMS with your comments was sent to the group contact.'
+                : 'Application marked as draft. SMS could not be sent — share your comments with the group directly.'
+        );
+
+        $this->navigateToNextAfterReview();
+        $this->refreshData();
+    }
+
+    protected function notifyChairpersonOfReturn(SmsService $smsService, string $comments): bool
+    {
+        $this->application->loadMissing('groupMembers');
+        $members = $this->application->groupMembers ?? collect();
+        $officials = $this->appService->getGroupOfficials($this->application);
+
+        $candidates = [
+            $officials['chairperson'] ?? null,
+            $members->first(fn ($m) => str_contains(strtolower((string) $m->position), 'chair')),
+            $officials['secretary'] ?? null,
+            $officials['treasurer'] ?? null,
+            $members->first(fn ($m) => filled($m->phone_number)),
+        ];
+
+        $phone = null;
+        $recipientRole = null;
+        foreach ($candidates as $candidate) {
+            if ($candidate && filled($candidate->phone_number ?? null)) {
+                $phone = $candidate->phone_number;
+                $recipientRole = $candidate->position ?: 'member';
+                break;
+            }
+        }
+
+        if (!$phone && filled($this->application->phone_number)) {
+            $phone = $this->application->phone_number;
+            $recipientRole = 'application_contact';
+        }
+
+        if (!$phone) {
+            Log::warning('Return-to-group SMS skipped: no group contact phone', [
+                'application_id' => $this->application->application_id,
+                'member_positions' => $members->pluck('position')->filter()->values()->all(),
+            ]);
+            return false;
+        }
+
+        $portal = str_contains((string) config('drupal.base_url'), 'prod')
+            || str_contains((string) config('app.url'), 'lms.uwezo.go.ke')
+            ? 'loans.uwezo.go.ke'
+            : 'loans-staging.uwezo.go.ke';
+
+        $groupName = $this->application->group_name;
+        $appId = $this->application->application_id;
+        $shortComment = mb_strimwidth(trim($comments), 0, 240, '…');
+
+        $message = "Uwezo Fund: Application {$appId} ({$groupName}) was returned by the Constituency Office for correction: {$shortComment}. Log in at {$portal} to update and resubmit.";
+
+        $sent = $smsService->send($phone, $message);
+        if ($sent) {
+            Log::info('Return-to-group SMS sent', [
+                'application_id' => $appId,
+                'role' => $recipientRole,
+                'phone' => $phone,
+            ]);
+        }
+
+        return $sent;
     }
 
 public function getMemberFileData($data, $key = 'url')
