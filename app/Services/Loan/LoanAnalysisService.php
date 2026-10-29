@@ -229,11 +229,21 @@ class LoanAnalysisService
 
         $maximum = $requeted > 0 ? min($requeted, $maxCeiling) : min($maxCeiling, 500000);
 
+        // Block only when remaining balance > 75% of previous loan amount.
+        $canBorrow = true;
+        if ($lastLoan && (float) $lastLoan->amount_issued > 0) {
+            $debtStatus = (new LoanDebtCheckService())->getDebtStatusForGroupLoan($lastLoan);
+            $balance = $debtStatus['outstanding_balance'];
+            $canBorrow = $debtStatus['can_proceed'];
+        } elseif ($balance > 0) {
+            $canBorrow = false;
+        }
+
         return [
             'min' => 50000,
             'max' => $maximum,
             'balance' => $balance,
-            'can_borrow' => $balance <= 0 // Eligibility check
+            'can_borrow' => $canBorrow,
         ];
     }
 

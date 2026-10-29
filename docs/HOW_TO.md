@@ -578,10 +578,13 @@ HQ menu: **Groups**, **Members**, **Loans** (repayments, phases, receipts, group
 
 ### Application blocked — uncleared balance
 
+Approval is blocked only when the remaining balance is **more than 75%** of the previous loan amount.
+
 1. Open the application and note the balance shown.
 2. Check repayments under **Loans → Receipts** or group loan history.
-3. If fully repaid, ask ICT to run a **loan status refresh**.
-4. If balance is genuine, reject or defer until repayment is made.
+3. If the remaining balance is **≤ 75%** of the previous loan, refresh — approval should be allowed.
+4. If fully repaid, ask ICT to run a **loan status refresh**.
+5. If balance is still above the 75% threshold, reject or defer until more repayment is made.
 
 ### System recommends decline
 

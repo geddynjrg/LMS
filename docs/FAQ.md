@@ -305,10 +305,13 @@ Bank reconciliation **must** be on file before you can approve.
 
 ### How do I fix “application blocked — uncleared balance”?
 
+Approval is blocked only when the remaining balance is **more than 75%** of the previous loan amount.
+
 1. Open the application and note the balance shown.
 2. Confirm repayments in **Loans → Receipts** or group loan history.
-3. If the group has fully repaid, ask ICT to run a **loan status refresh** on the group.
-4. If balance is genuine, **reject** or defer until repayment is made.
+3. If the remaining balance is **≤ 75%** of the previous loan, refresh the page — approval should be allowed.
+4. If the group has fully repaid, ask ICT to run a **loan status refresh** on the group.
+5. If balance is still above the 75% threshold, **reject** or defer until more repayment is made.
 
 ### How do I fix “system recommends decline” on approval?
 

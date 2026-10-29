@@ -9,7 +9,17 @@ use Illuminate\Support\Collection;
 
 class LoanDebtCheckService
 {
-    public const REPAYMENT_THRESHOLD_PERCENT = 80;
+    /**
+     * Block new borrowing only when remaining balance exceeds this share
+     * of the previous (last financed) loan amount.
+     */
+    public const OUTSTANDING_BALANCE_BLOCK_PERCENT = 75;
+
+    /**
+     * Minimum repaid % of previous loan required to proceed
+     * (100 - OUTSTANDING_BALANCE_BLOCK_PERCENT).
+     */
+    public const REPAYMENT_THRESHOLD_PERCENT = 25;
 
     public const ENDELEZA_MIN_AMOUNT = 75000;
 
@@ -122,15 +132,19 @@ class LoanDebtCheckService
         $repaid = (float) $loan->amount_repaid;
         $outstanding = max($issued - $repaid, 0);
         $repaymentPercentage = $issued > 0 ? round(($repaid / $issued) * 100, 2) : 100;
-        $minimumPaymentRequired = max(0, round(($issued * (self::REPAYMENT_THRESHOLD_PERCENT / 100)) - $repaid, 2));
-        $blocksProceed = $outstanding > 0.01 && $repaymentPercentage < self::REPAYMENT_THRESHOLD_PERCENT;
+        $outstandingPercentage = $issued > 0 ? round(($outstanding / $issued) * 100, 2) : 0;
+        $maxAllowedOutstanding = round($issued * (self::OUTSTANDING_BALANCE_BLOCK_PERCENT / 100), 2);
+        $minimumPaymentRequired = max(0, round($outstanding - $maxAllowedOutstanding, 2));
+        $blocksProceed = $outstandingPercentage > self::OUTSTANDING_BALANCE_BLOCK_PERCENT;
 
         return [
             'amount_issued' => $issued,
             'amount_repaid' => $repaid,
             'outstanding_balance' => $outstanding,
+            'outstanding_percentage' => $outstandingPercentage,
             'repayment_percentage' => $repaymentPercentage,
             'minimum_payment_required' => $minimumPaymentRequired,
+            'outstanding_balance_block_percent' => self::OUTSTANDING_BALANCE_BLOCK_PERCENT,
             'blocks_proceed' => $blocksProceed,
             'can_proceed' => !$blocksProceed,
         ];
@@ -316,6 +330,7 @@ class LoanDebtCheckService
             'repayment_percentage' => $status['repayment_percentage'],
             'minimum_payment_required' => $status['minimum_payment_required'],
             'repayment_threshold_percent' => self::REPAYMENT_THRESHOLD_PERCENT,
+            'outstanding_balance_block_percent' => self::OUTSTANDING_BALANCE_BLOCK_PERCENT,
             'members' => $members,
         ];
     }
@@ -344,6 +359,7 @@ class LoanDebtCheckService
             'repayment_percentage' => 100,
             'minimum_payment_required' => 0,
             'repayment_threshold_percent' => self::REPAYMENT_THRESHOLD_PERCENT,
+            'outstanding_balance_block_percent' => self::OUTSTANDING_BALANCE_BLOCK_PERCENT,
             'members' => [],
             'group_found' => false,
             'has_prior_financed_loan' => false,
