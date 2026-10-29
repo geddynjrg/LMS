@@ -120,10 +120,15 @@ class SecureApiAccess
 
     private function isRateLimited(Request $request): bool
     {
-        // Import-status polling is read-only; do not throttle it with write traffic.
+        // Read-only location/status polling — used heavily by the loans portal
+        // (e.g. ward dropdown after constituency select). Do not share the
+        // write/read buckets or a single sticky Redis key can block all users.
         if (
             $request->isMethod('GET')
-            && str_contains($request->path(), 'import-status')
+            && (
+                str_contains($request->path(), 'import-status')
+                || str_contains($request->path(), 'locations/')
+            )
         ) {
             return false;
         }
@@ -141,12 +146,9 @@ class SecureApiAccess
             return true;
         }
 
-        if ($current === 0) {
-            Cache::put($key, 1, $window);
-        }
-        else {
-            Cache::increment($key);
-        }
+        // Always rewrite with TTL. Cache::increment alone can leave a key with
+        // no expiry (ttl=-1), permanently rate-limiting the portal IP.
+        Cache::put($key, $current + 1, $window);
 
         return false;
     }
@@ -160,4 +162,3 @@ class SecureApiAccess
         ], 401);
     }
 }
-

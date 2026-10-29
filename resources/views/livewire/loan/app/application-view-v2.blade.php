@@ -226,8 +226,14 @@
                         <x-loading-button
                             target="rejectApplication"
                             icon="fas fa-times"
-                            class="btn-outline-danger btn-sm"
+                            class="btn-outline-danger btn-sm mr-1"
                             label="Reject"
+                        />
+                        <x-loading-button
+                            target="returnToGroup"
+                            icon="fas fa-undo"
+                            class="btn-outline-warning btn-sm"
+                            label="Return"
                         />
                     @else
                         <x-table-action-btn

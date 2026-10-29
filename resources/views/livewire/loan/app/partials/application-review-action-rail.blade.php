@@ -142,6 +142,13 @@
                                 label="Reject"
                             />
                         </div>
+                        <x-loading-button
+                            target="returnToGroup"
+                            class="btn btn-outline-warning btn-sm btn-block mb-2"
+                            icon="fas fa-undo"
+                            label="Return to group"
+                            title="Send back to the group as draft so they can upload documents or correct details"
+                        />
                     @else
                         <div class="text-center p-3 border rounded {{ in_array($this->application->phaseApplication->status, ['rejected']) ? 'border-success' : 'border-primary' }}">
                             <i class="fas {{ in_array($this->application->phaseApplication->status, ['rejected']) ? 'fa-times-circle text-success' : 'fa-check-circle text-primary' }} fa-2x mb-2"></i>

@@ -545,6 +545,62 @@
         </x-slot>
     </x-action-modal>
 
+    {{-- return application to group (draft) --}}
+    <x-action-modal
+            id="modal-return-to-group"
+            title="Return to Group"
+            type="info"
+            icon="fa-undo"
+            size="modal-md"
+            x-on:open-modal.window="if($event.detail.name === 'modal-return-to-group') $($el).modal('show')"
+            x-on:close-modal.window="if($event.detail.name === 'modal-return-to-group') $($el).modal('hide')"
+        >
+        <form wire:submit.prevent="confirmReturnToGroup">
+            <div class="alert alert-light border mb-4 py-2 px-3" style="border-radius: 12px; background-color: #fffbeb;">
+                <small class="text-gray-600">
+                    <i class="fas fa-info-circle mr-1 text-warning"></i>
+                    This marks the application as <strong>draft</strong> on the loans portal so the group can upload missing documents or correct details, then resubmit. An SMS will be sent to the chairperson with your comments.
+                </small>
+            </div>
+
+            <div class="form-group mb-0 text-left">
+                <label class="text-uppercase text-gray-600 font-weight-black small tracking-wider mb-2">
+                    Comments for the group <span class="text-danger">*</span>
+                </label>
+                <div class="input-group premium-input-group" style="border-radius: 16px !important; overflow: hidden; border: 1px solid #ced4da;">
+                    <div class="input-group-prepend align-items-start pt-3 pl-3">
+                        <span class="input-group-text bg-transparent border-0 p-0">
+                            <i class="fas fa-comment-dots text-warning"></i>
+                        </span>
+                    </div>
+                    <textarea wire:model="returnToGroupComment"
+                        class="form-control border-0 shadow-none py-3"
+                        rows="4"
+                        placeholder="e.g. Please upload the list of members on the registration certificate and resubmit..."
+                        style="min-height: 120px; font-size: 0.95rem;"></textarea>
+                </div>
+                <div class="d-flex justify-content-between mt-1">
+                    @error('returnToGroupComment')
+                        <span class="text-danger small font-weight-bold d-block">{{ $message }}</span>
+                    @enderror
+                    <small class="text-gray-600 ml-auto">Min. 20 characters (mandatory)</small>
+                </div>
+            </div>
+
+            <x-slot name="footer">
+                <x-pill-button label="Cancel" variant="outline" color="dark" data-dismiss="modal" class="mx-1" />
+                <x-pill-button
+                    type="submit"
+                    label="Return to group"
+                    color="warning"
+                    target="confirmReturnToGroup"
+                    icon="fas fa-undo"
+                    class="mx-1 shadow-sm"
+                />
+            </x-slot>
+        </form>
+    </x-action-modal>
+
     {{-- reject application --}}
     <x-action-modal
             id="modal-reject-application"

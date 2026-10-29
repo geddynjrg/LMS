@@ -21,8 +21,8 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
     public const DRUPAL_TRANSITIONS = [
         'draft' => ['group_member_confirmation'],
         'group_member_confirmation' => ['submitted'],
-        'submitted' => ['constituency_review', 'rejected'],
-        'constituency_review' => ['approved_by_constituency', 'rejected'],
+        'submitted' => ['constituency_review', 'rejected', 'draft'],
+        'constituency_review' => ['approved_by_constituency', 'rejected', 'draft'],
         'approved_by_constituency' => ['under_review'],
         'under_review' => ['approved', 'rejected'],
         'approved' => ['pending_secretariat_review', 'training'],
@@ -147,6 +147,7 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
                 $targetStatus = self::resolveTargetDrupalStatus($app);
                 $drupalApplication = $drupal->getApplication($app->application_id);
                 $currentDrupalStatus = $drupalApplication['status'] ?? null;
+                $preferredDrupalBase = $drupalApplication['_drupal_base'] ?? null;
 
                 if (!$currentDrupalStatus) {
                     $this->markSyncSkipped($app, 'Application not found in Drupal');
@@ -210,7 +211,11 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
                         }
 
                         $payload = $this->buildDrupalPayload($app, $stepStatus);
-                        $lastResponse = $drupal->updateApplicationStatus($app->application_id, $payload);
+                        $lastResponse = $drupal->updateApplicationStatus(
+                            $app->application_id,
+                            $payload,
+                            $preferredDrupalBase
+                        );
 
                         if ($lastResponse->status() === 404) {
                             $this->markSyncSkipped($app, 'Application not found in Drupal during status update');
@@ -276,6 +281,15 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
             return false;
         }
 
+        // Constituency returned the application to the group for correction.
+        if ($target === 'draft') {
+            return in_array($current, [
+                'submitted',
+                'constituency_review',
+                'group_member_confirmation',
+            ], true);
+        }
+
         if ($target === 'rejected') {
             return $current !== 'rejected';
         }
@@ -294,6 +308,11 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
     {
         $phaseStatus = $app->phaseApplication?->status;
         $tempStatus = strtolower(trim((string) $app->status));
+
+        // Returned to applicant — always draft on the loans portal, even if phase is deferred.
+        if ($tempStatus === 'draft' || $phaseStatus === 'deferred') {
+            return 'draft';
+        }
 
         if ($tempStatus === 'rejected' || $phaseStatus === 'rejected') {
             return 'rejected';
@@ -346,12 +365,20 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
     {
         $payload = ['status' => $drupalStatus];
 
-        if ($drupalStatus === 'rejected') {
-            $payload['rejection_reason'] = $this->normalizeRejectionReason(
-                $app->phaseApplication?->rejection_reason
-            );
-            $payload['rejection_message'] = $app->phaseApplication?->rejection_message
-                ?? 'No message provided';
+        if ($drupalStatus === 'rejected' || $drupalStatus === 'draft') {
+            $message = $app->phaseApplication?->rejection_message
+                ?? $app->phaseApplication?->comments
+                ?? null;
+
+            if ($drupalStatus === 'rejected' || filled($message)) {
+                $payload['rejection_reason'] = $this->normalizeRejectionReason(
+                    $app->phaseApplication?->rejection_reason ?? 'incomplete_information'
+                );
+                $payload['rejection_message'] = $message
+                    ?? ($drupalStatus === 'draft'
+                        ? 'Returned to group for correction by the Constituency Office.'
+                        : 'No message provided');
+            }
         }
 
         if ($drupalStatus === 'disbursement_failed') {
@@ -401,6 +428,11 @@ class SyncApplicationStatusToDrupal implements ShouldQueue
     {
         if ($from === $to) {
             return [];
+        }
+
+        // Direct return-to-draft (constituency correction request).
+        if ($to === 'draft') {
+            return ['draft'];
         }
 
         if ($to === 'rejected') {

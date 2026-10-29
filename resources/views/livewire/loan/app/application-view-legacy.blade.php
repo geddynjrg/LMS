@@ -423,6 +423,12 @@
                                                         label="Reject"
                                                     />
                                                 </div>
+                                                <x-loading-button
+                                                    target="returnToGroup"
+                                                    class="btn btn-outline-warning btn-sm btn-block mb-2"
+                                                    icon="fas fa-undo"
+                                                    label="Return to group"
+                                                />
                                             @else
                                                 {{-- Historical Decision View --}}
                                                 <div class="text-center p-3 border rounded {{ in_array($this->application->phaseApplication->status, ['rejected']) ? 'border-success' : 'border-primary' }}">
@@ -976,6 +982,31 @@
     </x-action-modal>
 
     {{-- reject application --}}
+    <x-action-modal
+            id="modal-return-to-group"
+            title="Return to Group"
+            type="info"
+            icon="fa-undo"
+            size="modal-md"
+            x-on:open-modal.window="if($event.detail.name === 'modal-return-to-group') $($el).modal('show')"
+            x-on:close-modal.window="if($event.detail.name === 'modal-return-to-group') $($el).modal('hide')"
+        >
+        <form wire:submit.prevent="confirmReturnToGroup">
+            <div class="alert alert-warning border mb-4 py-2 px-3">
+                <small>Marks the application as <strong>draft</strong> on the loans portal and SMS’s the chairperson with your comments.</small>
+            </div>
+            <div class="form-group mb-0 text-left">
+                <label class="small font-weight-bold">Comments for the group <span class="text-danger">*</span></label>
+                <textarea wire:model="returnToGroupComment" class="form-control" rows="4" placeholder="Explain what the group must correct..."></textarea>
+                @error('returnToGroupComment') <span class="text-danger small">{{ $message }}</span> @enderror
+            </div>
+            <x-slot name="footer">
+                <x-pill-button label="Cancel" variant="outline" color="dark" data-dismiss="modal" class="mx-1" />
+                <x-pill-button type="submit" label="Return to group" color="warning" target="confirmReturnToGroup" icon="fas fa-undo" class="mx-1" />
+            </x-slot>
+        </form>
+    </x-action-modal>
+
     <x-action-modal
             id="modal-reject-application"
             title="Reject Application"

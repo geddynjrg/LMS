@@ -50,6 +50,14 @@ Route::get('/', function () {
     return view('auth.login');
 })->middleware('guest');
 
+Route::get('/app/staff-role', function (Request $request) {
+    return response()->json(\App\Http\Controllers\AppSessionController::describe((string) $request->query('email', '')));
+});
+
+Route::post('/app/zimbra-session', [\App\Http\Controllers\AppSessionController::class, 'fromZimbra']);
+Route::post('/app/password-session', [\App\Http\Controllers\AppSessionController::class, 'fromPassword']);
+
+
 Route::get('/clear', function () {
     Artisan::call('cache:clear');
     Artisan::call('config:cache');
@@ -59,6 +67,13 @@ Route::get('/clear', function () {
 });
 
 Route::middleware(['auth'])->group(function () {
+
+    Route::get('/app/me', [\App\Http\Controllers\AppSessionController::class, 'me']);
+    Route::get('/app/mobile/snapshot', [\App\Http\Controllers\MobileSyncController::class, 'snapshot']);
+    Route::post('/app/mobile/mutations', [\App\Http\Controllers\MobileSyncController::class, 'mutations']);
+    Route::get('/app/mobile/national/phases', [\App\Http\Controllers\MobileNationalController::class, 'phases']);
+    Route::get('/app/mobile/national/applications', [\App\Http\Controllers\MobileNationalController::class, 'applications']);
+    Route::post('/app/mobile/national/decide', [\App\Http\Controllers\MobileNationalController::class, 'decide']);
 
     // Fallback for direct GET /logout (Fortify only registers POST)
     Route::get('/logout', function (Request $request) {
