@@ -133,9 +133,10 @@ class LoanDebtCheckService
         $outstanding = max($issued - $repaid, 0);
         $repaymentPercentage = $issued > 0 ? round(($repaid / $issued) * 100, 2) : 100;
         $outstandingPercentage = $issued > 0 ? round(($outstanding / $issued) * 100, 2) : 0;
-        $maxAllowedOutstanding = round($issued * (self::OUTSTANDING_BALANCE_BLOCK_PERCENT / 100), 2);
+        $maxAllowedOutstanding = $issued * (self::OUTSTANDING_BALANCE_BLOCK_PERCENT / 100);
         $minimumPaymentRequired = max(0, round($outstanding - $maxAllowedOutstanding, 2));
-        $blocksProceed = $outstandingPercentage > self::OUTSTANDING_BALANCE_BLOCK_PERCENT;
+        // Strict amount compare: block only when outstanding is more than 75% of previous loan.
+        $blocksProceed = $issued > 0 && $outstanding > $maxAllowedOutstanding;
 
         return [
             'amount_issued' => $issued,
