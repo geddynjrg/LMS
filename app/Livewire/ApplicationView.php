@@ -19,6 +19,7 @@ use App\Services\Loan\LoanRecommendationService;
 use App\Services\PathwayPrescriptionService;
 use App\Services\Loan\WardAllocationService;
 use App\Services\Loan\DefaultAnalysisService;
+use App\Services\Ml\RepaymentScoreClient;
 use App\Services\IdempotencyService;
 use App\Exports\ApplicationInstitutionalDataExport;
 use App\Jobs\SyncApplicationStatusToDrupal;
@@ -1488,6 +1489,39 @@ public function downloadMemberFile($memberId, $field)
     {
         return $this->riskAssessmentData['overall_category'] ?? 'Low Risk';
     }
+
+
+    #[Computed]
+    public function mlScoreData(): ?array
+    {
+        $applicationId = $this->application->application_id ?? null;
+        if (!$applicationId) {
+            return null;
+        }
+
+        /** @var RepaymentScoreClient $client */
+        $client = app(RepaymentScoreClient::class);
+        $payload = $client->scoreIntake((string) $applicationId);
+        if (!$payload) {
+            return null;
+        }
+
+        // Best-effort persist under assessment_data (non-blocking)
+        try {
+            $merged = $client->mergeIntoAssessmentData(
+                is_array($this->application->assessment_data) ? $this->application->assessment_data : null,
+                $payload
+            );
+            if ($merged !== ($this->application->assessment_data ?? null)) {
+                $this->application->forceFill(['assessment_data' => $merged])->saveQuietly();
+            }
+        } catch (\Throwable $e) {
+            Log::debug('ML assessment_data persist skipped', ['error' => $e->getMessage()]);
+        }
+
+        return $payload;
+    }
+
 
     public function getMemberConflictCountProperty()
     {

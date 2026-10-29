@@ -298,6 +298,50 @@
                     </div>
                 </div>
 
+
+                @php
+                    $ml = $this->mlScoreData ?? null;
+                    $mlIntake = is_array($ml) ? ($ml['intake'] ?? null) : null;
+                    $mlEarly = is_array($ml) ? ($ml['earlywarn'] ?? null) : null;
+                @endphp
+                @if($mlIntake)
+                    <div class="border rounded-sm p-3 mb-4 bg-light">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <span class="font-weight-bold small text-uppercase tracking-widest text-muted d-block mb-1">ML repayment risk</span>
+                                <div class="h4 mb-0 font-weight-bold font-mono" style="color: {{ $mlIntake['tu_like_color'] ?? '#333' }};">
+                                    {{ $mlIntake['tu_like_score'] ?? '—' }}
+                                    <span class="h6 font-weight-bold ml-1">{{ $mlIntake['tu_like_band'] ?? '' }}</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="small text-muted text-uppercase font-weight-bold">Default probability</div>
+                                <div class="font-weight-bold font-mono">{{ number_format($mlIntake['probability_pct'] ?? (($mlIntake['probability'] ?? 0) * 100), 1) }}%</div>
+                                <span class="badge badge-{{ ($mlIntake['risk_band'] ?? '') === 'High' ? 'danger' : (($mlIntake['risk_band'] ?? '') === 'Medium' ? 'warning' : 'success') }}">
+                                    {{ $mlIntake['risk_band'] ?? '' }}
+                                </span>
+                            </div>
+                        </div>
+                        @if(is_array($mlEarly) && !empty($mlEarly['applicable']))
+                            <div class="d-flex justify-content-between align-items-center border-top pt-2 mt-2">
+                                <span class="small text-muted">Early-warning</span>
+                                <span class="font-mono font-weight-bold" style="color: {{ $mlEarly['tu_like_color'] ?? '#333' }};">
+                                    {{ $mlEarly['tu_like_score'] ?? '—' }} {{ $mlEarly['tu_like_band'] ?? '' }}
+                                    ({{ number_format($mlEarly['probability_pct'] ?? (($mlEarly['probability'] ?? 0) * 100), 1) }}%)
+                                </span>
+                            </div>
+                        @else
+                            <div class="small text-muted border-top pt-2 mt-2">Early-warning: not available until disbursement</div>
+                        @endif
+                        <div class="small text-muted mt-2" style="font-size: 0.7rem;">
+                            {{ $mlIntake['disclaimer'] ?? 'Uwezo ML (TransUnion-style scale — not a CRB report)' }}
+                            @if(!empty($ml['model_version']))
+                                · model {{ $ml['model_version'] }}
+                            @endif
+                        </div>
+                    </div>
+                @endif
+
                 <label class="text-xs text-muted text-uppercase font-weight-bold tracking-wider mb-3 d-block">Identified Flags</label>
                 <ul class="list-unstyled mb-0">
                     @forelse($this->riskFlags as $flag)
