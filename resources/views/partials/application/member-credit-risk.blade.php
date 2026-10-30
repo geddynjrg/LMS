@@ -1,3 +1,20 @@
+
+@php
+    $memberMl = $memberMlScore ?? null;
+    $memberMlIntake = is_array($memberMl) ? ($memberMl['intake'] ?? null) : null;
+@endphp
+@if($memberMlIntake)
+    <div class="border rounded-sm p-3 mb-4 bg-white">
+        <span class="font-weight-bold small text-uppercase tracking-widest text-muted d-block mb-2 text-center">ML repayment risk</span>
+        @include('partials.application.ml-tu-gauge', [
+            'mlIntake' => $memberMlIntake,
+            'compact' => true,
+            'showEarlywarn' => false,
+            'showEarlywarnLine' => false,
+        ])
+    </div>
+@endif
+
 @if($member->is_defaulter)
     <div class="border overflow-hidden rounded-sm shadow-sm mb-4">
         <div class="bg-primary px-3 py-2 text-white small font-weight-bold text-uppercase tracking-wider d-flex justify-content-between align-items-center">

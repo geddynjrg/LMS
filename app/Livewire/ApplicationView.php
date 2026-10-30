@@ -1522,6 +1522,23 @@ public function downloadMemberFile($memberId, $field)
         return $payload;
     }
 
+    #[Computed]
+    public function selectedMemberMlScore(): ?array
+    {
+        if (!$this->selectedMember) {
+            return null;
+        }
+        $applicationId = $this->application->application_id ?? null;
+        $nationalId = (string) ($this->selectedMember->id_number ?? '');
+        if (!$applicationId || $nationalId === '') {
+            return null;
+        }
+
+        /** @var RepaymentScoreClient $client */
+        $client = app(RepaymentScoreClient::class);
+        return $client->scoreMember((string) $applicationId, $nationalId);
+    }
+
 
     public function getMemberConflictCountProperty()
     {
