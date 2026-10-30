@@ -420,7 +420,7 @@
                             <div class="col-md-7 p-4 bg-white">
                                 <label class="text-gray-500 small font-weight-bold text-uppercase tracking-widest mb-4 d-block">Credit Risk Assessment</label>
 
-                                @include('partials.application.member-credit-risk', ['member' => $selectedMember])
+                                @include('partials.application.member-credit-risk', ['member' => $selectedMember, 'memberMlScore' => $this->selectedMemberMlScore])
                             </div>
                         </div>
                     </div>

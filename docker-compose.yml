@@ -24,8 +24,10 @@ services:
     env_file:
       - .env
     environment:
-      - APP_ENV=${APP_ENV:-local}
-      - APP_DEBUG=${APP_DEBUG:-true}
+      # Staging/prod-safe defaults: never leave Debugbar on via APP_DEBUG.
+      - APP_ENV=${APP_ENV:-staging}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - DEBUGBAR_ENABLED=${DEBUGBAR_ENABLED:-false}
       - APP_URL=${APP_URL:-http://localhost:8082}
       # IMPORTANT: Use the container name of the existing DB (must be on same network)
       - DB_HOST=uwezo-lms-db

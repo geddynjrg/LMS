@@ -298,6 +298,23 @@
                     </div>
                 </div>
 
+
+                @php
+                    $ml = $this->mlScoreData ?? null;
+                    $mlIntake = is_array($ml) ? ($ml['intake'] ?? null) : null;
+                    $mlEarly = is_array($ml) ? ($ml['earlywarn'] ?? null) : null;
+                @endphp
+                @if($mlIntake)
+                    <div class="mb-4">
+                        <span class="font-weight-bold small text-uppercase tracking-widest text-muted d-block mb-2 text-center">ML repayment risk</span>
+                        @include('partials.application.ml-tu-gauge', [
+                            'mlIntake' => $mlIntake,
+                            'mlEarly' => $mlEarly,
+                            'showEarlywarn' => true,
+                        ])
+                    </div>
+                @endif
+
                 <label class="text-xs text-muted text-uppercase font-weight-bold tracking-wider mb-3 d-block">Identified Flags</label>
                 <ul class="list-unstyled mb-0">
                     @forelse($this->riskFlags as $flag)

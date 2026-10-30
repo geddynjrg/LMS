@@ -1199,7 +1199,7 @@
                             <div class="col-md-7 p-4 bg-white">
                                 <label class="text-gray-500 font-weight-bold text-uppercase tracking-widest mb-4 d-block">Credit Risk Assessment</label>
 
-                                @include('partials.application.member-credit-risk', ['member' => $selectedMember])
+                                @include('partials.application.member-credit-risk', ['member' => $selectedMember, 'memberMlScore' => $this->selectedMemberMlScore])
                             </div>
                         </div>
                     </div>
@@ -1212,7 +1212,7 @@
             </div>
         </div>
     </div>
-</section>
+
 
     <x-action-modal
         id="app-view-disburse-modal"
@@ -1319,6 +1319,8 @@
             </div>
         </x-slot>
     </x-action-modal>
+
+</section>
 
 @push('styles')
 
