@@ -19,6 +19,8 @@ use App\Models\PhaseApplication;
 use App\Exports\ApplicationInstitutionalDataExport;
 use App\Jobs\SyncApplicationStatusToDrupal;
 use App\Services\WorkflowNotificationService;
+use App\Services\Ml\RepaymentScoreClient;
+use Illuminate\Support\Facades\Log;
 
 class ApplicationView extends Component
 {
@@ -108,6 +110,55 @@ class ApplicationView extends Component
             $this->application->phaseApplication?->linkedGroup,
             $this->application->groupMembers
         );
+    }
+
+
+    #[Computed]
+    public function mlScoreData(): ?array
+    {
+        $applicationId = $this->application->application_id ?? null;
+        if (!$applicationId) {
+            return null;
+        }
+
+        /** @var RepaymentScoreClient $client */
+        $client = app(RepaymentScoreClient::class);
+        $payload = $client->scoreIntake((string) $applicationId);
+        if (!$payload) {
+            return null;
+        }
+
+        // Best-effort persist under assessment_data (non-blocking)
+        try {
+            $merged = $client->mergeIntoAssessmentData(
+                is_array($this->application->assessment_data) ? $this->application->assessment_data : null,
+                $payload
+            );
+            if ($merged !== ($this->application->assessment_data ?? null)) {
+                $this->application->forceFill(['assessment_data' => $merged])->saveQuietly();
+            }
+        } catch (\Throwable $e) {
+            Log::debug('ML assessment_data persist skipped', ['error' => $e->getMessage()]);
+        }
+
+        return $payload;
+    }
+
+    #[Computed]
+    public function selectedMemberMlScore(): ?array
+    {
+        if (!$this->selectedMember) {
+            return null;
+        }
+        $applicationId = $this->application->application_id ?? null;
+        $nationalId = (string) ($this->selectedMember->id_number ?? '');
+        if (!$applicationId || $nationalId === '') {
+            return null;
+        }
+
+        /** @var RepaymentScoreClient $client */
+        $client = app(RepaymentScoreClient::class);
+        return $client->scoreMember((string) $applicationId, $nationalId);
     }
 
     #[Computed]
