@@ -829,7 +829,6 @@
             </div>
         </div>
     </div>
-</section>
 
     <x-action-modal
         id="app-view-disburse-modal"

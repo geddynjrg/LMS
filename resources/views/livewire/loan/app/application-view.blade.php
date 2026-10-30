@@ -1212,7 +1212,7 @@
             </div>
         </div>
     </div>
-</section>
+
 
     <x-action-modal
         id="app-view-disburse-modal"
@@ -1319,6 +1319,8 @@
             </div>
         </x-slot>
     </x-action-modal>
+
+</section>
 
 @push('styles')
 

@@ -1234,7 +1234,7 @@
             </div>
         </div>
     </div>
-</section>
+
 
     <x-action-modal
         id="app-view-disburse-modal"
@@ -1344,6 +1344,8 @@
 
     @include('livewire.loan.app.partials.application-edit-modal')
     @livewire('send-custom-sms')
+
+</section>
 
 @push('styles')
 

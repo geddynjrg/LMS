@@ -10,7 +10,7 @@
     $size = !empty($compact) ? 120 : 160;
     $stroke = !empty($compact) ? 10 : 12;
     $r = ($size / 2) - ($stroke / 2) - 2;
-    $c = 2 * M_PI * $r;
+    $c = 2 * pi() * $r;
     $dash = ($fillPct / 100) * $c;
     $showEw = $showEarlywarn ?? true;
 @endphp
